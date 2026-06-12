@@ -1,0 +1,88 @@
+.banyan-richtext {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.banyan-richtext-toolbar {
+  appearance: none;
+  user-select: none;
+  /* color: var(--fill-secondary); */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 41px;
+  min-height: 41px;
+  margin: 0;
+  padding: 0 8px;
+  background: var(--material-toolbar);
+  border: 1px solid var(--fill-quarternary);
+  border-radius: 5px 5px 0 0;
+}
+
+.banyan-toolbar-button {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--fill-secondary);
+  background-color: transparent;
+  width: 28px;
+  height: 28px;
+  fill: currentColor;
+  -moz-context-properties: fill, fill-opacity;
+  -moz-window-dragging: no-drag;
+  border-radius: 5px;
+  box-sizing: border-box;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.banyan-toolbar-button:hover {
+  background-color: var(--fill-quinary);
+}
+
+.banyan-toolbar-button:active,
+.banyan-toolbar-button.active {
+  background-color: var(--fill-quarternary);
+}
+
+.banyan-richtext-editor {
+  line-height: 1.4;
+  height: calc(2 * 1.4em + 16px);
+  min-height: calc(2 * 1.4em + 16px);
+  max-height: 50vh;
+  padding: 8px 10px;
+  border: 1px solid var(--fill-quarternary);
+  border-radius: 0 0 5px 5px;
+  border-top: none;
+  background: var(--material-background);
+  white-space: pre-wrap;
+  resize: vertical;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+.banyan-richtext-editor:focus,
+.banyan-richtext-editor:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Icon backgrounds */
+.banyan-icon-bold {
+  background-image: url("chrome://__addonRef__/content/icons/bold.svg");
+}
+.banyan-icon-italic {
+  background-image: url("chrome://__addonRef__/content/icons/italic.svg");
+}
+.banyan-icon-superscript {
+  background-image: url("chrome://__addonRef__/content/icons/superscript.svg");
+}
+.banyan-icon-subscript {
+  background-image: url("chrome://__addonRef__/content/icons/subscript.svg");
+}
+.banyan-icon-remove-format {
+  background-image: url("chrome://__addonRef__/content/icons/remove-format.svg");
+}

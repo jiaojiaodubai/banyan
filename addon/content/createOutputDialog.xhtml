@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<html
+  id="banyan-create-output-dialog"
+  persist="screenX screenY width height sizemode"
+  xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+  resizable="true"
+>
+  <head>
+    <title data-l10n-id="create-output-dialog-title"></title>
+    <link rel="localization" href="zotero.ftl" />
+    <link rel="localization" href="__addonRef__-createOutputDialog.ftl" />
+
+    <link rel="stylesheet" href="chrome://global/skin/global.css" />
+    <link rel="stylesheet" href="chrome://zotero/skin/zotero.css" />
+    <link rel="stylesheet" href="chrome://zotero/skin/overlay.css" />
+    <link rel="stylesheet" href="chrome://zotero-platform/content/zotero.css" />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/createOutputDialog.css"
+    />
+
+    <script src="chrome://zotero/content/include.js"></script>
+    <script src="chrome://zotero/content/customElements.js"></script>
+    <script src="chrome://zotero/content/titlebar.js"></script>
+    <script>
+      const addon = Zotero.__addonInstance__;
+      const ztoolkit = addon.data.ztoolkit;
+    </script>
+    <script src="chrome://__addonRef__/content/scripts/createOutputDialog.js"></script>
+  </head>
+  <body>
+    <div class="dialog-container">
+      <!-- Style Selection -->
+      <div class="form-row form-row-stack">
+        <label
+          for="style-select"
+          data-l10n-id="create-output-style-label"
+        ></label>
+        <select id="style-select"></select>
+      </div>
+
+      <!-- Item Count Info -->
+      <div id="item-count-info" class="info-row"></div>
+
+      <!-- Output Type -->
+      <div class="form-row form-row-stack">
+        <label data-l10n-id="create-output-type-label"></label>
+        <div class="radio-group radio-group-row">
+          <label class="radio-item">
+            <input
+              type="radio"
+              name="output-type"
+              value="bibliography"
+              checked="checked"
+            />
+            <span data-l10n-id="create-output-type-bibliography"></span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="output-type" value="citation" />
+            <span
+              id="output-type-citation-label"
+              data-l10n-id="create-output-type-citation"
+            ></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Output Format -->
+      <div class="form-row form-row-stack">
+        <label data-l10n-id="create-output-format-label"></label>
+        <div class="radio-group radio-group-row">
+          <label class="radio-item">
+            <input
+              type="radio"
+              name="output-format"
+              value="html"
+              checked="checked"
+            />
+            <span data-l10n-id="create-output-format-html"></span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="output-format" value="text" />
+            <span data-l10n-id="create-output-format-text"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Output Method -->
+      <div class="form-row form-row-stack">
+        <label data-l10n-id="create-output-method-label"></label>
+        <div class="radio-group radio-group-col">
+          <label class="radio-item">
+            <input
+              type="radio"
+              name="output-method"
+              value="clipboard"
+              checked="checked"
+            />
+            <span data-l10n-id="create-output-method-clipboard"></span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="output-method" value="file" />
+            <span data-l10n-id="create-output-method-file"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <footer>
+      <button
+        id="cancel-button"
+        type="button"
+        data-l10n-id="create-output-cancel"
+      ></button>
+      <button
+        id="accept-button"
+        type="button"
+        data-l10n-id="create-output-accept"
+        default="true"
+      ></button>
+    </footer>
+  </body>
+</html>

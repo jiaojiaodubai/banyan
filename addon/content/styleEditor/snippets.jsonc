@@ -1,0 +1,115 @@
+// Banyan style editor snippets (VSCode snippet format).
+//
+// How to use:
+// 1. Each top-level key is the snippet display name.
+// 2. `prefix` can be a string or string array.
+// 3. `body` can be a string or string array (recommended).
+// 4. Use VSCode-style placeholders like ${1:name}, ${2:default} and $0.
+// 5. This file is also consumed by Monaco completion in styleEditor.
+{
+  "INFO: Basic Metadata": {
+    "prefix": ["info", "info-basic"],
+    "description": "Insert a full INFO block",
+    "body": [
+      "const INFO = {",
+      "  id: \"${1:my-style}\",",
+      "  title: \"${2:My Style}\",",
+      "  description: \"${3:Describe your style here}\",",
+      "  citationType: \"${4|intext-citation,note-citation|}\",",
+      "  creator: [{ type: \"author\", name: \"${5:Your Name}\" }],",
+      "  tags: [],",
+      "  documentation: [],",
+      "  license: \"${6:MIT}\",",
+      "  updated: \"${7:2026-01-01}\",",
+      "};",
+      "$0"
+    ]
+  },
+  "INFO: Creator Block": {
+    "prefix": ["info-creator", "creator-block"],
+    "description": "Insert a creator item for INFO.creator",
+    "body": [
+      "{",
+      "  type: \"${1:author}\",",
+      "  name: \"${2:Your Name}\",",
+      "  email: \"${3:you@example.com}\",",
+      "},",
+      "$0"
+    ]
+  },
+  "UI: Basic Options": {
+    "prefix": ["ui", "ui-basic"],
+    "description": "Insert a basic UI declaration",
+    "body": [
+      "const UI = {",
+      "  citation: [",
+      "    {",
+      "      id: \"${1:show-url}\",",
+      "      label: \"${2:Show URL}\",",
+      "      type: \"checkbox\",",
+      "      value: ${3:false},",
+      "    },",
+      "  ],",
+      "  cite: [],",
+      "};",
+      "$0"
+    ]
+  },
+  "generate: In-text": {
+    "prefix": ["gen", "generate-intext"],
+    "description": "Insert in-text generate implementation",
+    "body": [
+      "function generate() {",
+      "  const unique = new Map();",
+      "  for (const ctx of contexts) {",
+      "    for (const cite of ctx.cites) {",
+      "      unique.set(cite.item.id, cite.item);",
+      "    }",
+      "  }",
+      "",
+      "  const citations = contexts.map((ctx) => ({",
+      "    id: ctx.id,",
+      "    units: text(\"${1:[1]}\"),",
+      "  }));",
+      "",
+      "  const bibliography = Array.from(unique.values()).map((item) => ({",
+      "    id: String(item.id),",
+      "    type: \"bibliography-entry\",",
+      "    units: text(item.title || item.key),",
+      "  }));",
+      "",
+      "  return { citations, bibliography };",
+      "}",
+      "$0"
+    ]
+  },
+  "generate: Note": {
+    "prefix": ["gen-note", "generate-note"],
+    "description": "Insert note-citation generate implementation",
+    "body": [
+      "function generate() {",
+      "  const unique = new Map();",
+      "  for (const ctx of contexts) {",
+      "    for (const cite of ctx.cites) {",
+      "      unique.set(cite.item.id, cite.item);",
+      "    }",
+      "  }",
+      "",
+      "  const citations = contexts.map((ctx, index) => ({",
+      "    id: ctx.id,",
+      "    units: text(String(index + 1)),",
+      "    reference: text(`Note ${index + 1}`),",
+      "  }));",
+      "",
+      "  const bibliography = Array.from(unique.values()).map((item) => ({",
+      "    id: String(item.id),",
+      "    type: \"bibliography-entry\",",
+      "    units: text(item.title || item.key),",
+      "  }));",
+      "",
+      "  return { citations, bibliography };",
+      "}",
+      "$0"
+    ]
+  }
+}

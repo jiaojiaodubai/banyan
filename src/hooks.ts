@@ -1,13 +1,15 @@
-import {
-  BasicExampleFactory,
-  HelperExampleFactory,
-  KeyExampleFactory,
-  PromptExampleFactory,
-  UIExampleFactory,
-} from "./modules/examples";
-import { getString, initLocale } from "./utils/locale";
-import { registerPrefsScripts } from "./modules/preferenceScript";
+import { dialogExample } from "./modules/debug";
+import { registerPrefs, onPrefsWindowLoad } from "./modules/preferences";
 import { createZToolkit } from "./utils/ztoolkit";
+import { loadStyles } from "./modules/styles";
+import { useL10n } from "./utils/locale";
+import {
+  registerStyleSheet,
+  registerItemPaneSection,
+} from "./modules/mainWindow";
+import { registerToolsMenu, registerContextMenu } from "./modules/menu";
+import { ensureStyleEditorRuntimeAssets } from "./modules/styleEditor";
+import { registerEndpoints, savePortToConfigFile } from "./modules/server";
 
 async function onStartup() {
   await Promise.all([
@@ -16,23 +18,14 @@ async function onStartup() {
     Zotero.uiReadyPromise,
   ]);
 
-  initLocale();
+  registerPrefs();
+  registerItemPaneSection();
+  registerEndpoints();
 
-  BasicExampleFactory.registerPrefs();
+  // Save Zotero's HTTP server port to config file for external integrations
+  await saveZoteroServerPort();
 
-  BasicExampleFactory.registerNotifier();
-
-  KeyExampleFactory.registerShortcuts();
-
-  await UIExampleFactory.registerExtraColumn();
-
-  await UIExampleFactory.registerExtraColumnWithCustomCell();
-
-  UIExampleFactory.registerItemPaneCustomInfoRow();
-
-  UIExampleFactory.registerItemPaneSection();
-
-  UIExampleFactory.registerReaderItemPaneSection();
+  await ensureStyleEditorRuntimeAssets();
 
   await Promise.all(
     Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
@@ -43,7 +36,20 @@ async function onStartup() {
   addon.data.initialized = true;
 }
 
+async function saveZoteroServerPort(): Promise<void> {
+  try {
+    const port = Number(Zotero.Prefs.get("httpServer.port"));
+    if (Number.isFinite(port) && port > 0) {
+      await savePortToConfigFile(port);
+      ztoolkit.log(`Banyan: Zotero HTTP server running on port ${port}`);
+    }
+  } catch (e) {
+    ztoolkit.logError(e);
+  }
+}
+
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
+  const t = useL10n();
   // Create ztoolkit for every window
   addon.data.ztoolkit = createZToolkit();
 
@@ -56,44 +62,39 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
     closeTime: -1,
   })
     .createLine({
-      text: getString("startup-begin"),
+      text: t("startup-begin"),
       type: "default",
       progress: 0,
     })
     .show();
 
-  await Zotero.Promise.delay(1000);
+  await loadStyles();
+
   popupWin.changeLine({
     progress: 30,
-    text: `[30%] ${getString("startup-begin")}`,
+    text: `[30%] ${t("startup-begin")}`,
   });
 
-  UIExampleFactory.registerStyleSheet(win);
+  registerStyleSheet(win);
+  registerToolsMenu();
+  registerContextMenu();
 
-  UIExampleFactory.registerRightClickMenuItem();
-
-  UIExampleFactory.registerRightClickMenuPopup(win);
-
-  UIExampleFactory.registerWindowMenuWithSeparator();
-
-  PromptExampleFactory.registerNormalCommandExample();
-
-  PromptExampleFactory.registerAnonymousCommandExample(win);
-
-  PromptExampleFactory.registerConditionalCommandExample();
-
-  await Zotero.Promise.delay(1000);
+  await new Promise((resolve) => {
+    setTimeout(resolve, 500);
+  });
 
   popupWin.changeLine({
     progress: 100,
-    text: `[100%] ${getString("startup-finish")}`,
+    text: `[100%] ${t("startup-finish")}`,
   });
   popupWin.startCloseTimer(5000);
 
-  addon.hooks.onDialogEvents("dialogExample");
+  if (addon.data.env === "development") {
+    dialogExample();
+  }
 }
 
-async function onMainWindowUnload(win: Window): Promise<void> {
+async function onMainWindowUnload(_win: Window): Promise<void> {
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();
 }
@@ -107,80 +108,6 @@ function onShutdown(): void {
   delete Zotero[addon.data.config.addonInstance];
 }
 
-/**
- * This function is just an example of dispatcher for Notify events.
- * Any operations should be placed in a function to keep this funcion clear.
- */
-async function onNotify(
-  event: string,
-  type: string,
-  ids: Array<string | number>,
-  extraData: { [key: string]: any },
-) {
-  // You can add your code to the corresponding notify type
-  ztoolkit.log("notify", event, type, ids, extraData);
-  if (
-    event == "select" &&
-    type == "tab" &&
-    extraData[ids[0]].type == "reader"
-  ) {
-    BasicExampleFactory.exampleNotifierCallback();
-  } else {
-    return;
-  }
-}
-
-/**
- * This function is just an example of dispatcher for Preference UI events.
- * Any operations should be placed in a function to keep this funcion clear.
- * @param type event type
- * @param data event data
- */
-async function onPrefsEvent(type: string, data: { [key: string]: any }) {
-  switch (type) {
-    case "load":
-      registerPrefsScripts(data.window);
-      break;
-    default:
-      return;
-  }
-}
-
-function onShortcuts(type: string) {
-  switch (type) {
-    case "larger":
-      KeyExampleFactory.exampleShortcutLargerCallback();
-      break;
-    case "smaller":
-      KeyExampleFactory.exampleShortcutSmallerCallback();
-      break;
-    default:
-      break;
-  }
-}
-
-function onDialogEvents(type: string) {
-  switch (type) {
-    case "dialogExample":
-      HelperExampleFactory.dialogExample();
-      break;
-    case "clipboardExample":
-      HelperExampleFactory.clipboardExample();
-      break;
-    case "filePickerExample":
-      HelperExampleFactory.filePickerExample();
-      break;
-    case "progressWindowExample":
-      HelperExampleFactory.progressWindowExample();
-      break;
-    case "vtableExample":
-      HelperExampleFactory.vtableExample();
-      break;
-    default:
-      break;
-  }
-}
-
 // Add your hooks here. For element click, etc.
 // Keep in mind hooks only do dispatch. Don't add code that does real jobs in hooks.
 // Otherwise the code would be hard to read and maintain.
@@ -190,8 +117,5 @@ export default {
   onShutdown,
   onMainWindowLoad,
   onMainWindowUnload,
-  onNotify,
-  onPrefsEvent,
-  onShortcuts,
-  onDialogEvents,
+  onPrefsWindowLoad,
 };

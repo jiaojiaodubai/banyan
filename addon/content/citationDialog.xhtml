@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<!-- Banyan: Citation dialog (Library Mode structure closely mirrors Zotero) -->
+<html
+  id="banyan-citation-dialog"
+  persist="screenX screenY width height sizemode"
+  xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+  resizable="true"
+  drawintitlebar-platforms="mac,win"
+  customtitlebar="true"
+  drawtitle="false"
+>
+  <head>
+    <title data-l10n-id="citation-dialog-title"></title>
+    <link rel="localization" href="zotero.ftl" />
+    <link rel="localization" href="integration.ftl" />
+    <link rel="localization" href="__addonRef__-citationDialog.ftl" />
+
+    <link rel="stylesheet" href="chrome://global/skin/global.css" />
+    <link rel="stylesheet" href="chrome://zotero/skin/zotero.css" />
+    <link rel="stylesheet" href="chrome://zotero/skin/overlay.css" />
+    <link rel="stylesheet" href="chrome://zotero-platform/content/zotero.css" />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/citationDialog.css"
+    />
+
+    <script src="chrome://zotero/content/include.js"></script>
+    <script src="chrome://zotero/content/customElements.js"></script>
+    <script>
+      const addon = Zotero.__addonInstance__;
+      const ztoolkit = addon.data.ztoolkit;
+    </script>
+    <script src="chrome://__addonRef__/content/scripts/citationDialog.js"></script>
+  </head>
+
+  <!-- Ensure the item tree menu bar is ready before body renders -->
+  <xul:item-tree-menu-bar />
+  <!-- Search area, with icon, search box, and cancel/accept buttons -->
+  <header>
+    <div id="icon" />
+    <div id="search-placeholder" style="flex: 1 1 auto; min-height: 32px"></div>
+    <progress id="progress" max="100" hidden="true"></progress>
+    <div id="top-level-btn-group">
+      <button id="accept-button" class="btn-icon icon-citation-dialog-accept" />
+      <div class="vertical-separator" role="presentation"></div>
+      <button id="cancel-button" class="btn-icon icon-citation-dialog-cancel" />
+    </div>
+  </header>
+  <!-- Library, with collections tree and items tree, to find item manually -->
+  <body>
+    <div id="library-trees">
+      <div
+        id="collections-tree-container"
+        class="vbox virtualized-table-container"
+        clickthrough="never"
+      >
+        <div id="zotero-collections-tree" data-tabindex="50"></div>
+      </div>
+      <div id="tree-pane-splitter" class="tree-splitter"></div>
+      <div
+        id="item-tree-container"
+        class="hbox virtualized-table-container"
+        clickthrough="never"
+      >
+        <div id="zotero-items-tree" data-tabindex="60"></div>
+      </div>
+    </div>
+  </body>
+  <!-- Footer, with citation settings settings -->
+  <footer></footer>
+</html>

@@ -15,8 +15,8 @@ if (!basicTool.getGlobal("Zotero")[config.addonInstance]) {
 }
 
 function defineGlobal(name: Parameters<BasicTool["getGlobal"]>[0]): void;
-function defineGlobal(name: string, getter: () => any): void;
-function defineGlobal(name: string, getter?: () => any) {
+function defineGlobal(name: string, getter: () => unknown): void;
+function defineGlobal(name: string, getter?: () => unknown) {
   Object.defineProperty(_globalThis, name, {
     get() {
       return getter ? getter() : basicTool.getGlobal(name);

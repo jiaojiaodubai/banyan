@@ -4,12 +4,12 @@ import { config } from "../../package.json";
 export { createZToolkit };
 
 function createZToolkit() {
-  const _ztoolkit = new ZoteroToolkit();
+  // const _ztoolkit = new ZoteroToolkit();
   /**
    * Alternatively, import toolkit modules you use to minify the plugin size.
    * You can add the modules under the `MyToolkit` class below and uncomment the following line.
    */
-  // const _ztoolkit = new MyToolkit();
+  const _ztoolkit = new MyToolkit();
   initZToolkit(_ztoolkit);
   return _ztoolkit;
 }
@@ -31,18 +31,16 @@ function initZToolkit(_ztoolkit: ReturnType<typeof createZToolkit>) {
   );
 }
 
-import { BasicTool, unregister } from "zotero-plugin-toolkit";
-import { UITool } from "zotero-plugin-toolkit";
-
-class MyToolkit extends BasicTool {
-  UI: UITool;
-
+class MyToolkit extends ZoteroToolkit {
   constructor() {
     super();
-    this.UI = new UITool(this);
   }
-
-  unregisterAll() {
-    unregister(this);
+  logError(e: unknown) {
+    try {
+      const err = e instanceof Error ? e : new Error(String(e));
+      Zotero.logError(err);
+    } catch {
+      /* noop */
+    }
   }
 }

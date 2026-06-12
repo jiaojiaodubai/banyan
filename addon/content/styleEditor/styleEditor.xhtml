@@ -1,0 +1,424 @@
+<?xml version="1.0" encoding="utf-8"?>
+<html
+  id="banyan-style-editor"
+  persist="screenX screenY width height sizemode"
+  xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+  resizable="true"
+>
+  <head>
+    <title data-l10n-id="style-editor-title"></title>
+    <link rel="localization" href="zotero.ftl" />
+    <link rel="localization" href="browser/menubar.ftl" />
+    <link rel="localization" href="toolkit/global/textActions.ftl" />
+    <link rel="localization" href="__addonRef__-styleEditor.ftl" />
+
+    <link rel="stylesheet" href="chrome://global/skin/global.css" />
+    <link rel="stylesheet" href="chrome://zotero/skin/zotero.css" />
+    <link rel="stylesheet" href="chrome://zotero/skin/overlay.css" />
+    <link rel="stylesheet" href="chrome://zotero-platform/content/zotero.css" />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/styleEditor/styleEditor.css"
+    />
+
+    <script src="chrome://zotero/content/include.js"></script>
+    <script src="chrome://zotero/content/customElements.js"></script>
+    <script src="chrome://zotero/content/titlebar.js"></script>
+    <script src="chrome://global/content/globalOverlay.js"></script>
+    <script src="chrome://global/content/contentAreaUtils.js"></script>
+    <script src="chrome://zotero/content/platformKeys.js"></script>
+    <script src="chrome://zotero/content/editMenuOverlay.js"></script>
+    <script src="chrome://zotero/content/menuAccessKey.js"></script>
+    <script>
+      const addon = Zotero.__addonInstance__;
+      const ztoolkit = addon.data.ztoolkit;
+    </script>
+    <script src="chrome://__addonRef__/content/scripts/styleEditor.js"></script>
+  </head>
+
+  <body>
+    <div id="titlebar">
+      <xul:hbox class="titlebar-icon-container">
+        <div class="titlebar-icon"></div>
+      </xul:hbox>
+
+      <div
+        type="menubar"
+        id="toolbar-menubar"
+        class="chromeclass-menubar"
+        customizable="true"
+        defaultset="menubar-items"
+        mode="icons"
+        iconsize="small"
+        defaulticonsize="small"
+        autohide="false"
+      >
+        <xul:toolbaritem id="menubar-items" align="center">
+          <xul:menubar id="main-menubar">
+            <xul:menu
+              id="mb-file"
+              label="File"
+              accesskey="F"
+              data-menu-l10n-key="style-editor-menu-file"
+              data-menu-accesskey="style-editor-menu-file-accesskey"
+            >
+              <xul:menupopup id="mb-file-popup">
+                <xul:menuitem
+                  id="mb-file-new"
+                  label="New"
+                  data-menu-l10n-key="style-editor-menu-file-new"
+                  acceltext="Ctrl+N"
+                  data-menu-action="file.new"
+                />
+                <xul:menu
+                  id="mb-file-load-template"
+                  label="Load Template"
+                  data-menu-l10n-key="style-editor-menu-file-load-template"
+                >
+                  <xul:menupopup id="mb-file-load-template-popup" />
+                </xul:menu>
+                <xul:menu
+                  id="mb-file-load-style"
+                  label="Load Style"
+                  data-menu-l10n-key="style-editor-menu-file-load-style"
+                >
+                  <xul:menupopup id="mb-file-load-style-popup" />
+                </xul:menu>
+                <xul:menuitem
+                  id="mb-file-save-as"
+                  label="Save As..."
+                  data-menu-l10n-key="style-editor-menu-file-save-as"
+                  acceltext="Ctrl+S"
+                  data-menu-action="file.saveAs"
+                />
+              </xul:menupopup>
+            </xul:menu>
+
+            <xul:menu
+              id="menu_edit"
+              label="Edit"
+              accesskey="E"
+              data-menu-l10n-key="style-editor-menu-edit"
+              data-menu-accesskey="style-editor-menu-edit-accesskey"
+            >
+              <xul:menupopup id="menu_EditPopup">
+                <xul:menuitem
+                  id="menu_undo"
+                  label="Undo"
+                  data-menu-l10n-key="style-editor-menu-edit-undo"
+                  acceltext="Ctrl+Z"
+                  data-menu-action="edit.undo"
+                />
+                <xul:menuitem
+                  id="menu_redo"
+                  label="Redo"
+                  data-menu-l10n-key="style-editor-menu-edit-redo"
+                  acceltext="Ctrl+Y"
+                  data-menu-action="edit.redo"
+                />
+                <xul:menuseparator />
+                <xul:menuitem
+                  id="menu_cut"
+                  label="Cut"
+                  data-menu-l10n-key="style-editor-menu-edit-cut"
+                  acceltext="Ctrl+X"
+                  data-menu-action="edit.cut"
+                />
+                <xul:menuitem
+                  id="menu_copy"
+                  label="Copy"
+                  data-menu-l10n-key="style-editor-menu-edit-copy"
+                  acceltext="Ctrl+C"
+                  data-menu-action="edit.copy"
+                />
+                <xul:menuitem
+                  id="menu_paste"
+                  label="Paste"
+                  data-menu-l10n-key="style-editor-menu-edit-paste"
+                  acceltext="Ctrl+V"
+                  data-menu-action="edit.paste"
+                />
+                <xul:menuitem
+                  id="menu_delete"
+                  label="Delete"
+                  data-menu-l10n-key="style-editor-menu-edit-delete"
+                  acceltext="Del"
+                  data-menu-action="edit.delete"
+                />
+                <xul:menuseparator />
+                <xul:menuitem
+                  id="menu_selectAll"
+                  label="Select All"
+                  data-menu-l10n-key="style-editor-menu-edit-select-all"
+                  acceltext="Ctrl+A"
+                  data-menu-action="edit.selectAll"
+                />
+                <xul:menuseparator />
+                <xul:menuitem
+                  id="menu_find"
+                  label="Find"
+                  data-menu-l10n-key="style-editor-menu-edit-find"
+                  acceltext="Ctrl+F"
+                  data-menu-action="edit.find"
+                />
+              </xul:menupopup>
+            </xul:menu>
+
+            <xul:menu
+              id="mb-view"
+              label="View"
+              accesskey="V"
+              data-menu-l10n-key="style-editor-menu-view"
+              data-menu-accesskey="style-editor-menu-view-accesskey"
+            >
+              <xul:menupopup id="mb-view-popup">
+                <xul:menuitem
+                  id="mb-view-toggle-input"
+                  class="menuitem-iconic"
+                  type="checkbox"
+                  label="Input"
+                  data-menu-l10n-key="style-editor-menu-view-toggle-input"
+                  data-menu-action="view.toggle.input"
+                />
+                <xul:menuitem
+                  id="mb-view-toggle-preview"
+                  class="menuitem-iconic"
+                  type="checkbox"
+                  label="Preview"
+                  data-menu-l10n-key="style-editor-menu-view-toggle-preview"
+                  data-menu-action="view.toggle.preview"
+                />
+                <xul:menuitem
+                  id="mb-view-toggle-info"
+                  class="menuitem-iconic"
+                  type="checkbox"
+                  label="Info"
+                  data-menu-l10n-key="style-editor-menu-view-toggle-info"
+                  data-menu-action="view.toggle.info"
+                />
+                <xul:menuseparator />
+                <xul:menu
+                  id="mb-font-size-fields"
+                  label="Editor Font Size"
+                  data-menu-l10n-key="style-editor-menu-view-font-size"
+                >
+                  <xul:menupopup id="mb-font-size-popup">
+                    <xul:menuitem
+                      id="mb-view-biggerFont"
+                      label="Bigger"
+                      data-menu-l10n-key="style-editor-menu-view-font-size-increase"
+                      acceltext="Ctrl++"
+                      data-menu-action="view.font.increase"
+                    />
+                    <xul:menuitem
+                      id="mb-view-smallerFont"
+                      label="Smaller"
+                      data-menu-l10n-key="style-editor-menu-view-font-size-decrease"
+                      acceltext="Ctrl+-"
+                      data-menu-action="view.font.decrease"
+                    />
+                    <xul:menuseparator />
+                    <xul:menuitem
+                      id="mb-view-restoreFont"
+                      label="Reset"
+                      data-menu-l10n-key="style-editor-menu-view-font-size-reset"
+                      acceltext="Ctrl+0"
+                      data-menu-action="view.font.reset"
+                    />
+                  </xul:menupopup>
+                </xul:menu>
+              </xul:menupopup>
+            </xul:menu>
+
+            <xul:menu
+              id="menu_run"
+              label="Run"
+              accesskey="R"
+              data-menu-l10n-key="style-editor-menu-run"
+              data-menu-accesskey="style-editor-menu-run-accesskey"
+            >
+              <xul:menupopup id="menu_run_popup">
+                <xul:menuitem
+                  id="menu-run-refresh-preview"
+                  label="Refresh Preview"
+                  data-menu-l10n-key="style-editor-menu-run-refresh-preview"
+                  acceltext="F5"
+                  data-menu-action="run.refreshPreview"
+                />
+                <xul:menuitem
+                  id="menu-run-lint"
+                  label="Check Code"
+                  data-menu-l10n-key="style-editor-menu-run-lint"
+                  data-menu-action="run.formatLint"
+                />
+              </xul:menupopup>
+            </xul:menu>
+
+            <xul:menu
+              id="helpMenu"
+              label="Help"
+              accesskey="H"
+              data-menu-l10n-key="style-editor-menu-help"
+              data-menu-accesskey="style-editor-menu-help-accesskey"
+            >
+              <xul:menupopup id="mb-help-popup">
+                <xul:menuitem
+                  id="mb-help-utility-functions"
+                  label="Utility Functions"
+                  data-menu-l10n-key="style-editor-menu-help-utility-functions"
+                  data-menu-action="help.utilityFunctions"
+                />
+                <xul:menu
+                  id="mb-help-item-types"
+                  label="Item Types"
+                  data-menu-l10n-key="style-editor-menu-help-item-types"
+                >
+                  <xul:menupopup id="mb-help-item-types-popup" />
+                </xul:menu>
+              </xul:menupopup>
+            </xul:menu>
+          </xul:menubar>
+        </xul:toolbaritem>
+      </div>
+
+      <xul:hbox class="titlebar-buttonbox titlebar-color">
+        <xul:toolbarbutton
+          class="titlebar-button titlebar-min"
+          titlebar-btn="min"
+          oncommand="window.minimize()"
+          tooltiptext="Minimize"
+          aria-label="Minimize"
+          aria-hidden="true"
+        />
+        <xul:toolbarbutton
+          class="titlebar-button titlebar-max"
+          titlebar-btn="max"
+          oncommand="window.maximize()"
+          tooltiptext="Maximize"
+          aria-label="Maximize"
+          aria-hidden="true"
+        />
+        <xul:toolbarbutton
+          class="titlebar-button titlebar-restore"
+          titlebar-btn="max"
+          oncommand="window.restore()"
+          tooltiptext="Restore"
+          aria-label="Restore"
+          aria-hidden="true"
+        />
+        <xul:toolbarbutton
+          class="titlebar-button titlebar-close"
+          titlebar-btn="close"
+          oncommand="window.close()"
+          tooltiptext="Close"
+          aria-label="Close"
+          aria-hidden="true"
+        />
+      </xul:hbox>
+    </div>
+
+    <xul:toolbar id="zotero-toolbar" class="toolbar toolbar-primary">
+      <xul:hbox id="style-editor-toolbar" align="center">
+        <xul:toolbarbutton
+          id="tb-open"
+          class="zotero-tb-button"
+          tooltiptext="Open"
+          data-toolbar-tooltip-key="style-editor-toolbar-open"
+          data-menu-action="file.loadStyle"
+        />
+        <xul:toolbarbutton
+          id="tb-lint"
+          class="zotero-tb-button"
+          tooltiptext="Check Code"
+          data-toolbar-tooltip-key="style-editor-toolbar-lint"
+          data-menu-action="run.formatLint"
+        />
+        <xul:toolbarbutton
+          id="tb-run"
+          class="zotero-tb-button"
+          tooltiptext="Run Code"
+          data-toolbar-tooltip-key="style-editor-toolbar-run"
+          data-menu-action="run.refreshPreview"
+        />
+        <xul:toolbarbutton
+          id="tb-save"
+          class="zotero-tb-button"
+          tooltiptext="Save"
+          data-toolbar-tooltip-key="style-editor-toolbar-save"
+          data-menu-action="file.saveAs"
+        />
+      </xul:hbox>
+    </xul:toolbar>
+
+    <main>
+      <section id="center-pane">
+        <div id="editor-top-pane">
+          <iframe
+            id="style-editor-iframe"
+            src="chrome://scaffold/content/monaco/monaco.html"
+            onmousedown="this.focus()"
+          ></iframe>
+        </div>
+
+        <div id="editor-bottom-splitter"></div>
+
+        <div id="output-panel-block" class="panel-block">
+          <div
+            class="pane-title"
+            data-l10n-id="style-editor-output-title"
+          ></div>
+          <div id="output-container">
+            <div id="output-help-view" class="output-view">
+              <iframe
+                id="output-help-iframe"
+                class="info-doc-editor-frame"
+                src="chrome://scaffold/content/monaco/monaco.html"
+              ></iframe>
+            </div>
+            <div id="output-lint-view" class="output-view"></div>
+            <div
+              id="output-preview-view"
+              class="output-view"
+              data-l10n-id="style-editor-empty-preview"
+            ></div>
+          </div>
+        </div>
+      </section>
+
+      <div id="editor-preview-splitter"></div>
+
+      <section id="right-pane">
+        <div id="input-panel-block" class="panel-block">
+          <div class="pane-title" data-l10n-id="style-editor-input-title"></div>
+          <div id="input-container">
+            <div
+              class="virtualized-table-container"
+              id="citation-rows-list-wrap"
+            >
+              <div id="citation-rows-table-container"></div>
+            </div>
+
+            <div id="citation-rows-toolbar">
+              <label
+                for="citation-row-page-input"
+                data-l10n-id="style-editor-input-page-column"
+              ></label>
+              <input
+                id="citation-row-page-input"
+                class="citation-page-input"
+                type="number"
+                min="1"
+                step="1"
+              />
+              <button id="citation-row-add" type="button">+</button>
+              <button id="citation-row-remove" type="button">-</button>
+              <button id="citation-row-up" type="button">↑</button>
+              <button id="citation-row-down" type="button">↓</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+bibliography-dialog-title = 编辑参考文献
+bibliography-dialog-heading = 参考文献编辑
+bibliography-dialog-accept = 确定
+bibliography-dialog-cancel = 取消
+bibliography-dialog-line-section-title = 编辑书目行
+bibliography-dialog-line-section-desc = 手动编辑当前行，编辑后它将不再自动更新
+bibliography-dialog-line-meta = 类型：{ $type } / ID：{ $id }
+bibliography-dialog-link-message = 本窗口不处理链接属性，保存时将忽略链接。
+bibliography-dialog-link-title = 当前版本忽略链接
+bibliography-dialog-uncited-section-title = 未引用条目
+bibliography-dialog-uncited-section-desc = 为参考文献表添加未在文中引用过的参考文献
+bibliography-dialog-uncited-edit = 编辑条目

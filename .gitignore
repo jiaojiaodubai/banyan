@@ -14,3 +14,10 @@ tsconfig.tsbuildinfo
 .scaffold
 build
 logs
+
+.codex-logs
+.claude
+dev
+copilot-instructions.md
+addon/content/scripts
+addon/content/integration

@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["./*.js", "./*.d.ts"],
+  "exclude": ["./node_modules", "./**/node_modules"]
+}

@@ -1,11 +1,20 @@
-item-section-example1-head-text =
-    .label = Plugin Template: Item Info
-item-section-example1-sidenav-tooltip =
-    .tooltiptext = This is Plugin Template section (item info)
-item-section-example2-head-text =
-    .label = Plugin Template: Reader [{$status}]
-item-section-example2-sidenav-tooltip =
-    .tooltiptext = This is Plugin Template section (reader)
-item-section-example2-button-tooltip =
-    .tooltiptext = Unregister this section
-item-info-row-example-label = Example Row
+addon-name = Banyan
+
+menuitem-relate-items = Relate Multilingual Items
+menuitem-style-editor = Banyan Style Editor
+menuitem-create-output = Create Citation/Bibliography
+
+item-section-multilingual-head-text =
+    .label = Banyan: Multilingual Relations
+item-section-multilingual-sidenav-tooltip =
+    .tooltiptext = Multilingual relations
+item-section-multilingual-add-tooltip =
+    .tooltiptext = Add multilingual relation
+item-section-multilingual-empty = No multilingual relations
+item-section-multilingual-loading = Loading...
+item-section-multilingual-summary = { $count } multilingual
+
+link-multilingual-item-error-different-library = Only items in the same library can be linked as multilingual items.
+relate-multilingual-item-error-different-library = Only items in the same library can be related as multilingual items.
+relate-multilingual-item-error-different-item-type = Only items with the same item type can be related as multilingual items.
+relate-multilingual-item-error-same-item = The same item cannot be related as a multilingual item.

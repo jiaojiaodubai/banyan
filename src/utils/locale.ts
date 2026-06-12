@@ -1,22 +1,6 @@
 import { config } from "../../package.json";
 import { FluentMessageId } from "../../typings/i10n";
 
-export { initLocale, getString, getLocaleID };
-
-/**
- * Initialize locale data
- */
-function initLocale() {
-  const l10n = new (
-    typeof Localization === "undefined"
-      ? ztoolkit.getGlobal("Localization")
-      : Localization
-  )([`${config.addonRef}-addon.ftl`], true);
-  addon.data.locale = {
-    current: l10n,
-  };
-}
-
 /**
  * Get locale string, see https://firefox-source-docs.mozilla.org/l10n/fluent/tutorial.html#fluent-translation-list-ftl
  * @param localString ftl key
@@ -34,56 +18,53 @@ function initLocale() {
     }
  * ```
  * ```js
- * getString("addon-static-example"); // This is default branch!
- * getString("addon-static-example", { branch: "branch-example" }); // This is a branch under addon-static-example!
- * getString("addon-dynamic-example", { args: { count: 1 } }); // I have 1 apple
- * getString("addon-dynamic-example", { args: { count: 2 } }); // I have 2 apples
+ * t("addon-static-example"); // This is default branch!
+ * t("addon-static-example", { branch: "branch-example" }); // This is a branch under addon-static-example!
+ * t("addon-dynamic-example", { args: { count: 1 } }); // I have 1 apple
+ * t("addon-dynamic-example", { args: { count: 2 } }); // I have 2 apples
  * ```
  */
-function getString(localString: FluentMessageId): string;
-function getString(localString: FluentMessageId, branch: string): string;
-function getString(
-  localeString: FluentMessageId,
-  options: { branch?: string | undefined; args?: Record<string, unknown> },
-): string;
-function getString(...inputs: any[]) {
-  if (inputs.length === 1) {
-    return _getString(inputs[0]);
-  } else if (inputs.length === 2) {
-    if (typeof inputs[1] === "string") {
-      return _getString(inputs[0], { branch: inputs[1] });
-    } else {
-      return _getString(inputs[0], inputs[1]);
-    }
-  } else {
-    throw new Error("Invalid arguments");
-  }
-}
-
-function _getString(
-  localeString: FluentMessageId,
-  options: { branch?: string | undefined; args?: Record<string, unknown> } = {},
-): string {
-  const localStringWithPrefix = `${config.addonRef}-${localeString}`;
-  const { branch, args } = options;
-  const pattern = addon.data.locale?.current.formatMessagesSync([
-    { id: localStringWithPrefix, args },
-  ])[0];
-  if (!pattern) {
-    return localStringWithPrefix;
-  }
-  if (branch && pattern.attributes) {
-    for (const attr of pattern.attributes) {
-      if (attr.name === branch) {
-        return attr.value;
+export function useL10n(ftlFiles?: string[]) {
+  const t = (
+    id: string,
+    options?: { branch?: string; args?: Record<string, string | number> },
+  ) => {
+    const { branch, args } = options || {};
+    const prefixedId = `${config.addonRef}-${id}`;
+    const message = createLocale(ftlFiles).formatMessagesSync([
+      { id: prefixedId, args },
+    ])[0];
+    if (!message) return prefixedId;
+    if (branch && message.attributes) {
+      for (const attr of message.attributes) {
+        if (attr.name === branch) {
+          return attr.value;
+        }
       }
     }
-    return pattern.attributes[branch] || localStringWithPrefix;
-  } else {
-    return pattern.value || localStringWithPrefix;
-  }
+    return message.value ?? prefixedId;
+  };
+  return t;
 }
 
-function getLocaleID(id: FluentMessageId) {
+export function createLocale(ftlFiles?: string[]) {
+  if (!ftlFiles) {
+    ftlFiles = ["addon.ftl"];
+  }
+  if (ftlFiles.some((file) => !file.endsWith(".ftl"))) {
+    throw new Error("files must be an array of .ftl file names");
+  }
+  const l10n = new (
+    typeof Localization === "undefined"
+      ? ztoolkit.getGlobal("Localization")
+      : Localization
+  )(
+    ftlFiles.map((file) => `${config.addonRef}-${file}`),
+    true,
+  );
+  return l10n;
+}
+
+export function getLocaleID(id: FluentMessageId) {
   return `${config.addonRef}-${id}`;
 }

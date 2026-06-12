@@ -1,0 +1,60 @@
+.prefs-row {
+  column-gap: 8px;
+}
+
+#__addonRef__-defaultSelectMainLibraryOnCitationOpen-help {
+  font-size: 0.85em;
+}
+
+#style-table > .virtualized-table-container {
+  flex: 1;
+  height: 250px;
+  max-height: 250px;
+}
+
+#style-table > #buttons-container {
+  display: flex;
+  justify-content: end;
+  gap: 8px;
+}
+
+#__addonRef__-wps-addon-help {
+  font-size: 0.85em;
+}
+
+#__addonRef__-wps-addon-actions {
+  display: flex;
+  justify-content: start;
+  gap: 8px;
+}
+
+#__addonRef__-word-addon-help {
+  font-size: 0.85em;
+}
+
+#__addonRef__-word-addon-actions {
+  display: flex;
+  justify-content: start;
+  gap: 8px;
+}
+
+#banyan-prefs-help {
+  display: flex;
+  align-items: end;
+  margin: 5px 15px;
+  min-height: 28px;
+  max-width: 800px;
+}
+
+#style-table .virtualized-table .row.even {
+  background-color: var(--material-background);
+}
+
+#style-table .virtualized-table .row.odd {
+  background-color: var(--material-stripe);
+}
+
+#style-table .virtualized-table .row.selected {
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+}

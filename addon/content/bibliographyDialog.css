@@ -1,0 +1,82 @@
+html {
+  display: flex;
+  flex-direction: column;
+  min-width: 640px;
+  min-height: 420px;
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin: 0;
+  gap: 16px;
+  padding: 8px 10px 8px 10px;
+  overflow: auto;
+  min-height: 0;
+}
+
+section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.section-desc {
+  opacity: 0.8;
+}
+
+#uncited-section {
+  flex: 1;
+  min-height: 0;
+}
+
+.virtualized-table-container {
+  display: flex;
+  flex: 1;
+  min-height: 160px;
+  border: 1px solid var(--fill-quarternary);
+  border-radius: 5px;
+  background: var(--material-sidepane);
+  overflow: hidden;
+  min-height: 0;
+}
+
+#uncited-items-tree {
+  height: 100%;
+}
+
+/* highlight selected row even table is not focused */
+.virtualized-table:not(:focus-within) .row.selected {
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.virtualized-table .row.odd:not(.selected) {
+  background-color: var(--material-stripe);
+}
+
+.virtualized-table .row.even:not(.selected) {
+  background-color: var(--material-background);
+}
+
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 10px 8px 10px;
+  flex-shrink: 0;
+  border-top: var(--material-panedivider);
+  background: var(--material-background);
+}
+
+footer button {
+  min-width: 6.3em;
+}

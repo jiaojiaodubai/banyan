@@ -1,49 +1,53 @@
 {
-  "name": "zotero-plugin-template",
+  "name": "banyan",
   "type": "module",
-  "version": "3.1.0",
-  "description": "Zotero Plugin Template",
+  "version": "0.0.1",
+  "description": "Fully customize citation styles using JavaScript in Zotero",
   "config": {
-    "addonName": "Zotero Plugin Template",
-    "addonID": "addontemplate@euclpts.com",
-    "addonRef": "addontemplate",
-    "addonInstance": "AddonTemplate",
-    "prefsPrefix": "extensions.zotero.addontemplate"
+    "addonName": "Banyan",
+    "addonID": "banyan@jiaojiaodubai",
+    "addonRef": "banyan",
+    "addonInstance": "Banyan",
+    "prefsPrefix": "extensions.zotero.banyan"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/windingwind/zotero-plugin-template.git"
+    "url": "git+https://github.com/jiaojiaodubai/banyan.git"
   },
-  "author": "windingwind",
+  "author": "jiaojiaodubai",
   "bugs": {
-    "url": "https://github.com/windingwind/zotero-plugin-template/issues"
+    "url": "https://github.com/jiaojiaodubai/banyan/issues"
   },
-  "homepage": "https://github.com/windingwind/zotero-plugin-template#readme",
+  "homepage": "https://github.com/jiaojiaodubai/banyan#readme",
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "start": "zotero-plugin serve",
-    "build": "zotero-plugin build && tsc --noEmit",
-    "lint:check": "prettier --check . && eslint .",
-    "lint:fix": "prettier --write . && eslint . --fix",
+    "start": "pnpm gen:style-editor-dts && pnpm gen:wps-addin-manifest && zotero-plugin serve",
+    "build": "pnpm gen:style-editor-dts && pnpm gen:wps-addin-manifest && zotero-plugin build && tsc --noEmit",
+    "gen:i10n": "node scripts/genFluentTypings.mjs",
+    "gen:style-editor-dts": "node scripts/genStyleEditorDTS.mjs",
+    "gen:wps-addin-manifest": "node scripts/genWPSAddinManifest.mjs",
+    "lint:check": "prettier --check . && eslint . && eslint --config addon/content/styleEditor/eslint.config.mjs addon/content/styleEditor",
+    "lint:fix": "prettier --write . && eslint . --fix && eslint --config addon/content/styleEditor/eslint.config.mjs addon/content/styleEditor --fix",
     "release": "zotero-plugin release",
     "test": "zotero-plugin test",
     "update-deps": "npm update --save"
   },
   "dependencies": {
-    "zotero-plugin-toolkit": "^5.1.0-beta.4"
+    "zotero-plugin-toolkit": "5.1.0-beta.13"
   },
   "devDependencies": {
-    "@types/chai": "^5.2.2",
+    "@eslint/js": "^9.39.4",
+    "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^24.2.0",
-    "@zotero-plugin/eslint-config": "^0.6.7",
-    "chai": "^5.2.1",
-    "eslint": "^9.32.0",
-    "mocha": "^11.7.1",
-    "prettier": "^3.6.2",
-    "typescript": "^5.9.2",
-    "zotero-plugin-scaffold": "^0.8.0",
-    "zotero-types": "^4.1.0-beta.1"
+    "@types/node": "^24.12.4",
+    "@zotero-plugin/eslint-config": "^0.6.9",
+    "chai": "^5.3.3",
+    "eslint": "^9.39.4",
+    "mocha": "^11.7.5",
+    "prettier": "^3.8.3",
+    "typescript": "^5.9.3",
+    "zotero-plugin-scaffold": "^0.8.6",
+    "zotero-types": "4.1.0-beta.4"
   },
   "prettier": {
     "printWidth": 80,
@@ -56,6 +60,14 @@
         ],
         "options": {
           "htmlWhitespaceSensitivity": "css"
+        }
+      },
+      {
+        "files": [
+          "addon/content/styleEditor/snippets.jsonc"
+        ],
+        "options": {
+          "trailingComma": "none"
         }
       }
     ]

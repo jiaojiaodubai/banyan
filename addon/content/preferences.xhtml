@@ -1,33 +1,100 @@
 <linkset>
   <html:link rel="localization" href="__addonRef__-preferences.ftl" />
-</linkset>
-<groupbox
-  onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', { window });"
->
-  <label><html:h2 data-l10n-id="pref-title"></html:h2></label>
-  <checkbox
-    id="zotero-prefpane-__addonRef__-enable"
-    preference="enable"
-    data-l10n-id="pref-enable"
+  <html:link
+    rel="stylesheet"
+    href="chrome://__addonRef__/content/preferences.css"
   />
-  <hbox>
-    <html:label
-      for="zotero-prefpane-__addonRef__-input"
-      data-l10n-id="pref-input"
-    ></html:label>
-    <html:input
-      type="text"
-      id="zotero-prefpane-__addonRef__-input"
-      preference="input"
-    ></html:input>
-  </hbox>
-  <hbox class="virtualized-table-container" flex="1" height="300px">
-    <html:div id="__addonRef__-table-container" />
-  </hbox>
-</groupbox>
-<vbox>
-  <html:label
-    data-l10n-id="pref-help"
+</linkset>
+<vbox onload="Zotero.__addonInstance__.hooks.onPrefsWindowLoad(window)">
+  <groupbox id="prefs-general-settings">
+    <label><html:h2 data-l10n-id="prefs-settings-title"></html:h2></label>
+
+    <checkbox
+      id="__addonRef__-defaultSelectMainLibraryOnCitationOpen"
+      native="true"
+      preference="defaultSelectMainLibraryOnCitationOpen"
+      aria-describedby="__addonRef__-defaultSelectMainLibraryOnCitationOpen-help"
+      data-l10n-id="prefs-default-select-main-library-on-citation-open"
+    />
+    <label
+      id="__addonRef__-defaultSelectMainLibraryOnCitationOpen-help"
+      width="45em"
+      data-l10n-id="prefs-default-select-main-library-on-citation-open-help"
+    ></label>
+  </groupbox>
+
+  <groupbox id="prefs-style-manager">
+    <hbox>
+      <label
+        ><html:h2 data-l10n-id="prefs-style-manager-title"></html:h2
+      ></label>
+    </hbox>
+    <separator class="thin"></separator>
+    <vbox id="style-table">
+      <hbox class="virtualized-table-container">
+        <html:div id="__addonRef__-table-container" />
+      </hbox>
+      <separator class="thin"></separator>
+      <hbox id="buttons-container" align="center">
+        <button
+          id="__addonRef__-style-import"
+          data-l10n-id="import-style"
+        ></button>
+        <button
+          id="__addonRef__-style-delete"
+          data-l10n-id="delete-style"
+        ></button>
+      </hbox>
+    </vbox>
+  </groupbox>
+
+  <groupbox id="prefs-integrations">
+    <hbox>
+      <label><html:h2 data-l10n-id="prefs-addon-title"></html:h2></label>
+    </hbox>
+    <separator class="thin"></separator>
+    <vbox>
+      <label data-l10n-id="prefs-wps-addon-title"></label>
+      <label
+        id="__addonRef__-wps-addon-help"
+        width="45em"
+        data-l10n-id="prefs-wps-addon-help"
+      ></label>
+      <hbox id="__addonRef__-wps-addon-actions" align="center">
+        <button
+          id="__addonRef__-wps-addon-install"
+          data-l10n-id="prefs-wps-addon-install"
+        ></button>
+        <button
+          id="__addonRef__-wps-addon-uninstall"
+          data-l10n-id="prefs-wps-addon-uninstall"
+        ></button>
+      </hbox>
+    </vbox>
+    <separator class="thin"></separator>
+    <vbox>
+      <label data-l10n-id="prefs-word-addon-title"></label>
+      <label
+        id="__addonRef__-word-addon-help"
+        width="45em"
+        data-l10n-id="prefs-word-addon-help"
+      ></label>
+      <hbox id="__addonRef__-word-addon-actions" align="center">
+        <button
+          id="__addonRef__-word-addon-install"
+          data-l10n-id="prefs-word-addon-install"
+        ></button>
+        <button
+          id="__addonRef__-word-addon-uninstall"
+          data-l10n-id="prefs-word-addon-uninstall"
+        ></button>
+      </hbox>
+    </vbox>
+  </groupbox>
+</vbox>
+<vbox id="banyan-prefs-help">
+  <label
+    data-l10n-id="prefs-help"
     data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'
-  ></html:label>
+  ></label>
 </vbox>

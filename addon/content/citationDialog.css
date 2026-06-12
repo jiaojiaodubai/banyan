@@ -1,0 +1,389 @@
+/* Styles specific to the Citation Dialog */
+html {
+  display: flex;
+  flex-direction: column;
+  min-width: 800px;
+  /* Prefer a sane minimum so header/library/footer stay visible.
+     Note: Window managers may still allow smaller sizes. */
+  /* Measured (window.outerHeight) when header/footer are one line and library hits min-height */
+  min-height: 335px;
+  /* nessesary for show all content */
+  height: 100%;
+}
+
+header,
+body,
+footer {
+  color: var(--fill-primary);
+  background: var(--material-background);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 8px 10px;
+  border-bottom: var(--material-panedivider);
+  -moz-window-dragging: drag;
+}
+
+#icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  user-select: none;
+  background-image: url("chrome://__addonRef__/content/icons/favicon.png");
+  background-repeat: no-repeat;
+  background-size: 80%;
+  background-position: center;
+}
+
+#top-level-btn-group {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 8px;
+  height: 30px;
+  flex: 0 0 auto;
+  -moz-window-dragging: no-drag;
+}
+
+#accept-button {
+  background-image: url("chrome://zotero/skin/20/universal/arrow-right.svg");
+}
+
+#cancel-button {
+  background-image: url("chrome://zotero/skin/20/universal/x.svg");
+}
+
+.vertical-separator {
+  border-inline-end: 1px solid var(--fill-quarternary);
+  height: 20px;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin: 0;
+}
+
+#library-trees {
+  flex: 1;
+  min-height: 200px;
+  display: flex;
+  flex-direction: row;
+  user-select: none;
+  -moz-window-dragging: no-drag;
+}
+
+#library-trees > #collections-tree-container {
+  min-height: 100%;
+  border-inline-end: var(--material-panedivider);
+}
+
+#collections-tree-container > #zotero-collections-tree {
+  background: var(--material-sidepane) !important;
+}
+
+#collections-tree-container .virtualized-table-body {
+  padding-top: 8px;
+}
+
+#library-trees > #item-tree-container {
+  flex: 1;
+  min-height: 100%;
+}
+
+.tree-splitter {
+  flex: 0 0 0px;
+  position: relative;
+  z-index: 1;
+  cursor: ew-resize;
+}
+
+/* ::before 提供更宽的命中区域，但保持透明以免遮挡 */
+.tree-splitter::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  left: -4px;
+  right: -4px;
+}
+
+footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 4px;
+  padding: 8px 10px 8px 10px;
+  min-height: 44px;
+  border-top: var(--material-panedivider);
+  /* Footer is now an interactive control area, not a drag region */
+  -moz-window-dragging: no-drag;
+}
+
+/* Dynamic citation UI container inserted by script */
+#citation-options-container {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.btn-icon {
+  border: none;
+  width: 28px;
+  height: 28px;
+  max-height: 28px;
+  padding: 0;
+  color: var(--fill-secondary);
+  background-size: 60% !important;
+  background-repeat: no-repeat;
+  background-position: center;
+  border-radius: 5px;
+  margin: 0;
+  fill: currentColor;
+  -moz-context-properties: fill, fill-opacity;
+}
+
+.btn-icon:hover:not([disabled]) {
+  cursor: pointer;
+  background-color: var(--fill-quinary) !important;
+}
+
+.btn-icon:active:not([disabled]) {
+  background-color: var(--fill-quarternary) !important;
+}
+
+.btn-icon:disabled {
+  opacity: 0.5;
+}
+
+/* Bubble Input */
+.bubble-input-container {
+  --bubble-horizontal-margin: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+  /* Match Zotero's tighter search field height */
+  padding: 2px 6px;
+  min-height: 32px;
+  flex: 1;
+  min-width: 0;
+  /* Make bubbles and input feel like one field */
+  border: 1px solid var(--fill-quarternary);
+  border-radius: 5px;
+  /* In this dialog header/footer can be draggable; inputs must opt out */
+  -moz-window-dragging: no-drag;
+}
+
+.bubble-input-body {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: start;
+  column-gap: 0;
+  row-gap: 5px;
+  width: 100%;
+  min-width: 0;
+  cursor: text;
+  padding-inline-end: 6px;
+  /* increase clickable area before each bubble a bit (matches Zotero) */
+  padding-inline-start: 5px;
+  margin-inline-start: -5px;
+  /* Keep vertical alignment tight (matches Zotero) */
+  /* a bit of padding so that focusring / indicators are not cutoff */
+  padding-top: 1px;
+  padding-bottom: 1px;
+  -moz-window-dragging: no-drag;
+}
+
+.bubble-search-input {
+  /* Override Zotero global input styling (scss/components/_input.scss etc)
+     so intermediate inputs are visually just caret positions. */
+  appearance: none;
+  -moz-appearance: none;
+  border: none !important;
+  outline: none;
+  box-shadow: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  padding: 0 !important;
+  margin: 0;
+  height: 28px;
+
+  /* Let JS control precise widths (matches Zotero bubble-input) */
+  min-width: 0;
+
+  font-size: inherit;
+  font-family: inherit;
+  color: inherit;
+  caret-color: var(--color-accent);
+  cursor: text;
+  -moz-window-dragging: no-drag;
+}
+
+/* When focused empty input sits between two bubbles, we hide the real caret
+   and draw a centered indicator instead (direction-agnostic visual). */
+.bubble-search-input.centered-caret {
+  caret-color: transparent;
+}
+
+.bubble-search-input:focus,
+.bubble-search-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-bottom: none !important;
+}
+
+.bubble-search-input.full-width {
+  flex: 1 1 auto;
+  min-width: 120px;
+  width: auto;
+}
+
+.bubble-search-input.empty:not(.full-width):focus {
+  /* Zotero behavior: allow caret without shifting bubbles */
+  min-width: 1px;
+  margin-inline-start: -1px;
+}
+
+/* If we draw a centered caret indicator, don't apply the native-caret hack. */
+.bubble-search-input.centered-caret.empty:not(.full-width):focus {
+  min-width: 0;
+  margin-inline-start: 0;
+}
+
+.bubble {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  height: 28px;
+  border-radius: 5px;
+  padding: 0 8px;
+  margin: 0 var(--bubble-horizontal-margin);
+  background-color: var(--fill-quinary);
+  color: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  -moz-window-dragging: no-drag;
+  user-select: none;
+}
+
+.bubble-text {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bubble.is-focused {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* ItemTree selection highlight color (matches official dialog behavior) */
+#zotero-items-tree {
+  --highlight-color: var(--accent-blue30);
+}
+
+.bubble:hover {
+  background-color: var(--fill-quarternary);
+}
+
+/* Bubble drag-and-drop visual feedback (Zotero-like) */
+.bubble-input-body.is-dragging .bubble {
+  cursor: grabbing;
+}
+
+.bubble.is-dragging {
+  opacity: 0.6;
+}
+
+/* We render caret/drop indicators as absolute overlay elements to ensure
+   they sit in the true geometric center between bubbles (not biased by margins). */
+.bubble-gap-indicator {
+  position: absolute;
+  width: 1px;
+  height: 14px;
+  background-color: var(--color-accent);
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.bubble-gap-indicator.is-hidden {
+  display: none;
+}
+
+/* Bubble Popup */
+@namespace xul url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+.bubble-popup {
+  position: absolute;
+  background: var(--material-background);
+  border: 1px solid var(--material-panedivider);
+  box-shadow: 0px 0.5px 2.5px 0px rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  padding: 16px;
+  z-index: 1000;
+  box-sizing: border-box;
+  width: 364px;
+  font-size: 13px;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.bubble-popup-header {
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Popup content: mimic Zotero itemDetails panel grid spacing */
+.bubble-popup-content {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 1px;
+  align-items: center;
+  margin: 16px 0;
+}
+
+/* Allow existing row wrappers without changing DOM structure */
+.bubble-popup-row {
+  display: contents;
+}
+
+.bubble-popup-label {
+  text-align: end;
+  white-space: nowrap;
+}
+
+.bubble-popup-control,
+.bubble-popup-content input[type="text"],
+.bubble-popup-content xul|textbox,
+.bubble-popup-content xul|menulist {
+  min-width: 120px;
+  padding-inline-start: 5px;
+  border-radius: 5px;
+  border: none;
+  box-shadow: 0px 0.5px 2.5px 0px rgba(0, 0, 0, 0.3);
+}
+
+.bubble-popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 0;
+}

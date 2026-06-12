@@ -1,2 +1,3 @@
-pref("enable", true);
-pref("input", "This is input");
+pref("progressTimeout", 300000);
+pref("styleEditorAssetsVersion", "");
+pref("defaultSelectMainLibraryOnCitationOpen", true);

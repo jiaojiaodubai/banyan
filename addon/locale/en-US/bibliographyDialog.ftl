@@ -1,0 +1,12 @@
+bibliography-dialog-title = Edit Bibliography
+bibliography-dialog-heading = Bibliography Editor
+bibliography-dialog-accept = OK
+bibliography-dialog-cancel = Cancel
+bibliography-dialog-line-section-title = Edit Bibliography Line
+bibliography-dialog-line-section-desc = Manually edit the current line; after editing it will no longer update automatically.
+bibliography-dialog-line-meta = Type: { $type } / ID: { $id }
+bibliography-dialog-link-message = This dialog ignores link attributes and will discard them when saving.
+bibliography-dialog-link-title = Links are ignored in this version
+bibliography-dialog-uncited-section-title = Uncited Items
+bibliography-dialog-uncited-section-desc = Add items not cited in the text to the bibliography.
+bibliography-dialog-uncited-edit = Edit items

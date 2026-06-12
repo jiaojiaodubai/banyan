@@ -14,7 +14,12 @@ export default defineConfig({
     "https://github.com/{{owner}}/{{repo}}/releases/download/v{{version}}/{{xpiName}}.xpi",
 
   build: {
-    assets: ["addon/**/*.*"],
+    assets: [
+      "addon/**/*.*",
+      "typings/item.d.ts",
+      "typings/style.d.ts",
+      "typings/styleUtils.d.ts",
+    ],
     define: {
       ...pkg.config,
       author: pkg.author,
@@ -35,6 +40,23 @@ export default defineConfig({
         bundle: true,
         target: "firefox115",
         outfile: `.scaffold/build/addon/content/scripts/${pkg.config.addonRef}.js`,
+      },
+      // Build dialog window scripts (exclude development-only helpers)
+      {
+        entryPoints: [
+          "src/dialogs/styleDialog.ts",
+          "src/dialogs/styleEditor.ts",
+          "src/dialogs/citationDialog.ts",
+          "src/dialogs/bibliographyDialog.ts",
+          "src/dialogs/createOutputDialog.ts",
+        ],
+        define: {
+          __env__: `"${process.env.NODE_ENV}"`,
+        },
+        bundle: true,
+        target: "firefox115",
+        outdir: ".scaffold/build/addon/content/scripts",
+        entryNames: "[name]",
       },
     ],
   },

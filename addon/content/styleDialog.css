@@ -1,0 +1,88 @@
+html {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 340px;
+  /* best value to show at least 1 row */
+  min-height: 147px;
+  overflow-y: hidden;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  margin: 0;
+  overflow-y: hidden;
+}
+
+header,
+footer {
+  display: flex;
+  align-items: center;
+  /* keep consistance with default body background */
+  background: var(--material-sidepane);
+  flex-shrink: 0;
+}
+
+header {
+  justify-content: end;
+  padding: 8px 10px 8px 10px;
+  -moz-window-dragging: drag;
+}
+
+#search {
+  height: 28px;
+  width: 61.8%;
+  margin: 0;
+  /* adjust magnifier ion and "x" icon position */
+  padding: 0 6px 0 0;
+  -moz-window-dragging: no-drag;
+  user-select: none;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  border-bottom: var(--material-panedivider);
+  border-top: var(--material-panedivider);
+  overflow-y: hidden;
+  -moz-window-dragging: no-drag;
+}
+
+.virtualized-table-container {
+  flex: 1;
+  min-height: 50px;
+}
+
+.virtualized-table-body {
+  padding-bottom: 0;
+}
+
+/* highlight selected row even table is not focused */
+.virtualized-table:not(:focus-within) .row.selected {
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.virtualized-table .row.odd:not(.selected) {
+  background-color: var(--material-stripe);
+}
+
+.virtualized-table .row.even:not(.selected) {
+  background-color: var(--material-background);
+}
+
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 10px 8px 10px;
+  -moz-window-dragging: no-drag;
+}
+
+footer button {
+  min-width: 6.3em;
+}
