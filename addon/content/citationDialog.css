@@ -383,7 +383,13 @@ footer {
 
 .bubble-popup-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 0;
+}
+
+.bubble-popup-actions button {
+  max-width: 100%;
+  white-space: nowrap;
 }

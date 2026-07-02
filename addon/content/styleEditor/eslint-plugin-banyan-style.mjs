@@ -13,7 +13,33 @@ const REQUIRED_INFO_FIELDS = [
 const STRING_INFO_FIELDS = ["id", "title", "description", "license", "updated"];
 const ARRAY_INFO_FIELDS = ["creator", "tags", "documentation"];
 const CITATION_TYPE_VALUES = new Set(["intext-citation", "note-citation"]);
+const LARGE_LOOP_BOUNDARY = 100000;
 
+function isLiteralTrue(node) {
+  return node?.type === "Literal" && node.value === true;
+}
+
+function isLargeNumericLiteral(node) {
+  return (
+    node?.type === "Literal" &&
+    typeof node.value === "number" &&
+    node.value >= LARGE_LOOP_BOUNDARY
+  );
+}
+
+function isLargeLoopTest(node) {
+  if (!node || node.type !== "BinaryExpression") return false;
+  return isLargeNumericLiteral(node.left) || isLargeNumericLiteral(node.right);
+}
+
+function getCalleeName(node) {
+  if (!node) return null;
+  if (node.type === "Identifier") return node.name;
+  if (node.type === "MemberExpression" && !node.computed) {
+    return node.property.type === "Identifier" ? node.property.name : null;
+  }
+  return null;
+}
 function isRequiredExport(name) {
   return REQUIRED_EXPORTS.includes(name);
 }
@@ -246,6 +272,70 @@ function validateInfoEntry(context, infoNode) {
   validateCreatorArray(context, infoProps.get("creator"));
 }
 
+const warnRiskyRuntimePatternRule = {
+  meta: {
+    type: "suggestion",
+    docs: {
+      description:
+        "Warn about style script patterns that can hang Banyan's sandbox runtime",
+    },
+    schema: [],
+    messages: {
+      unboundedWhile:
+        "Avoid unbounded while loops in generate(); Banyan isolates permissions, not CPU time.",
+      unboundedFor:
+        "Avoid for(;;) loops in generate(); Banyan cannot reliably interrupt synchronous infinite loops.",
+      largeSyncLoop:
+        "This loop has a very large literal boundary. Prefer iterating contexts/items directly or chunking async work.",
+      directRecursion:
+        "Direct recursion can exhaust the style runtime. Prefer iterative helpers with explicit bounds.",
+    },
+  },
+  create(context) {
+    const functionStack = [];
+
+    function enterFunction(node) {
+      functionStack.push(node.id?.name || null);
+    }
+
+    function exitFunction() {
+      functionStack.pop();
+    }
+
+    return {
+      FunctionDeclaration: enterFunction,
+      "FunctionDeclaration:exit": exitFunction,
+      FunctionExpression: enterFunction,
+      "FunctionExpression:exit": exitFunction,
+      ArrowFunctionExpression() {
+        functionStack.push(null);
+      },
+      "ArrowFunctionExpression:exit": exitFunction,
+      WhileStatement(node) {
+        if (isLiteralTrue(node.test)) {
+          context.report({ node, messageId: "unboundedWhile" });
+        }
+      },
+      ForStatement(node) {
+        if (!node.test) {
+          context.report({ node, messageId: "unboundedFor" });
+          return;
+        }
+        if (isLargeLoopTest(node.test)) {
+          context.report({ node, messageId: "largeSyncLoop" });
+        }
+      },
+      CallExpression(node) {
+        const currentFunction = functionStack[functionStack.length - 1];
+        if (!currentFunction) return;
+        if (getCalleeName(node.callee) === currentFunction) {
+          context.report({ node, messageId: "directRecursion" });
+        }
+      },
+    };
+  },
+};
+
 const requireStyleContractRule = {
   meta: {
     type: "problem",
@@ -316,5 +406,6 @@ const requireStyleContractRule = {
 export default {
   rules: {
     "require-style-contract": requireStyleContractRule,
+    "warn-risky-runtime-pattern": warnRiskyRuntimePatternRule,
   },
 };

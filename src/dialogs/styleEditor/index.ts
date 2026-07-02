@@ -1,27 +1,35 @@
-import type { CitationContext } from "../../typings/style";
-import type { CitationSource, Cite } from "../../typings/style";
-import type { TextUnit } from "../../typings/unit";
+import type { CitationContext } from "../../../typings/style";
+import type { CitationSource, Cite } from "../../../typings/style";
+import type { TextUnit } from "../../../typings/unit";
 import type {
   CitationRequestData,
   CitationResponseData,
-} from "../../typings/server";
-import type { IO as CitationDialogIO } from "./citationDialog";
+} from "../../../typings/server";
+import type { IO as CitationDialogIO } from "../citationDialog";
 import { VirtualizedTableHelper } from "zotero-plugin-toolkit";
-import { createStyle, withStyleDebugSink } from "../modules/sandbox";
+import { createStyle } from "../../modules/sandbox";
 import {
   getStyleEditorAssets,
   parseStyleEditorJSCompilerOptions,
   type StyleEditorAssets,
-} from "../modules/styleEditor";
-import { renderUnitsToFragment } from "../components/richTextEditor";
-import { useL10n } from "../utils/locale";
+} from "../../modules/styleEditor";
+import { renderUnitsToFragment } from "../../components/richTextEditor";
+import { useL10n } from "../../utils/locale";
+import { parseBanyanEntryLink } from "../../utils/html";
+import { updateStyleCodeUpdatedTimestamp } from "../../utils/styleUpdated";
 import {
   ensureDataDir,
   getStyleFilePathById,
   loadStyles,
   readStyleFile,
   saveStyleCodeById,
-} from "../modules/styles";
+} from "../../modules/styles";
+import { parseStyleSnippets, type SnippetItem } from "./snippets";
+import {
+  formatRuntimeErrorDetails,
+  getErrorDebugString,
+  type FormattedRuntimeError,
+} from "./runtimeErrors";
 
 type MonacoEditor = {
   getValue: () => string;
@@ -112,34 +120,6 @@ type SelectionLike = {
   };
 };
 
-type SubprocessReadable = {
-  readString?: () => Promise<string | null>;
-};
-
-type SubprocessWritable = {
-  write: (data: string) => Promise<void>;
-  close: () => Promise<void>;
-};
-
-type SubprocessProcess = {
-  stdin: SubprocessWritable;
-  stdout: SubprocessReadable;
-  stderr: SubprocessReadable;
-  wait: () => Promise<{ exitCode?: number } | undefined>;
-  kill: (timeout?: number) => Promise<void>;
-  exitCode?: number;
-  exitValue?: number;
-};
-
-type SubprocessAPI = {
-  call: (options: {
-    command: string;
-    arguments: string[];
-    workdir: string;
-    stderr: "pipe";
-  }) => Promise<SubprocessProcess>;
-};
-
 const DEFAULT_EDITOR_FONT_SIZE = 13;
 const MIN_EDITOR_FONT_SIZE = 10;
 const MAX_EDITOR_FONT_SIZE = 28;
@@ -152,22 +132,6 @@ type TemplateItem = {
   title: string;
   path: string;
 };
-
-type SnippetItem = {
-  name: string;
-  prefix: string;
-  prefixes: string[];
-  description: string;
-  body: string;
-};
-
-type VscodeSnippetDefinition = {
-  prefix?: string | string[];
-  body?: string | string[];
-  description?: string;
-};
-
-type VscodeSnippetFile = Record<string, VscodeSnippetDefinition>;
 
 type MonacoCompletionEntry = {
   label: string;
@@ -243,24 +207,6 @@ type CitationRow = {
   source: CitationSource;
 };
 
-type RuntimeErrorInfo = {
-  name: string;
-  message: string;
-  fileName: string | null;
-  lineNumber: number | null;
-  columnNumber: number | null;
-  stack: string | null;
-  phase: string | null;
-  sourcePath: string | null;
-  cause: unknown;
-};
-
-type FormattedRuntimeError = {
-  summary: string;
-  lines: string[];
-  copyText: string;
-};
-
 const t = useL10n(["styleEditor.ftl", "citationDialog.ftl"]);
 
 const TEMPLATE_MENU_ITEMS: TemplateItem[] = [
@@ -307,18 +253,15 @@ const MIN_CITATION_PAGE = 1;
 const DEFAULT_LINT_STDIN_FILENAME = "addon/content/styleEditor/banyan-style.js";
 const STYLE_SNIPPETS_FILE_NAME = "snippets.jsonc";
 const MAX_PREVIEW_DEBUG_LOG_LINES = 120;
-const MAX_PREVIEW_ERROR_STACK_LINES = 40;
-const MAX_PREVIEW_ERROR_LINES = 120;
-const MAX_PREVIEW_ERROR_COPY_LINES = 240;
-const MAX_PREVIEW_ERROR_CAUSE_DEPTH = 3;
-const SANDBOX_SCRIPT_FILE_BASENAME = "banyan-style.js";
-const SANDBOX_SCRIPT_WRAPPER_PREFIX_LINES = 2;
-const HOST_COMPILED_SCRIPT_HINT = "/content/scripts/";
 let lintStdinFilename = DEFAULT_LINT_STDIN_FILENAME;
 
 const { Subprocess } = ChromeUtils.importESModule(
   "resource://gre/modules/Subprocess.sys.mjs",
-) as { Subprocess: SubprocessAPI };
+) as typeof import("resource://gre/modules/Subprocess.sys.mjs");
+type SubprocessReadable =
+  import("resource://gre/modules/Subprocess.sys.mjs").SubprocessReadable;
+type SubprocessProcess =
+  import("resource://gre/modules/Subprocess.sys.mjs").SubprocessProcess;
 
 window.addEventListener("load", () => {
   void initStyleEditor();
@@ -1146,7 +1089,6 @@ async function openCitationDialogForRow(rowId: string): Promise<void> {
     const code = editor.getValue();
     if (!code.trim()) {
       notifyCitationStyleRequired();
-      await renderCitationRowsTable();
       return;
     }
 
@@ -2070,73 +2012,6 @@ async function loadStyleSnippetSource(): Promise<string> {
   return Zotero.File.getContentsFromURLAsync(snippetURL);
 }
 
-function parseStyleSnippets(source: string): SnippetItem[] {
-  const parsed = JSON.parse(stripJSONComments(source)) as VscodeSnippetFile;
-  const items: SnippetItem[] = [];
-
-  for (const [name, definition] of Object.entries(parsed)) {
-    if (!definition || typeof definition !== "object") {
-      continue;
-    }
-
-    const prefixes = normalizeSnippetPrefixes(definition.prefix);
-    const body = normalizeSnippetBody(definition.body);
-    if (!prefixes.length || !body) {
-      continue;
-    }
-
-    items.push({
-      name,
-      prefix: prefixes[0],
-      prefixes,
-      description: String(definition.description || ""),
-      body,
-    });
-  }
-
-  return items.sort((a, b) => a.name.localeCompare(b.name));
-}
-
-function normalizeSnippetPrefixes(
-  prefix: VscodeSnippetDefinition["prefix"],
-): string[] {
-  if (typeof prefix === "string") {
-    const text = prefix.trim();
-    return text ? [text] : [];
-  }
-  if (!Array.isArray(prefix)) {
-    return [];
-  }
-
-  const normalized: string[] = [];
-  for (const entry of prefix) {
-    if (typeof entry !== "string") {
-      continue;
-    }
-    const text = entry.trim();
-    if (text) {
-      normalized.push(text);
-    }
-  }
-  return normalized;
-}
-
-function normalizeSnippetBody(body: VscodeSnippetDefinition["body"]): string {
-  if (typeof body === "string") {
-    return body;
-  }
-  if (Array.isArray(body)) {
-    return body
-      .filter((line): line is string => typeof line === "string")
-      .join("\n");
-  }
-  return "";
-}
-
-function stripJSONComments(source: string): string {
-  return source.replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
-}
-
 async function onApplyTemplate(): Promise<void> {
   if (!editor) return;
   try {
@@ -2395,428 +2270,6 @@ function buildESLintExecutionErrorResult(message: string): ESLintResult[] {
       ],
     },
   ];
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === "string") {
-    return error;
-  }
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
-}
-
-function getErrorDebugString(error: unknown): string {
-  if (error instanceof Error) {
-    const ext = error as Error & {
-      fileName?: string;
-      lineNumber?: number;
-      columnNumber?: number;
-      errorCode?: number;
-    };
-    return JSON.stringify({
-      name: ext.name,
-      message: ext.message,
-      fileName: ext.fileName,
-      lineNumber: ext.lineNumber,
-      columnNumber: ext.columnNumber,
-      errorCode: ext.errorCode,
-      stack: ext.stack,
-    });
-  }
-  return getErrorMessage(error);
-}
-
-function isSandboxStyleScriptFile(fileName: string | null): boolean {
-  if (!fileName) {
-    return false;
-  }
-  return fileName.includes(SANDBOX_SCRIPT_FILE_BASENAME);
-}
-
-function isHostCompiledRuntimeFile(fileName: string | null): boolean {
-  if (!fileName) {
-    return false;
-  }
-  return fileName.includes(HOST_COMPILED_SCRIPT_HINT);
-}
-
-function isHostCompiledRuntimeStackLine(line: string): boolean {
-  return line.includes(HOST_COMPILED_SCRIPT_HINT);
-}
-
-function toScriptLineNumber(
-  fileName: string | null,
-  lineNumber: number | null,
-): number | null {
-  if (!isSandboxStyleScriptFile(fileName) || lineNumber === null) {
-    return lineNumber;
-  }
-
-  if (lineNumber <= SANDBOX_SCRIPT_WRAPPER_PREFIX_LINES) {
-    return lineNumber;
-  }
-
-  return lineNumber - SANDBOX_SCRIPT_WRAPPER_PREFIX_LINES;
-}
-
-function remapSandboxStackLines(stack: string): string {
-  return stack.replace(
-    /(banyan-style\.js:)(\d+)(:\d+)/g,
-    (_full, prefix: string, rawLine: string, suffix: string) => {
-      const parsedLine = Number.parseInt(rawLine, 10);
-      if (!Number.isFinite(parsedLine)) {
-        return `${prefix}${rawLine}${suffix}`;
-      }
-
-      const mapped = toScriptLineNumber(
-        SANDBOX_SCRIPT_FILE_BASENAME,
-        parsedLine,
-      );
-      return `${prefix}${mapped ?? parsedLine}${suffix}`;
-    },
-  );
-}
-
-function getDepthIndent(depth: number): string {
-  return "  ".repeat(Math.max(depth, 0));
-}
-
-function toNullableNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function toRuntimeErrorInfo(error: unknown): RuntimeErrorInfo {
-  const raw =
-    error && typeof error === "object"
-      ? (error as Record<string, unknown>)
-      : null;
-  const name =
-    typeof raw?.name === "string" && raw.name.trim()
-      ? raw.name.trim()
-      : "Error";
-  const message =
-    typeof raw?.message === "string" && raw.message.trim()
-      ? raw.message
-      : getErrorMessage(error);
-  const fileName =
-    typeof raw?.fileName === "string" && raw.fileName.trim()
-      ? raw.fileName
-      : null;
-  const lineNumber = toScriptLineNumber(
-    fileName,
-    toNullableNumber(raw?.lineNumber),
-  );
-  const columnNumber = toNullableNumber(raw?.columnNumber);
-  const rawStack =
-    typeof raw?.stack === "string" && raw.stack.trim() ? raw.stack : null;
-  const stack = rawStack ? remapSandboxStackLines(rawStack) : null;
-  const phase =
-    typeof raw?.banyanPhase === "string" && raw.banyanPhase.trim()
-      ? raw.banyanPhase
-      : null;
-  const sourcePath =
-    typeof raw?.banyanSourcePath === "string" && raw.banyanSourcePath.trim()
-      ? raw.banyanSourcePath
-      : null;
-
-  return {
-    name,
-    message,
-    fileName,
-    lineNumber,
-    columnNumber,
-    stack,
-    phase,
-    sourcePath,
-    cause: raw?.cause,
-  };
-}
-
-function formatRuntimeErrorLocation(info: RuntimeErrorInfo): string | null {
-  if (isHostCompiledRuntimeFile(info.fileName)) {
-    return null;
-  }
-
-  const parts: string[] = [];
-  if (info.fileName) {
-    parts.push(info.fileName);
-  }
-  if (info.lineNumber !== null) {
-    parts.push(`line ${info.lineNumber}`);
-  }
-  if (info.columnNumber !== null) {
-    parts.push(`column ${info.columnNumber}`);
-  }
-  return parts.length ? parts.join(", ") : null;
-}
-
-function getRuntimeStackSections(info: RuntimeErrorInfo): {
-  primary: string[];
-  internal: string[];
-} {
-  if (!info.stack) {
-    return {
-      primary: [],
-      internal: [],
-    };
-  }
-
-  const lines = info.stack
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  if (!lines.length) {
-    return {
-      primary: [],
-      internal: [],
-    };
-  }
-
-  const primary: string[] = [];
-  const internal: string[] = [];
-  const summaryLine =
-    info.name && info.name !== "Error"
-      ? `${info.name}: ${info.message}`
-      : `Error: ${info.message}`;
-
-  for (const line of lines) {
-    if (line === summaryLine) {
-      continue;
-    }
-
-    if (isHostCompiledRuntimeStackLine(line)) {
-      internal.push(line);
-      continue;
-    }
-
-    primary.push(line);
-  }
-
-  return {
-    primary: primary.slice(0, MAX_PREVIEW_ERROR_STACK_LINES),
-    internal: internal.slice(0, MAX_PREVIEW_ERROR_STACK_LINES),
-  };
-}
-
-function extractRuntimeStackFrameName(line: string): string {
-  const atIndex = line.indexOf("@");
-  const frameName = atIndex >= 0 ? line.slice(0, atIndex) : line;
-  return frameName.trim();
-}
-
-function isNoiseRuntimeFrame(frameName: string): boolean {
-  if (!frameName) {
-    return true;
-  }
-
-  return [
-    "createBanyanRuntimeError",
-    "generate",
-    "async*refreshPreview/<",
-    "async*withStyleDebugSink",
-    "refreshPreview",
-    "runRuntimeAction",
-    "handleMenuAction",
-    "bindMenuActions/<",
-    "EventListener.handleEvent*bindMenuActions",
-    "bindActions",
-    "initStyleEditor",
-    "async*",
-    "EventListener.handleEvent*",
-    "",
-  ].includes(frameName);
-}
-
-function summarizeInternalRuntimeStack(lines: string[]): string[] {
-  const summary: string[] = [];
-
-  for (const line of lines) {
-    const frameName = extractRuntimeStackFrameName(line);
-    if (isNoiseRuntimeFrame(frameName)) {
-      continue;
-    }
-
-    if (summary[summary.length - 1] === frameName) {
-      continue;
-    }
-
-    summary.push(frameName);
-    if (summary.length >= 6) {
-      break;
-    }
-  }
-
-  return summary;
-}
-
-function getRuntimeErrorHint(info: RuntimeErrorInfo): string | null {
-  if (info.phase !== "generate-output" || !info.sourcePath) {
-    return null;
-  }
-
-  if (
-    /^citations\[\d+\]\.units$/.test(info.sourcePath) &&
-    / is required\.$/.test(info.message)
-  ) {
-    return [
-      "This was raised while validating the value returned by generate(),",
-      "so there is no direct script line number to map.",
-      "The citation branch for this context returned no Unit",
-      "(usually undefined/null because a code path did not return).",
-    ].join(" ");
-  }
-
-  if (
-    /^bibliography\[\d+\]\.units$/.test(info.sourcePath) &&
-    / is required\.$/.test(info.message)
-  ) {
-    return [
-      "This was raised while validating the value returned by generate(),",
-      "so there is no direct script line number to map.",
-      "The bibliography branch for this entry returned no Unit",
-      "(usually undefined/null because a code path did not return).",
-    ].join(" ");
-  }
-
-  return [
-    "This was raised while validating the value returned by generate(),",
-    "after your script already returned, so there is no direct script line number to map.",
-  ].join(" ");
-}
-
-function formatRuntimeErrorDetails(error: unknown): FormattedRuntimeError {
-  const lines: string[] = [];
-  const copyLines: string[] = [];
-  const seen = new Set<unknown>();
-  const chain: RuntimeErrorInfo[] = [];
-  let current: unknown = error;
-  let depth = 0;
-
-  while (
-    current !== undefined &&
-    current !== null &&
-    depth <= MAX_PREVIEW_ERROR_CAUSE_DEPTH &&
-    !seen.has(current)
-  ) {
-    seen.add(current);
-
-    const info = toRuntimeErrorInfo(current);
-    chain.push(info);
-    const label =
-      info.name && info.name !== "Error"
-        ? `${info.name}: ${info.message}`
-        : info.message;
-
-    const detailIndent = `${getDepthIndent(depth)}  `;
-    const stackLineIndent = `${detailIndent}  `;
-    const header =
-      depth === 0 ? label : `${getDepthIndent(depth)}Cause ${depth}: ${label}`;
-
-    lines.push(header);
-    copyLines.push(header);
-
-    if (info.sourcePath) {
-      const sourceLine = `${detailIndent}Path: ${info.sourcePath}`;
-      lines.push(sourceLine);
-      copyLines.push(sourceLine);
-    }
-
-    const hint = getRuntimeErrorHint(info);
-    if (hint) {
-      const hintLine = `${detailIndent}Hint: ${hint}`;
-      lines.push(hintLine);
-      copyLines.push(hintLine);
-    }
-
-    const location = formatRuntimeErrorLocation(info);
-    if (location) {
-      const locationLine = `${detailIndent}Location: ${location}`;
-      lines.push(locationLine);
-      copyLines.push(locationLine);
-    }
-
-    const stackSections = getRuntimeStackSections(info);
-    if (stackSections.primary.length) {
-      const stackTitle = `${detailIndent}Stack:`;
-      lines.push(stackTitle);
-      copyLines.push(stackTitle);
-      for (const stackLine of stackSections.primary) {
-        const indentedLine = `${stackLineIndent}${stackLine}`;
-        lines.push(indentedLine);
-        copyLines.push(indentedLine);
-      }
-    }
-
-    const internalStackSummary = summarizeInternalRuntimeStack(
-      stackSections.internal,
-    );
-    const shouldShowValidationStack =
-      !stackSections.primary.length && internalStackSummary.length > 0;
-    if (shouldShowValidationStack) {
-      const validationTitle = `${detailIndent}Validation stack:`;
-      lines.push(validationTitle);
-      copyLines.push(validationTitle);
-      for (const frameName of internalStackSummary) {
-        const summaryLine = `${stackLineIndent}${frameName}`;
-        lines.push(summaryLine);
-        copyLines.push(summaryLine);
-      }
-    }
-
-    const shouldIncludeInternalHostStack =
-      !info.sourcePath && !location && !stackSections.primary.length;
-    if (shouldIncludeInternalHostStack && stackSections.internal.length) {
-      copyLines.push(`${detailIndent}Internal host stack:`);
-      for (const stackLine of stackSections.internal) {
-        copyLines.push(`${stackLineIndent}${stackLine}`);
-      }
-    }
-
-    current = info.cause;
-    depth += 1;
-
-    if (
-      current !== undefined &&
-      current !== null &&
-      depth <= MAX_PREVIEW_ERROR_CAUSE_DEPTH
-    ) {
-      copyLines.push("");
-    }
-  }
-
-  const preferredInfo =
-    [...chain].reverse().find((info) => {
-      if (info.sourcePath) {
-        return true;
-      }
-      if (formatRuntimeErrorLocation(info)) {
-        return true;
-      }
-      return getRuntimeStackSections(info).primary.length > 0;
-    }) ?? chain[0];
-  let summary = preferredInfo?.message ?? "";
-
-  if (!summary) {
-    summary = getErrorMessage(error);
-  }
-  if (!lines.length) {
-    const fallbackLine = `${t("style-editor-error-prefix")}: ${summary}`;
-    lines.push(fallbackLine);
-    copyLines.push(fallbackLine);
-  }
-
-  return {
-    summary,
-    lines: lines.slice(0, MAX_PREVIEW_ERROR_LINES),
-    copyText: copyLines.slice(0, MAX_PREVIEW_ERROR_COPY_LINES).join("\n"),
-  };
 }
 
 async function getESLintConfigPath(): Promise<string | null> {
@@ -3253,41 +2706,43 @@ async function refreshPreview(): Promise<void> {
 
   try {
     ztoolkit.log("[style-editor preview] refreshPreview start");
-    await withStyleDebugSink(recordPreviewDebugLog, async () => {
-      const style = await createStyle(editorRef.getValue());
-
-      const contexts = await createPreviewContexts();
-      logPreviewContextsDebug(contexts);
-
-      let citations: unknown;
-      let bibliography: unknown;
-      try {
-        const result = await style.generate(contexts);
-        citations = result.citations;
-        bibliography = result.bibliography;
-      } catch (e) {
-        ztoolkit.log("[style-editor preview] generate failed", {
-          error: String(e),
-        });
-        throw e;
-      }
-
-      ztoolkit.log("[style-editor preview] refreshPreview success", {
-        citationsIsArray: Array.isArray(citations),
-        citationsLength: Array.isArray(citations) ? citations.length : -1,
-        bibliographyIsArray: Array.isArray(bibliography),
-        bibliographyLength: Array.isArray(bibliography)
-          ? bibliography.length
-          : -1,
-      });
-
-      const safeCitations = Array.isArray(citations) ? citations : [];
-      const safeBibliography = Array.isArray(bibliography) ? bibliography : [];
-      renderPreview(safeCitations, safeBibliography);
-      setStatus(t("style-editor-status-ready"));
+    const style = await createStyle(editorRef.getValue(), {
+      debugSink: recordPreviewDebugLog,
     });
+
+    const contexts = await createPreviewContexts();
+    logPreviewContextsDebug(contexts);
+
+    let citations: unknown;
+    let bibliography: unknown;
+    try {
+      const result = await style.generate(contexts);
+      citations = result.citations;
+      bibliography = result.bibliography;
+    } catch (e) {
+      ztoolkit.log("[style-editor preview] generate failed", {
+        error: String(e),
+      });
+      throw e;
+    }
+
+    ztoolkit.log("[style-editor preview] refreshPreview success", {
+      citationsIsArray: Array.isArray(citations),
+      citationsLength: Array.isArray(citations) ? citations.length : -1,
+      bibliographyIsArray: Array.isArray(bibliography),
+      bibliographyLength: Array.isArray(bibliography)
+        ? bibliography.length
+        : -1,
+    });
+
+    const safeCitations = Array.isArray(citations) ? citations : [];
+    const safeBibliography = Array.isArray(bibliography) ? bibliography : [];
+    renderPreview(safeCitations, safeBibliography);
+    setStatus(t("style-editor-status-ready"));
   } catch (e) {
-    const formattedError = formatRuntimeErrorDetails(e);
+    const formattedError = formatRuntimeErrorDetails(e, {
+      errorPrefix: t("style-editor-error-prefix"),
+    });
     ztoolkit.logError(e);
     ztoolkit.log("[style-editor preview] refreshPreview failed", {
       error: formattedError.summary,
@@ -3393,6 +2848,50 @@ function toPreviewTextUnits(input: unknown): TextUnit[] {
   });
 }
 
+function getStringRecordValue(
+  record: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = record[key];
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function getBibliographyEntryId(lineRecord: Record<string, unknown>): string {
+  return (
+    getStringRecordValue(lineRecord, "id") ||
+    getStringRecordValue(lineRecord, "entryId") ||
+    getStringRecordValue(lineRecord, "key") ||
+    ""
+  );
+}
+
+function handlePreviewLinkClick(link: string): boolean {
+  const entryId = parseBanyanEntryLink(link);
+  if (!entryId) {
+    return false;
+  }
+
+  const target = document.querySelector<HTMLElement>(
+    `[data-banyan-entry-id="${CSS.escape(entryId)}"]`,
+  );
+  if (!target) {
+    return true;
+  }
+
+  for (const current of document.querySelectorAll(".preview-link-target")) {
+    current.classList.remove("preview-link-target");
+  }
+  target.classList.add("preview-link-target");
+  target.setAttribute("tabindex", "-1");
+  target.scrollIntoView({ block: "center", behavior: "smooth" });
+  target.focus({ preventScroll: true });
+  return true;
+}
+
+function renderPreviewUnits(units: TextUnit[]): DocumentFragment {
+  return renderUnitsToFragment(units, { onLinkClick: handlePreviewLinkClick });
+}
+
 function renderPreview(citations: unknown[], bibliography: unknown[]): void {
   const container = document.getElementById(
     "output-preview-view",
@@ -3425,14 +2924,14 @@ function renderPreview(citations: unknown[], bibliography: unknown[]): void {
         const referenceRow = document.createElement("div");
         referenceRow.className = "preview-line preview-note-reference";
         referenceRow.appendChild(
-          renderUnitsToFragment(toPreviewTextUnits(citationRecord.reference)),
+          renderPreviewUnits(toPreviewTextUnits(citationRecord.reference)),
         );
         container.appendChild(referenceRow);
 
         const textRow = document.createElement("div");
         textRow.className = "preview-line preview-note-text";
         textRow.appendChild(
-          renderUnitsToFragment(toPreviewTextUnits(citationRecord.units)),
+          renderPreviewUnits(toPreviewTextUnits(citationRecord.units)),
         );
         container.appendChild(textRow);
         continue;
@@ -3441,7 +2940,7 @@ function renderPreview(citations: unknown[], bibliography: unknown[]): void {
       const row = document.createElement("div");
       row.className = "preview-line";
       row.appendChild(
-        renderUnitsToFragment(toPreviewTextUnits(citationRecord.units)),
+        renderPreviewUnits(toPreviewTextUnits(citationRecord.units)),
       );
       container.appendChild(row);
     }
@@ -3465,9 +2964,11 @@ function renderPreview(citations: unknown[], bibliography: unknown[]): void {
       line && typeof line === "object" ? (line as Record<string, unknown>) : {};
     const row = document.createElement("div");
     row.className = "preview-line";
-    row.appendChild(
-      renderUnitsToFragment(toPreviewTextUnits(lineRecord.units)),
-    );
+    const entryId = getBibliographyEntryId(lineRecord);
+    if (entryId) {
+      row.dataset.banyanEntryId = entryId;
+    }
+    row.appendChild(renderPreviewUnits(toPreviewTextUnits(lineRecord.units)));
     container.appendChild(row);
   }
 
@@ -3552,7 +3053,11 @@ async function saveStyle(): Promise<void> {
       }
     }
 
-    await saveStyleCodeById(id, code);
+    const updatedCode = updateStyleCodeUpdatedTimestamp(code);
+    await saveStyleCodeById(id, updatedCode);
+    if (updatedCode !== code) {
+      editor.setValue(updatedCode);
+    }
 
     await loadStyles(true);
     setStatus(t("style-editor-status-saved", { args: { path: fullPath } }));

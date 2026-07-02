@@ -1,38 +1,26 @@
-type LogLevel = "INFO" | "ERROR";
+import { getPref } from "./prefs";
 
-type XpcomClassEntry = {
-  createInstance: <T>(iid: T) => nsQIResult<T>;
+type DebugLogLevel = "INFO" | "ERROR";
+
+type DebugLogEntry = {
+  timestamp: string;
+  level: DebugLogLevel;
+  module: string;
+  event: string;
+  detail?: unknown;
+  error?: unknown;
 };
 
-type LegacyLocalFile = {
-  initWithPath(path: string): void;
+type DebugModuleLogger = {
+  log: (event: string, detail?: unknown) => void;
+  error: (event: string, error?: unknown, detail?: unknown) => void;
 };
 
-type LegacyFileOutputStream = {
-  init(
-    file: unknown,
-    ioFlags: number,
-    perm: number,
-    behaviorFlags: number,
-  ): void;
-  close(): void;
-};
-
-type LegacyConverterOutputStream = {
-  init(
-    outputStream: unknown,
-    charset: string,
-    bufferSize: number,
-    replacementChar: number,
-  ): void;
-  writeString(text: string): void;
-  close(): void;
-};
-
-const FILE_WRITE_ONLY = 0x02;
-const FILE_CREATE = 0x08;
-const FILE_APPEND = 0x10;
-const FILE_DEFAULT_PERMISSIONS = 0o666;
+const DEBUG_LOGGING_ENABLED_PREF = "debugLoggingEnabled" as const;
+const DEBUG_LOGGING_MODULES_PREF = "debugLoggingModules" as const;
+const DEBUG_LOGGING_DESKTOP_AUTO_EXPORT_PREF =
+  "debugLoggingDesktopAutoExport" as const;
+const MAX_BUFFERED_LOG_ENTRIES = 1000;
 
 function formatTimestamp(date = new Date()): string {
   const pad = (value: number, width = 2) => String(value).padStart(width, "0");
@@ -67,7 +55,6 @@ function getDesktopDir(): string {
     const desktop = Services.dirsvc.get("Desk", Ci.nsIFile);
     return desktop.path;
   } catch {
-    // Fallback to temp directory when desktop path cannot be resolved.
     return PathUtils.tempDir;
   }
 }
@@ -85,21 +72,20 @@ function normalizeValue(
     return `[MaxDepth:${Object.prototype.toString.call(value)}]`;
   }
 
-  const valueType = typeof value;
   if (
-    valueType === "string" ||
-    valueType === "number" ||
-    valueType === "boolean" ||
-    valueType === "bigint"
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint"
   ) {
     return value;
   }
 
-  if (valueType === "symbol") {
+  if (typeof value === "symbol") {
     return String(value);
   }
 
-  if (valueType === "function") {
+  if (typeof value === "function") {
     const fn = value as Function;
     return `[Function ${fn.name || "anonymous"}]`;
   }
@@ -121,33 +107,21 @@ function normalizeValue(
     return value.map((item) => normalizeValue(item, seen, depth + 1));
   }
 
-  if (valueType === "object") {
+  if (typeof value === "object") {
     const obj = value as Record<string, unknown>;
-
     if (seen.has(obj)) {
       return "[Circular]";
     }
     seen.add(obj);
 
     const tag = Object.prototype.toString.call(obj);
-    if (typeof (obj as { then?: unknown }).then === "function") {
-      seen.delete(obj);
-      return { tag, promiseLike: true };
-    }
+    const out: Record<string, unknown> =
+      tag === "[object Object]" ? {} : { tag };
 
-    if (tag !== "[object Object]") {
-      const plain: Record<string, unknown> = { tag };
-      for (const key of Object.keys(obj)) {
-        plain[key] = normalizeValue(obj[key], seen, depth + 1);
-      }
-      seen.delete(obj);
-      return plain;
-    }
-
-    const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(obj)) {
       out[key] = normalizeValue(item, seen, depth + 1);
     }
+
     seen.delete(obj);
     return out;
   }
@@ -172,172 +146,211 @@ function serializeValue(value: unknown): string {
   }
 }
 
+function isDevelopmentEnv(): boolean {
+  try {
+    return addon.data.env === "development";
+  } catch {
+    return false;
+  }
+}
+
+function isDebugLoggingEnabled(): boolean {
+  try {
+    return Boolean(getPref(DEBUG_LOGGING_ENABLED_PREF));
+  } catch {
+    return false;
+  }
+}
+
+function getEnabledDebugModules(): string[] {
+  try {
+    return String(getPref(DEBUG_LOGGING_MODULES_PREF) || "")
+      .split(/[,\s]+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function shouldCaptureModule(moduleName: string): boolean {
+  if (!isDevelopmentEnv() || !isDebugLoggingEnabled()) {
+    return false;
+  }
+
+  const enabledModules = getEnabledDebugModules();
+  if (enabledModules.length === 0) {
+    return true;
+  }
+
+  return enabledModules.some((pattern) => {
+    if (pattern === "*") {
+      return true;
+    }
+    if (pattern.endsWith(".*")) {
+      const prefix = pattern.slice(0, -2);
+      return moduleName === prefix || moduleName.startsWith(`${prefix}.`);
+    }
+    return moduleName === pattern;
+  });
+}
+
+function shouldAutoExportToDesktop(): boolean {
+  try {
+    return Boolean(getPref(DEBUG_LOGGING_DESKTOP_AUTO_EXPORT_PREF));
+  } catch {
+    return false;
+  }
+}
+
 export class DebugLogger {
-  private readonly logFilePath: string;
+  private readonly sessionStamp = buildSessionStamp();
+  private readonly entries: DebugLogEntry[] = [];
   private pendingWrites: Promise<void> = Promise.resolve();
-  private sessionHeaderWritten = false;
 
-  constructor(logFilePath?: string) {
-    const logFileName = `Banyan-debug-${buildSessionStamp()}.log`;
-    this.logFilePath =
-      logFilePath || PathUtils.join(getDesktopDir(), logFileName);
+  private buildEntry(
+    level: DebugLogLevel,
+    module: string,
+    event: string,
+    error?: unknown,
+    detail?: unknown,
+  ): DebugLogEntry {
+    return {
+      timestamp: formatTimestamp(),
+      level,
+      module,
+      event,
+      error: error === undefined ? undefined : normalizeValue(error),
+      detail: detail === undefined ? undefined : normalizeValue(detail),
+    };
   }
 
-  getLogFilePath(): string {
-    return this.logFilePath;
-  }
-
-  log(...args: unknown[]): void {
-    ztoolkit.log(...args);
-    this.enqueueWrite(this.formatLogLine("INFO", args));
-  }
-
-  logImmediate(...args: unknown[]): void {
-    ztoolkit.log(...args);
-    this.writeImmediately(this.formatLogLine("INFO", args));
-  }
-
-  logError(...args: unknown[]): void {
-    ztoolkit.log("[debug:error]", ...args);
-
-    const firstErrorArg = args.find((arg) => arg instanceof Error);
-    if (firstErrorArg instanceof Error) {
-      ztoolkit.logError(firstErrorArg);
-    } else {
-      ztoolkit.logError(args.map((arg) => serializeValue(arg)).join(" "));
+  private pushEntry(entry: DebugLogEntry): void {
+    this.entries.push(entry);
+    if (this.entries.length > MAX_BUFFERED_LOG_ENTRIES) {
+      this.entries.splice(0, this.entries.length - MAX_BUFFERED_LOG_ENTRIES);
     }
 
-    this.enqueueWrite(this.formatLogLine("ERROR", args));
+    if (shouldAutoExportToDesktop()) {
+      void this.appendEntryToDesktop(entry);
+    }
   }
 
-  logErrorImmediate(...args: unknown[]): void {
-    ztoolkit.log("[debug:error]", ...args);
+  private formatEntry(entry: DebugLogEntry): string {
+    const parts = [
+      `[${entry.timestamp}]`,
+      `[${entry.level}]`,
+      `[${entry.module}]`,
+      entry.event,
+    ];
 
-    const firstErrorArg = args.find((arg) => arg instanceof Error);
-    if (firstErrorArg instanceof Error) {
-      ztoolkit.logError(firstErrorArg);
-    } else {
-      ztoolkit.logError(args.map((arg) => serializeValue(arg)).join(" "));
+    if (entry.detail !== undefined) {
+      parts.push(`detail=${serializeValue(entry.detail)}`);
+    }
+    if (entry.error !== undefined) {
+      parts.push(`error=${serializeValue(entry.error)}`);
     }
 
-    this.writeImmediately(this.formatLogLine("ERROR", args));
+    return `${parts.join(" ")}\n`;
   }
 
-  writeFile(text: string): Promise<void> {
-    return this.enqueueWrite(text.endsWith("\n") ? text : `${text}\n`);
+  private getDesktopLogPath(): string {
+    return PathUtils.join(
+      getDesktopDir(),
+      `Banyan-debug-${this.sessionStamp}.log`,
+    );
   }
 
-  private formatLogLine(level: LogLevel, args: unknown[]): string {
-    const serializedArgs = args.map((arg) => serializeValue(arg)).join(" ");
-    return `[${formatTimestamp()}] [${level}] ${serializedArgs}\n`;
-  }
-
-  private enqueueWrite(text: string): Promise<void> {
+  private async appendEntryToDesktop(entry: DebugLogEntry): Promise<void> {
+    const path = this.getDesktopLogPath();
+    const text = this.formatEntry(entry);
     this.pendingWrites = this.pendingWrites
       .then(async () => {
-        if (!this.sessionHeaderWritten) {
-          this.sessionHeaderWritten = true;
-          await this.appendText(
-            `==== Banyan debug session started at ${formatTimestamp()} ====\n` +
-              `logFile=${this.logFilePath}\n`,
-          );
-        }
-        await this.appendText(text);
+        const writeUTF8WithAppend = IOUtils.writeUTF8 as unknown as (
+          filePath: string,
+          data: string,
+          options?: { mode?: "append" },
+        ) => Promise<void>;
+        await writeUTF8WithAppend(path, text, { mode: "append" });
       })
       .catch((error) => {
-        try {
-          ztoolkit.logError(error);
-        } catch {
-          // ignore logging failure
-        }
-      });
-    return this.pendingWrites;
-  }
-
-  private writeImmediately(text: string): void {
-    try {
-      this.ensureSessionHeaderWrittenSync();
-      this.appendTextSync(text);
-    } catch (error) {
-      try {
         ztoolkit.logError(error);
-      } catch {
-        // ignore logging failure
-      }
-    }
+      });
+    await this.pendingWrites;
   }
 
-  private ensureSessionHeaderWrittenSync(): void {
-    if (this.sessionHeaderWritten) {
+  log(module: string, event: string, detail?: unknown): void {
+    if (!shouldCaptureModule(module)) {
       return;
     }
 
-    this.sessionHeaderWritten = true;
-    this.appendTextSync(
-      `==== Banyan debug session started at ${formatTimestamp()} ====\n` +
-        `logFile=${this.logFilePath}\n`,
-    );
+    this.pushEntry(this.buildEntry("INFO", module, event, undefined, detail));
   }
 
-  private async appendText(text: string): Promise<void> {
-    try {
-      if (!(await IOUtils.exists(this.logFilePath))) {
-        // Create file if not exists
-        await IOUtils.writeUTF8(this.logFilePath, "");
-      }
-    } catch {
-      // ignore exists/create error
+  error(
+    module: string,
+    event: string,
+    error?: unknown,
+    detail?: unknown,
+  ): void {
+    if (error instanceof Error) {
+      ztoolkit.logError(error);
+    } else if (error !== undefined) {
+      ztoolkit.logError(`${module}.${event}: ${serializeValue(error)}`);
+    } else {
+      ztoolkit.logError(`${module}.${event}`);
     }
-    const writeUTF8WithAppend = IOUtils.writeUTF8 as unknown as (
-      path: string,
-      data: string,
-      options?: { mode?: "append" },
-    ) => Promise<void>;
-    await writeUTF8WithAppend(this.logFilePath, text, { mode: "append" });
+
+    if (!shouldCaptureModule(module)) {
+      return;
+    }
+
+    this.pushEntry(this.buildEntry("ERROR", module, event, error, detail));
   }
 
-  private appendTextSync(text: string): void {
-    const Cc = Components.classes as unknown as Record<string, XpcomClassEntry>;
-    const Ci = Components.interfaces;
+  clear(): void {
+    this.entries.length = 0;
+  }
 
-    const localFile = Cc["@mozilla.org/file/local;1"].createInstance(
-      Ci.nsIFile,
-    ) as unknown as LegacyLocalFile;
-    localFile.initWithPath(this.logFilePath);
+  getEntries(): DebugLogEntry[] {
+    return this.entries.map((entry) => ({ ...entry }));
+  }
 
-    const outputStream = Cc[
-      "@mozilla.org/network/file-output-stream;1"
-    ].createInstance(
-      Ci.nsIFileOutputStream,
-    ) as unknown as LegacyFileOutputStream;
-    outputStream.init(
-      localFile,
-      FILE_WRITE_ONLY | FILE_CREATE | FILE_APPEND,
-      FILE_DEFAULT_PERMISSIONS,
-      0,
-    );
-
-    const converterStream = Cc[
-      "@mozilla.org/intl/converter-output-stream;1"
-    ].createInstance(
-      Ci.nsIConverterOutputStream,
-    ) as unknown as LegacyConverterOutputStream;
-
-    try {
-      converterStream.init(outputStream, "UTF-8", 0, 0);
-      converterStream.writeString(text);
-    } finally {
-      try {
-        converterStream.close();
-      } catch {
-        try {
-          outputStream.close();
-        } catch {
-          // ignore close failure
-        }
-      }
-    }
+  async exportToDesktop(fileName?: string): Promise<string> {
+    const path = fileName
+      ? PathUtils.join(getDesktopDir(), fileName)
+      : this.getDesktopLogPath();
+    const header = [
+      `==== Banyan debug export ====`,
+      `createdAt=${formatTimestamp()}`,
+      `entries=${this.entries.length}`,
+      "",
+    ].join("\n");
+    const body = this.entries.map((entry) => this.formatEntry(entry)).join("");
+    await IOUtils.writeUTF8(path, `${header}${body}`);
+    return path;
   }
 }
 
 export const debugLogger = new DebugLogger();
+
+export function createModuleLogger(moduleName: string): DebugModuleLogger {
+  return {
+    log(event: string, detail?: unknown) {
+      debugLogger.log(moduleName, event, detail);
+    },
+    error(event: string, error?: unknown, detail?: unknown) {
+      debugLogger.error(moduleName, event, error, detail);
+    },
+  };
+}
+
+export async function exportDebugLogsToDesktop(
+  fileName?: string,
+): Promise<string> {
+  return debugLogger.exportToDesktop(fileName);
+}
+
+export function clearDebugLogs(): void {
+  debugLogger.clear();
+}

@@ -1,8 +1,9 @@
 // Note: Validation here is static and heuristic; execution happens in sandbox.ts
 import { StyleIdentifier } from "../../typings/server";
-import type { Style } from "../../typings/style";
+import type { Style, StyleUI } from "../../typings/style";
 import { useL10n } from "../utils/locale";
 import { createStyle } from "./sandbox";
+import presetsManifest from "../../addon/content/styleEditor/presets/presets-manifest.json";
 
 const t = useL10n();
 
@@ -16,10 +17,15 @@ export async function ensureDataDir(): Promise<string> {
       ignoreExisting: true,
     });
   } catch (e) {
-    ztoolkit.logError(`Failed to ensure data directory '${dirPath}': ${e}`);
+    ztoolkit.logError(e);
     throw e;
   }
   return dirPath;
+}
+
+export async function getStyleUI(style: StyleIdentifier): Promise<StyleUI> {
+  const instant = await getStyle(style);
+  return instant.UI ?? { cite: [], citation: [] };
 }
 
 /**
@@ -32,7 +38,6 @@ export async function ensureDataDir(): Promise<string> {
 export async function getStyle(style: StyleIdentifier): Promise<Style> {
   const exist = addon.data.styles.cache.get(style.id);
   if (exist) {
-    ztoolkit.log(`Style ${style.id} loaded from cache`);
     return exist;
   }
 
@@ -51,14 +56,13 @@ export async function getStyle(style: StyleIdentifier): Promise<Style> {
     code = await IOUtils.readUTF8(fullPath);
   } catch (e) {
     ztoolkit.logError(e);
-    ztoolkit.log(`Failed to read style file ${fullPath}: ${e}`);
     throw e;
   }
 
-  const styleObject = await createStyle(code);
-  addon.data.styles.cache.set(style.id, styleObject);
+  const instant = await createStyle(code);
+  addon.data.styles.cache.set(style.id, instant);
 
-  return styleObject;
+  return instant;
 }
 
 export function invalidateStyleCache(styleID: string): void {
@@ -70,7 +74,6 @@ export async function readStyleFile(path: string): Promise<string> {
     return await IOUtils.readUTF8(path);
   } catch (e) {
     ztoolkit.logError(e);
-    ztoolkit.log(`Failed to read style file ${path}: ${e}`);
     throw e;
   }
 }
@@ -85,6 +88,30 @@ export async function saveStyleCodeById(
 }
 
 const STYLE_FILE_EXTENSION = ".js";
+const STYLE_PRESETS_DIR = "presets";
+const STYLE_PRESET_FILES: readonly string[] = presetsManifest;
+
+function getStyleEditorAssetURL(...segments: string[]): string {
+  return `chrome://${addon.data.config.addonRef}/content/styleEditor/${segments.join("/")}`;
+}
+
+async function readStylePresetFile(fileName: string): Promise<string> {
+  return Zotero.File.getContentsFromURLAsync(
+    getStyleEditorAssetURL(STYLE_PRESETS_DIR, fileName),
+  );
+}
+
+function indexLoadedStyle(style: Style, filename: string): void {
+  addon.data.styles.cache.delete(style.INFO.id);
+  addon.data.styles.files.set(style.INFO.id, {
+    id: style.INFO.id,
+    title: style.INFO.title,
+    citationType: style.INFO.citationType ?? "intext-citation",
+    description: style.INFO.description,
+    updated: style.INFO.updated,
+    filename,
+  });
+}
 
 function toSafeStyleFilenameFragment(value: string): string {
   const normalized = String(value || "")
@@ -105,6 +132,44 @@ function getStyleFilenameSuffix(styleID: string): string {
     .filter(Boolean);
   const lastSegment = rawSegments[rawSegments.length - 1] || styleID;
   return toSafeStyleFilenameFragment(lastSegment).slice(0, 24) || "id";
+}
+
+function generateRandomStyleID(styleID: string): string {
+  return `${styleID}-${crypto.randomUUID()}`;
+}
+
+function resolveUniqueStyleID(styleID: string): string {
+  let nextID = generateRandomStyleID(styleID);
+  while (addon.data.styles.files.has(nextID)) {
+    nextID = generateRandomStyleID(styleID);
+  }
+  return nextID;
+}
+
+function updateStyleCodeID(code: string, id: string): string {
+  const literal = JSON.stringify(id);
+  const idPattern =
+    /(\bINFO\s*=\s*\{[\s\S]*?\bid\s*:\s*)(["'])(?:\\.|(?!\2)[\s\S])*\2/;
+
+  if (!idPattern.test(code)) {
+    throw new Error("Style code missing INFO.id literal");
+  }
+
+  return code.replace(
+    idPattern,
+    (_match, prefix: string) => `${prefix}${literal}`,
+  );
+}
+
+async function useRandomStyleID(
+  style: Style,
+  code: string,
+): Promise<{ style: Style; code: string }> {
+  const originalID = style.INFO.id;
+  const nextID = resolveUniqueStyleID(originalID);
+  const nextCode = updateStyleCodeID(code, nextID);
+  const nextStyle = await createStyle(nextCode);
+  return { style: nextStyle, code: nextCode };
 }
 
 async function resolveUniqueStyleFilename(
@@ -161,6 +226,7 @@ export async function loadStyle(path: string): Promise<void> {
     // For calling only, INFO is unessisery, but for style created from file in data directory, we need it to make indexing
     throw new Error(`Style file ${path} missing INFO.id`);
   }
+  let styleToIndex = style;
   if (addon.data.styles.files.has(id)) {
     const existing = addon.data.styles.files.get(id);
     const overwrite = Services.prompt.confirm(
@@ -172,19 +238,13 @@ export async function loadStyle(path: string): Promise<void> {
       }),
     );
     if (!overwrite) {
-      return;
+      const randomized = await useRandomStyleID(style, code);
+      styleToIndex = randomized.style;
+      await IOUtils.writeUTF8(path, randomized.code);
     }
   }
   // We set files index first; cache will be populated on first use.
-  addon.data.styles.cache.delete(style.INFO.id);
-  addon.data.styles.files.set(style.INFO.id, {
-    id: style.INFO.id,
-    title: style.INFO.title,
-    citationType: style.INFO.citationType ?? "intext-citation",
-    description: style.INFO.description,
-    updated: style.INFO.updated,
-    filename: PathUtils.filename(path),
-  });
+  indexLoadedStyle(styleToIndex, PathUtils.filename(path));
 }
 
 /**
@@ -201,8 +261,34 @@ export async function loadStyles(reset?: boolean): Promise<void> {
     try {
       await loadStyle(path);
     } catch (e) {
-      ztoolkit.log(`Failed to load style ${path}: ${e}`);
+      ztoolkit.logError(e);
       continue;
+    }
+  }
+}
+
+export async function installPresetStyles(): Promise<void> {
+  const dirPath = await ensureDataDir();
+
+  for (const fileName of STYLE_PRESET_FILES) {
+    try {
+      const code = await readStylePresetFile(fileName);
+      const style = await createStyle(code);
+      const styleId = style.INFO?.id;
+      if (!styleId) {
+        throw new Error(`Preset style ${fileName} missing INFO.id`);
+      }
+
+      if (addon.data.styles.files.has(styleId)) {
+        continue;
+      }
+
+      const filename = await resolveUniqueStyleFilename(styleId, dirPath);
+      const destPath = PathUtils.join(dirPath, filename);
+      await IOUtils.writeUTF8(destPath, code);
+      indexLoadedStyle(style, PathUtils.filename(destPath));
+    } catch (e) {
+      ztoolkit.logError(e);
     }
   }
 }
@@ -229,6 +315,8 @@ export async function promptImportStyle(): Promise<boolean> {
       throw new Error(`Style file ${srcPath} missing INFO.id`);
     }
 
+    let codeToImport = code;
+    let styleToImport = style;
     if (addon.data.styles.files.has(styleId)) {
       const existing = addon.data.styles.files.get(styleId);
       const overwrite = Services.prompt.confirm(
@@ -240,25 +328,19 @@ export async function promptImportStyle(): Promise<boolean> {
         }),
       );
       if (!overwrite) {
-        return false;
+        const randomized = await useRandomStyleID(style, code);
+        styleToImport = randomized.style;
+        codeToImport = randomized.code;
       }
     }
 
-    const destPath = await getStyleFilePathById(styleId);
-    await IOUtils.writeUTF8(destPath, code);
+    const destPath = await getStyleFilePathById(styleToImport.INFO.id);
+    await IOUtils.writeUTF8(destPath, codeToImport);
 
-    addon.data.styles.cache.delete(style.INFO.id);
-    addon.data.styles.files.set(style.INFO.id, {
-      id: style.INFO.id,
-      title: style.INFO.title,
-      citationType: style.INFO.citationType ?? "intext-citation",
-      description: style.INFO.description,
-      updated: style.INFO.updated,
-      filename: PathUtils.filename(destPath),
-    });
+    indexLoadedStyle(styleToImport, PathUtils.filename(destPath));
     return true;
   } catch (e) {
-    ztoolkit.log(`Import style failed: ${e}`);
+    ztoolkit.logError(e);
     return false;
   }
 }
@@ -298,7 +380,7 @@ export async function deleteStylesById(ids: string[]): Promise<boolean> {
     try {
       await IOUtils.remove(fullPath);
     } catch (e) {
-      ztoolkit.log(`Failed to remove ${fullPath}: ${e}`);
+      ztoolkit.logError(e);
     }
     addon.data.styles.files.delete(id);
     addon.data.styles.cache.delete(id);

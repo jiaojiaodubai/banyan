@@ -1,8 +1,10 @@
 import { config } from "../../package.json";
+import { getPref, setPref } from "../utils/prefs";
 import { useL10n } from "../utils/locale";
+import { formatStyleUpdatedDate } from "../utils/styleUpdated";
 import { deleteStylesById, promptImportStyle } from "./styles";
 import { VirtualizedTableHelper } from "zotero-plugin-toolkit";
-import { StyleFile } from "../../typings/style";
+import type { StyleFile } from "../../typings/style";
 import {
   installWPSAddin,
   uninstallWPSAddin,
@@ -14,8 +16,6 @@ type PrefStyleRow = {
   id: string;
   name: string;
   updated: string;
-  description?: string;
-  filename: string;
 };
 
 type PreferenceTableHelper = {
@@ -28,6 +28,52 @@ type PreferenceTableHelper = {
 };
 
 const t = useL10n(["preferences.ftl"]);
+const CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF =
+  "citationDialogInitialCollectionMode" as const;
+type CitationDialogInitialCollectionMode =
+  _ZoteroTypes.Prefs["PluginPrefsMap"][typeof CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF];
+
+function bindCitationDialogInitialCollectionMode(): void {
+  const win = addon.data.prefs!.window;
+  const radioGroup = win.document.querySelector(
+    `#${config.addonRef}-citationDialogInitialCollectionMode`,
+  ) as XUL.RadioGroup | null;
+  if (!radioGroup) return;
+
+  const current = getPref(CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF);
+  radioGroup.value = current || "mainLibrary";
+  radioGroup.addEventListener("command", () => {
+    const value = radioGroup.value as CitationDialogInitialCollectionMode;
+    setPref(CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF, value);
+  });
+}
+
+function confirmWordAddinInstall(promptWindow: mozIDOMWindowProxy): boolean {
+  if (Services.appinfo.OS !== "WINNT") {
+    return true;
+  }
+
+  const promptSvc = Services.prompt;
+  const buttonPos0 = promptSvc.BUTTON_POS_0 ?? 0;
+  const buttonPos1 = promptSvc.BUTTON_POS_1 ?? 0;
+  const buttonTitleIsString = promptSvc.BUTTON_TITLE_IS_STRING ?? 0;
+  const flags =
+    buttonPos0 * buttonTitleIsString + buttonPos1 * buttonTitleIsString;
+
+  const idx = promptSvc.confirmEx(
+    promptWindow,
+    t("prefs-word-addon-title"),
+    t("prefs-word-addon-install-confirm"),
+    flags,
+    t("prefs-word-addon-install-confirm-continue"),
+    t("prefs-word-addon-install-confirm-cancel"),
+    "",
+    "",
+    { value: false },
+  );
+
+  return idx === 0;
+}
 
 export function registerPrefs() {
   Zotero.PreferencePanes.register({
@@ -59,10 +105,21 @@ export async function onPrefsWindowLoad(_window: Window) {
         },
       ],
       rows: [],
+      tableHelper: null,
     };
+
+    // Fix: table may not display fully when pane is not initially visible.
+    // Re‑invalidate when the prefpane becomes visible (matching Zotero's approach).
+    const prefPane = _window.frameElement?.closest("prefpane");
+    if (prefPane) {
+      prefPane.addEventListener("showing", () => {
+        addon.data.prefs?.tableHelper?.treeInstance?.invalidate();
+      });
+    }
   } else {
     addon.data.prefs.window = _window;
   }
+  bindCitationDialogInitialCollectionMode();
   await updatePrefsUI();
   bindPrefEvents();
   bindIntegrationButtons();
@@ -76,9 +133,7 @@ async function updatePrefsUI() {
       (m: StyleFile) => ({
         id: m.id,
         name: m.title,
-        updated: m.updated,
-        description: m.description,
-        filename: m.filename,
+        updated: formatStyleUpdatedDate(m.updated),
       }),
     );
     addon.data.prefs.rows = rows as PrefStyleRow[];
@@ -112,15 +167,6 @@ async function updatePrefsUI() {
           void removeSelectedStyles(tableHelper);
           return false;
         }
-        if (event.key === "Enter") {
-          void openPreviewWindow(tableHelper);
-          return false;
-        }
-        return true;
-      })
-      // Double-click activate: open containing folder and reveal file
-      .setProp("onActivate", (_ev: Event) => {
-        void openSelectedStyleInFolder(tableHelper);
         return true;
       })
       // For find-as-you-type
@@ -129,42 +175,22 @@ async function updatePrefsUI() {
         (index) => addon.data.prefs?.rows[index].name || "",
       )
       // Render the table.
-      .render(-1, () => resolve());
-    setTimeout(() => tableHelper.treeInstance.invalidate());
-    ztoolkit.log("Preference table rendered!");
+      .render(-1, () => {
+        // Fix: table may show partially blank until scrolled.
+        // Delay invalidate to ensure DOM layout is complete
+        // (matching Zotero's setTimeout approach in preferences_cite.jsx).
+        setTimeout(() => {
+          tableHelper.treeInstance?.invalidate();
+        });
+        resolve();
+      });
+    addon.data.prefs.tableHelper = tableHelper;
     bindStyleButtons(tableHelper);
   });
 }
 
-/**
- * 绑定首选项面板的事件监听器
- * 该函数用于为Zotero插件的首选项面板中的复选框和输入框添加事件监听
- */
 function bindPrefEvents() {
-  // 为启用复选框添加command事件监听
-  addon.data
-    .prefs!.window.document?.querySelector(
-      `#${config.addonRef}-enable`, // 选择器定位到启用复选框
-    )
-    ?.addEventListener("command", (e: Event) => {
-      // 添加command事件监听
-      ztoolkit.log(e);
-      addon.data.prefs!.window.alert(
-        `Successfully changed to ${(e.target as XULCheckboxElement).checked}!`,
-      );
-    });
-
-  addon.data
-    .prefs!.window.document?.querySelector(`#${config.addonRef}-input`)
-    ?.addEventListener("change", (e: Event) => {
-      ztoolkit.log(e);
-      addon.data.prefs!.window.alert(
-        `Successfully changed to ${(e.target as HTMLInputElement).value}!`,
-      );
-    });
-
-  // Port configuration is managed by Zotero, not by the plugin
-  // No port change listener needed
+  // Port configuration is managed by Zotero, not by the plugin.
 }
 
 function bindStyleButtons(tableHelper: VirtualizedTableHelper) {
@@ -320,10 +346,15 @@ function bindIntegrationButtons() {
         wordInstallBtn.textContent || t("prefs-word-addon-install");
       const uninstallIdleLabel =
         wordUninstallBtn?.textContent || t("prefs-word-addon-uninstall");
-      setWordButtonsDisabled(true);
-      wordInstallBtn.textContent = t("prefs-word-addon-installing");
 
       try {
+        if (!confirmWordAddinInstall(promptWindow)) {
+          return;
+        }
+
+        setWordButtonsDisabled(true);
+        wordInstallBtn.textContent = t("prefs-word-addon-installing");
+
         const result = await installWordAddin();
         if (result.success) {
           Services.prompt.alert(
@@ -423,59 +454,5 @@ async function removeSelectedStyles(tableHelper: PreferenceTableHelper) {
   const removed = await deleteStylesById(styleIds);
   if (removed) {
     await updatePrefsUI();
-  }
-}
-
-async function openSelectedStyleInFolder(tableHelper: PreferenceTableHelper) {
-  try {
-    const rows: PrefStyleRow[] =
-      (addon.data.prefs!.rows as PrefStyleRow[]) || [];
-    const selection = tableHelper.treeInstance.selection;
-    const selected: PrefStyleRow[] = [];
-    for (let i = 0; i < rows.length; i++) {
-      if (selection.isSelected(i)) selected.push(rows[i]);
-    }
-    if (selected.length !== 1) return;
-    const row = selected[0];
-    const fullPath = PathUtils.join(
-      Zotero.DataDirectory.dir,
-      "banyan",
-      row.filename,
-    );
-    Zotero.File.reveal(fullPath);
-  } catch (e) {
-    ztoolkit.log(`Open containing folder failed: ${e}`);
-  }
-}
-
-async function openPreviewWindow(tableHelper: PreferenceTableHelper) {
-  try {
-    const rows: PrefStyleRow[] =
-      (addon.data.prefs!.rows as PrefStyleRow[]) || [];
-    const selection = tableHelper.treeInstance.selection;
-    const selected: PrefStyleRow[] = [];
-    for (let i = 0; i < rows.length; i++) {
-      if (selection.isSelected(i)) selected.push(rows[i]);
-    }
-    if (selected.length !== 1) return;
-    const row = selected[0];
-    // Placeholder preview window using toolkit dialog
-    const dialog = new ztoolkit.Dialog(6, 1)
-      .addCell(0, 0, {
-        tag: "h2",
-        properties: { innerHTML: "Style Preview" },
-      })
-      .addCell(1, 0, {
-        tag: "p",
-        properties: {
-          innerHTML: `TODO: implement preview for <b>${row.name}</b>`,
-        },
-      })
-      .addButton("Close", "close")
-      .open("Style Preview");
-    // no need to store globally; auto-close handled by dialog helper
-    void dialog;
-  } catch (e) {
-    ztoolkit.log(`Open preview failed: ${e}`);
   }
 }

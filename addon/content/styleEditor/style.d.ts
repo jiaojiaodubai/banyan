@@ -72,26 +72,23 @@ type CheckboxComponent = {
 type SelectComponent = {
   type: "select";
   value: string;
-  data: Record<string, string>;
+  options: Record<string, string>;
 };
 
-type TextComponent = {
-  type: "text";
+type InputComponent = {
+  type: "input";
   value: string;
-  data?: {
-    placeholder?: string;
-  };
 };
 
 type CitationStyleComponent =
   | (CitationComponentBase & CheckboxComponent)
   | (CitationComponentBase & SelectComponent)
-  | (CitationComponentBase & TextComponent);
+  | (CitationComponentBase & InputComponent);
 
 type CiteStyleComponent =
   | (CiteComponentBase & CheckboxComponent)
   | (CiteComponentBase & SelectComponent)
-  | (CiteComponentBase & TextComponent);
+  | (CiteComponentBase & InputComponent);
 
 type StyleComponent = CitationStyleComponent | CiteStyleComponent;
 
@@ -182,6 +179,8 @@ type BibliographyLine = BibliographyTitle | BibliographyEntry;
 
 type ScriptCitation = {
   id: string;
+  // Script authors provide one declarative Unit. The plural field name is
+  // retained because the host normalizes it to TextUnit[] for rendering.
   units: Unit;
 };
 

@@ -29,6 +29,93 @@ export type StyleEditorAssets = {
   packageJSONText: string;
 };
 
+type StyleEditorAssetKey = keyof StyleEditorAssets;
+
+type RuntimeAssetDefinition = {
+  assetKey: StyleEditorAssetKey;
+  sourceFile: string;
+  targetSegments: readonly string[];
+  commentPrefix?: "//";
+  validate?: (path: string, assets: StyleEditorAssets) => Promise<boolean>;
+};
+
+const STYLE_EDITOR_ASSET_FILES = {
+  defaultCode: "defaultStyle.js",
+  itemTypesDTS: "item.d.ts",
+  unitTypesDTS: "unit.d.ts",
+  styleTypesDTS: "style.d.ts",
+  styleUtilsDTS: "styleUtils.d.ts",
+  jsConfigText: "jsconfig.json",
+  snippetsText: "snippets.jsonc",
+  eslintConfigText: "eslint.config.mjs",
+  eslintPluginText: "eslint-plugin-banyan-style.mjs",
+  eslintStyleUtilsGlobalsText: "eslint-style-utils-globals.mjs",
+  packageJSONText: "package.json",
+} as const satisfies Record<StyleEditorAssetKey, string>;
+
+const STYLE_EDITOR_RUNTIME_ASSETS: readonly RuntimeAssetDefinition[] = [
+  {
+    assetKey: "itemTypesDTS",
+    sourceFile: "item.d.ts",
+    targetSegments: ["item.d.ts"],
+    commentPrefix: "//",
+  },
+  {
+    assetKey: "unitTypesDTS",
+    sourceFile: "unit.d.ts",
+    targetSegments: ["unit.d.ts"],
+    commentPrefix: "//",
+  },
+  {
+    assetKey: "styleTypesDTS",
+    sourceFile: "style.d.ts",
+    targetSegments: ["style.d.ts"],
+    commentPrefix: "//",
+  },
+  {
+    assetKey: "styleUtilsDTS",
+    sourceFile: "styleUtils.d.ts",
+    targetSegments: ["styleUtils.d.ts"],
+    commentPrefix: "//",
+  },
+  {
+    assetKey: "jsConfigText",
+    sourceFile: "jsconfig.json",
+    targetSegments: ["jsconfig.json"],
+    validate: hasRuntimeJSConfigContract,
+  },
+  {
+    assetKey: "snippetsText",
+    sourceFile: "snippets.jsonc",
+    targetSegments: [".vscode", "banyan.code-snippets"],
+    commentPrefix: "//",
+  },
+  {
+    assetKey: "eslintConfigText",
+    sourceFile: "eslint.config.mjs",
+    targetSegments: ["eslint.config.mjs"],
+    commentPrefix: "//",
+  },
+  {
+    assetKey: "eslintPluginText",
+    sourceFile: "eslint-plugin-banyan-style.mjs",
+    targetSegments: ["eslint-plugin-banyan-style.mjs"],
+    commentPrefix: "//",
+  },
+  {
+    assetKey: "eslintStyleUtilsGlobalsText",
+    sourceFile: "eslint-style-utils-globals.mjs",
+    targetSegments: ["eslint-style-utils-globals.mjs"],
+    commentPrefix: "//",
+  },
+  {
+    assetKey: "packageJSONText",
+    sourceFile: "package.json",
+    targetSegments: ["package.json"],
+    validate: hasRuntimePackageTypesEntry,
+  },
+] as const;
+
 let cachedAssets: StyleEditorAssets | null = null;
 
 export function parseStyleEditorJSCompilerOptions(
@@ -77,6 +164,10 @@ function getStyleEditorAssetURL(fileName: string): string {
   return `chrome://${addon.data.config.addonRef}/content/styleEditor/${fileName}`;
 }
 
+async function readStyleEditorAsset(fileName: string): Promise<string> {
+  return Zotero.File.getContentsFromURLAsync(getStyleEditorAssetURL(fileName));
+}
+
 export async function getStyleEditorAssets(): Promise<StyleEditorAssets> {
   if (cachedAssets) {
     return cachedAssets;
@@ -95,31 +186,17 @@ export async function getStyleEditorAssets(): Promise<StyleEditorAssets> {
     eslintStyleUtilsGlobalsText,
     packageJSONText,
   ] = await Promise.all([
-    Zotero.File.getContentsFromURLAsync(
-      getStyleEditorAssetURL("defaultStyle.js"),
-    ),
-    Zotero.File.getContentsFromURLAsync(getStyleEditorAssetURL("item.d.ts")),
-    Zotero.File.getContentsFromURLAsync(getStyleEditorAssetURL("unit.d.ts")),
-    Zotero.File.getContentsFromURLAsync(getStyleEditorAssetURL("style.d.ts")),
-    Zotero.File.getContentsFromURLAsync(
-      getStyleEditorAssetURL("styleUtils.d.ts"),
-    ),
-    Zotero.File.getContentsFromURLAsync(
-      getStyleEditorAssetURL("jsconfig.json"),
-    ),
-    Zotero.File.getContentsFromURLAsync(
-      getStyleEditorAssetURL("snippets.jsonc"),
-    ),
-    Zotero.File.getContentsFromURLAsync(
-      getStyleEditorAssetURL("eslint.config.mjs"),
-    ),
-    Zotero.File.getContentsFromURLAsync(
-      getStyleEditorAssetURL("eslint-plugin-banyan-style.mjs"),
-    ),
-    Zotero.File.getContentsFromURLAsync(
-      getStyleEditorAssetURL("eslint-style-utils-globals.mjs"),
-    ),
-    Zotero.File.getContentsFromURLAsync(getStyleEditorAssetURL("package.json")),
+    readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.defaultCode),
+    readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.itemTypesDTS),
+    readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.unitTypesDTS),
+    readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.styleTypesDTS),
+    readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.styleUtilsDTS),
+    readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.jsConfigText),
+    readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.snippetsText),
+    readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.eslintConfigText),
+    readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.eslintPluginText),
+    readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.eslintStyleUtilsGlobalsText),
+    readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.packageJSONText),
   ]);
 
   cachedAssets = {
@@ -141,108 +218,116 @@ export async function getStyleEditorAssets(): Promise<StyleEditorAssets> {
 export async function ensureStyleEditorRuntimeAssets(): Promise<void> {
   const assets = await getStyleEditorAssets();
   const banyanDir = PathUtils.join(Zotero.DataDirectory.dir, "banyan");
-
-  const runtimeItemPath = PathUtils.join(banyanDir, "item.d.ts");
-  const runtimeUnitPath = PathUtils.join(banyanDir, "unit.d.ts");
-  const runtimeStylePath = PathUtils.join(banyanDir, "style.d.ts");
-  const runtimeStyleUtilsPath = PathUtils.join(banyanDir, "styleUtils.d.ts");
-  const runtimeJSConfigPath = PathUtils.join(banyanDir, "jsconfig.json");
-  const runtimeVSCodeDir = PathUtils.join(banyanDir, ".vscode");
-  const runtimeVSCodeSnippetsPath = PathUtils.join(
-    runtimeVSCodeDir,
-    "banyan.code-snippets",
-  );
-  const runtimeESLintPath = PathUtils.join(banyanDir, "eslint.config.mjs");
-  const runtimeESLintPluginPath = PathUtils.join(
-    banyanDir,
-    "eslint-plugin-banyan-style.mjs",
-  );
-  const runtimeESLintGlobalsPath = PathUtils.join(
-    banyanDir,
-    "eslint-style-utils-globals.mjs",
-  );
-  const runtimePackageJSONPath = PathUtils.join(banyanDir, "package.json");
-
-  const hasItemTypes = await IOUtils.exists(runtimeItemPath);
-  const hasUnitTypes = await IOUtils.exists(runtimeUnitPath);
-  const hasStyleTypes = await IOUtils.exists(runtimeStylePath);
-  const hasStyleUtils = await IOUtils.exists(runtimeStyleUtilsPath);
-  const hasRuntimeJSConfig = await IOUtils.exists(runtimeJSConfigPath);
-  const hasRuntimeVSCodeSnippets = await IOUtils.exists(
-    runtimeVSCodeSnippetsPath,
-  );
-  const hasESLint = await IOUtils.exists(runtimeESLintPath);
-  const hasESLintPlugin = await IOUtils.exists(runtimeESLintPluginPath);
-  const hasESLintGlobals = await IOUtils.exists(runtimeESLintGlobalsPath);
-  const hasRuntimePackageJSON = await IOUtils.exists(runtimePackageJSONPath);
-
-  const runtimePackageJSONText = hasRuntimePackageJSON
-    ? await IOUtils.readUTF8(runtimePackageJSONPath).catch(() => "")
-    : "";
-  const hasRuntimeTypesEntry =
-    runtimePackageJSONText.includes('"types"') &&
-    runtimePackageJSONText.includes("style.d.ts");
-
-  const runtimeJSConfigText = hasRuntimeJSConfig
-    ? await IOUtils.readUTF8(runtimeJSConfigPath).catch(() => "")
-    : "";
-  const hasRuntimeJSConfigIncludes =
-    runtimeJSConfigText.includes('"./*.js"') &&
-    runtimeJSConfigText.includes('"./*.d.ts"');
-  const hasRuntimeJSConfigCompilerOptions =
-    hasRuntimeJSConfig &&
-    hasMatchingStyleEditorJSCompilerOptions(
-      runtimeJSConfigText,
-      assets.jsConfigText,
-    );
+  const runtimeAssets = buildRuntimeAssetTargets(banyanDir, assets);
 
   const current = String(getPref(STYLE_EDITOR_ASSETS_VERSION_PREF) || "");
   const next = String(pluginVersion || "0.0.0");
   const shouldOverwrite =
-    !hasItemTypes ||
-    !hasUnitTypes ||
-    !hasStyleTypes ||
-    !hasStyleUtils ||
-    !hasRuntimeJSConfig ||
-    !hasRuntimeJSConfigIncludes ||
-    !hasRuntimeJSConfigCompilerOptions ||
-    !hasRuntimeVSCodeSnippets ||
-    !hasESLint ||
-    !hasESLintPlugin ||
-    !hasESLintGlobals ||
-    !hasRuntimePackageJSON ||
-    !hasRuntimeTypesEntry ||
-    isVersionGreater(next, current);
+    __env__ === "development" ||
+    isVersionGreater(next, current) ||
+    (await hasMissingOrOutdatedRuntimeAssets(runtimeAssets, assets));
+
   if (!shouldOverwrite) {
     return;
   }
 
-  await IOUtils.makeDirectory(banyanDir, {
-    createAncestors: true,
-    ignoreExisting: true,
-  });
-  await IOUtils.makeDirectory(runtimeVSCodeDir, {
-    createAncestors: true,
-    ignoreExisting: true,
-  });
-
-  await Promise.all([
-    IOUtils.writeUTF8(runtimeItemPath, assets.itemTypesDTS),
-    IOUtils.writeUTF8(runtimeUnitPath, assets.unitTypesDTS),
-    IOUtils.writeUTF8(runtimeStylePath, assets.styleTypesDTS),
-    IOUtils.writeUTF8(runtimeStyleUtilsPath, assets.styleUtilsDTS),
-    IOUtils.writeUTF8(runtimeJSConfigPath, assets.jsConfigText),
-    IOUtils.writeUTF8(runtimeVSCodeSnippetsPath, assets.snippetsText),
-    IOUtils.writeUTF8(runtimeESLintPath, assets.eslintConfigText),
-    IOUtils.writeUTF8(runtimeESLintPluginPath, assets.eslintPluginText),
-    IOUtils.writeUTF8(
-      runtimeESLintGlobalsPath,
-      assets.eslintStyleUtilsGlobalsText,
-    ),
-    IOUtils.writeUTF8(runtimePackageJSONPath, assets.packageJSONText),
-  ]);
+  await ensureRuntimeAssetDirectories(banyanDir, runtimeAssets);
+  await Promise.all(
+    runtimeAssets.map((asset) => IOUtils.writeUTF8(asset.path, asset.content)),
+  );
 
   setPref(STYLE_EDITOR_ASSETS_VERSION_PREF, next);
+}
+
+function buildRuntimeAssetTargets(
+  banyanDir: string,
+  assets: StyleEditorAssets,
+): Array<RuntimeAssetDefinition & { path: string; content: string }> {
+  return STYLE_EDITOR_RUNTIME_ASSETS.map((definition) => {
+    const content = withManagedFileComment(
+      assets[definition.assetKey],
+      definition.commentPrefix,
+      definition.sourceFile,
+    );
+    return {
+      ...definition,
+      path: PathUtils.join(banyanDir, ...definition.targetSegments),
+      content,
+    };
+  });
+}
+
+function withManagedFileComment(
+  content: string,
+  commentPrefix: RuntimeAssetDefinition["commentPrefix"],
+  sourceFile: string,
+): string {
+  if (!commentPrefix) {
+    return content;
+  }
+
+  const header = [
+    `${commentPrefix} This file is managed by Banyan style editor runtime assets.`,
+    `${commentPrefix} Source asset: addon/content/styleEditor/${sourceFile}`,
+    `${commentPrefix} Local edits may be overwritten on Banyan updates or in development mode.`,
+    "",
+  ].join("\n");
+
+  return `${header}${content.replace(/^\s+/, "")}`;
+}
+
+async function ensureRuntimeAssetDirectories(
+  banyanDir: string,
+  runtimeAssets: ReadonlyArray<{ path: string }>,
+): Promise<void> {
+  const directories = new Set<string>([banyanDir]);
+  for (const asset of runtimeAssets) {
+    const parent = PathUtils.parent(asset.path);
+    if (parent) {
+      directories.add(parent);
+    }
+  }
+
+  await Promise.all(
+    Array.from(directories).map((directory) =>
+      IOUtils.makeDirectory(directory, {
+        createAncestors: true,
+        ignoreExisting: true,
+      }),
+    ),
+  );
+}
+
+async function hasMissingOrOutdatedRuntimeAssets(
+  runtimeAssets: ReadonlyArray<RuntimeAssetDefinition & { path: string }>,
+  assets: StyleEditorAssets,
+): Promise<boolean> {
+  for (const asset of runtimeAssets) {
+    if (!(await IOUtils.exists(asset.path))) {
+      return true;
+    }
+    if (asset.validate && !(await asset.validate(asset.path, assets))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function hasRuntimePackageTypesEntry(path: string): Promise<boolean> {
+  const text = await IOUtils.readUTF8(path).catch(() => "");
+  return text.includes('"types"') && text.includes("style.d.ts");
+}
+
+async function hasRuntimeJSConfigContract(
+  path: string,
+  assets: StyleEditorAssets,
+): Promise<boolean> {
+  const text = await IOUtils.readUTF8(path).catch(() => "");
+  return (
+    text.includes('"./*.js"') &&
+    text.includes('"./*.d.ts"') &&
+    hasMatchingStyleEditorJSCompilerOptions(text, assets.jsConfigText)
+  );
 }
 
 function isVersionGreater(next: string, current: string): boolean {

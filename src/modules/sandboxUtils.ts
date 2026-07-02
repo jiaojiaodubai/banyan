@@ -18,6 +18,7 @@ import type {
 import { normalizeTextValue, plainText as plainUnitText } from "./unit";
 import { getMultilingualItems as getRelatedMultilingualItems } from "./relations";
 import { isBanyanItem, toBanyanItem } from "../utils/item";
+import { sanitizeLink } from "../utils/html";
 
 type IsAsync<T> = T extends (...args: never[]) => Promise<unknown>
   ? true
@@ -41,6 +42,26 @@ type UnknownPromiseFunction = (...args: unknown[]) => Promise<unknown>;
 type RuntimeSerializableFunction = (...args: never[]) => unknown;
 type LanguagePreference = string | readonly string[];
 export type StyleDebugSink = (message: string) => void;
+
+type StyleDebugBudget = {
+  lines: number;
+  truncated: boolean;
+};
+
+export type StyleDebugContext = {
+  sink?: StyleDebugSink;
+  budget: StyleDebugBudget | null;
+};
+
+export function createStyleDebugContext(
+  sink?: StyleDebugSink,
+): StyleDebugContext {
+  return { sink, budget: null };
+}
+
+type StyleUtilityContext = {
+  debug: StyleDebugContext;
+};
 
 type UtilityDefinitionMap = {
   [K in keyof StyleUtils]: K extends AsyncKeys<StyleUtils>
@@ -68,6 +89,7 @@ type HostSyncUtilityEntry = {
   buildHostHandler: (
     sandbox: SandboxGlobal,
     Cu: SandboxCu,
+    context: StyleUtilityContext,
   ) => UnknownArgsFunction;
 };
 
@@ -76,6 +98,7 @@ type HostAsyncUtilityEntry = {
   buildHostHandler: (
     sandbox: SandboxGlobal,
     Cu: SandboxCu,
+    context: StyleUtilityContext,
   ) => UnknownArgsVoidFunction;
 };
 
@@ -90,6 +113,7 @@ type HostSyncUtilityFactoryEntry<K extends keyof StyleUtils> = {
     name: K,
     sandbox: SandboxGlobal,
     Cu: SandboxCu,
+    context: StyleUtilityContext,
   ) => UnknownArgsFunction;
 };
 
@@ -99,23 +123,16 @@ type HostAsyncUtilityFactoryEntry<K extends keyof StyleUtils> = {
     name: K,
     sandbox: SandboxGlobal,
     Cu: SandboxCu,
+    context: StyleUtilityContext,
   ) => UnknownArgsVoidFunction;
 };
 
-let activeStyleDebugSink: StyleDebugSink | null = null;
-
-export async function withStyleDebugSink<T>(
-  sink: StyleDebugSink,
-  action: () => Promise<T>,
-): Promise<T> {
-  const previousSink = activeStyleDebugSink;
-  activeStyleDebugSink = sink;
-  try {
-    return await action();
-  } finally {
-    activeStyleDebugSink = previousSink;
-  }
-}
+const MAX_UNIT_LIST_LENGTH = 10_000;
+const MAX_STRING_ARRAY_LENGTH = 10_000;
+const MAX_DEBUG_ARGUMENTS = 20;
+const MAX_DEBUG_VALUE_LENGTH = 2_000;
+const MAX_DEBUG_LINE_LENGTH = 8_000;
+const MAX_DEBUG_LINES_PER_GENERATE = 1_000;
 
 function runtimeSafeString(value: unknown): string {
   switch (typeof value) {
@@ -129,40 +146,111 @@ function runtimeSafeString(value: unknown): string {
   }
 }
 
-function formatDebugValue(value: unknown): string {
-  if (typeof value === "string") {
+function truncateForBudget(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
     return value;
   }
-  if (
+  return `${value.slice(0, maxLength)}...[truncated ${value.length - maxLength} chars]`;
+}
+
+function formatDebugValue(value: unknown): string {
+  let formatted: string;
+  if (typeof value === "string") {
+    formatted = value;
+  } else if (
     typeof value === "number" ||
     typeof value === "boolean" ||
     value == null
   ) {
-    return String(value);
+    formatted = String(value);
+  } else {
+    try {
+      formatted = JSON.stringify(value);
+    } catch {
+      formatted = String(value);
+    }
   }
-
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
+  return truncateForBudget(formatted, MAX_DEBUG_VALUE_LENGTH);
 }
 
-function hostDebug(...values: unknown[]): string {
-  const message = values.map(formatDebugValue).join(" ");
-  const line = `[banyan style][debug] ${message}`;
-
+function emitDebugLine(context: StyleDebugContext, line: string): void {
   try {
-    activeStyleDebugSink?.(line);
+    context.sink?.(line);
   } catch {
     // ignore sink failures to avoid breaking style runtime
   }
+}
 
+function hostDebug(context: StyleDebugContext, ...values: unknown[]): string {
+  const visibleValues = values.slice(0, MAX_DEBUG_ARGUMENTS);
+  const omittedValues = Math.max(0, values.length - visibleValues.length);
+  const suffix = omittedValues ? ` ...[${omittedValues} more args]` : "";
+  const message = truncateForBudget(
+    `${visibleValues.map(formatDebugValue).join(" ")}${suffix}`,
+    MAX_DEBUG_LINE_LENGTH,
+  );
+  const budget = context.budget;
+
+  if (budget && budget.lines >= MAX_DEBUG_LINES_PER_GENERATE) {
+    if (!budget.truncated) {
+      emitDebugLine(
+        context,
+        `[banyan style][debug] debug output exceeded ${MAX_DEBUG_LINES_PER_GENERATE} lines; further lines are suppressed.`,
+      );
+      budget.truncated = true;
+    }
+    return message;
+  }
+
+  if (budget) {
+    budget.lines += 1;
+  }
+  emitDebugLine(context, `[banyan style][debug] ${message}`);
   return message;
+}
+
+export async function withGenerateDebugBudget<T>(
+  context: StyleDebugContext,
+  action: () => Promise<T>,
+): Promise<T> {
+  const previousBudget = context.budget;
+  context.budget = { lines: 0, truncated: false };
+  try {
+    return await action();
+  } finally {
+    context.budget = previousBudget;
+  }
+}
+
+export function activateGenerateDebugBudget(
+  context: StyleDebugContext,
+): () => void {
+  const previousBudget = context.budget;
+  let restored = false;
+  context.budget = { lines: 0, truncated: false };
+  return () => {
+    if (restored) {
+      return;
+    }
+    restored = true;
+    context.budget = previousBudget;
+  };
 }
 
 function hostUuid(): string {
   return crypto.randomUUID();
+}
+
+function assertArrayLengthWithinBudget(
+  value: readonly unknown[],
+  fieldName: string,
+  maxLength: number,
+): void {
+  if (value.length > maxLength) {
+    throw new Error(
+      `${fieldName} has ${value.length} entries, exceeding limit ${maxLength}.`,
+    );
+  }
 }
 
 function runtimeSafeRecord(
@@ -594,6 +682,7 @@ export function normalizeUnitList(input: unknown): Unit[] {
     return [];
   }
 
+  assertArrayLengthWithinBudget(input, "Unit[]", MAX_UNIT_LIST_LENGTH);
   return input
     .map((item) => normalizeUnitInput(item))
     .filter((item): item is Unit => item != null);
@@ -625,6 +714,7 @@ export function normalizeStringArray(input: unknown): string[] | undefined {
     return undefined;
   }
 
+  assertArrayLengthWithinBudget(input, "string[]", MAX_STRING_ARRAY_LENGTH);
   const values = input.map((item) => String(item ?? "")).filter(Boolean);
   return values.length > 0 ? values : undefined;
 }
@@ -640,7 +730,8 @@ export function normalizeRenderStyle(input: unknown): RenderStyle {
   if (raw.script === "superscript" || raw.script === "subscript") {
     out.script = raw.script;
   }
-  if (typeof raw.link === "string") out.link = raw.link;
+  const link = sanitizeLink(raw.link);
+  if (link) out.link = link;
   if (typeof raw.color === "string") out.color = raw.color;
   if (typeof raw.backgroundColor === "string") {
     out.backgroundColor = raw.backgroundColor;
@@ -656,7 +747,8 @@ export function normalizeTextUnit(input: Record<string, unknown>): TextUnit {
   if (input.script === "superscript" || input.script === "subscript") {
     out.script = input.script;
   }
-  if (typeof input.link === "string") out.link = input.link;
+  const link = sanitizeLink(input.link);
+  if (link) out.link = link;
   if (typeof input.color === "string") out.color = input.color;
   if (typeof input.backgroundColor === "string") {
     out.backgroundColor = input.backgroundColor;
@@ -759,7 +851,7 @@ function defineCloningHostSyncUtility<K extends keyof SyncStyleUtils>(
   return {
     buildRuntimeSource: (name) => serializeHostSyncRuntimeFunction(name),
     buildHostHandler:
-      (_name, sandbox, Cu) =>
+      (_name, sandbox, Cu, _context) =>
       (...args: unknown[]) =>
         cloneHostUtilityResult(
           (host as UnknownArgsFunction)(...args),
@@ -792,7 +884,7 @@ function defineHostAsyncUtility<K extends keyof AsyncStyleUtils>(
 ): HostAsyncUtilityFactoryEntry<K> {
   return {
     buildRuntimeSource: (name) => serializeHostAsyncRuntimeFunction(name),
-    buildHostHandler: (name, sandbox, Cu) =>
+    buildHostHandler: (name, sandbox, Cu, _context) =>
       createAsyncHostBridgeHandler(name, host, sandbox, Cu),
   };
 }
@@ -803,7 +895,7 @@ function defineReadonlyHostAsyncUtility<K extends keyof AsyncStyleUtils>(
   return {
     buildRuntimeSource: (name) =>
       serializeReadonlyHostAsyncRuntimeFunction(name),
-    buildHostHandler: (name, sandbox, Cu) =>
+    buildHostHandler: (name, sandbox, Cu, _context) =>
       createAsyncHostBridgeHandler(name, host, sandbox, Cu),
   };
 }
@@ -823,6 +915,7 @@ function materializeUtilityDefinitions(
         name: keyof StyleUtils,
         sandbox: SandboxGlobal,
         Cu: SandboxCu,
+        context: StyleUtilityContext,
       ) => UnknownArgsFunction;
     };
 
@@ -836,8 +929,11 @@ function materializeUtilityDefinitions(
 
     materialized[name] = {
       runtimeSource,
-      buildHostHandler: (sandbox: SandboxGlobal, Cu: SandboxCu) =>
-        buildHostHandlerFactory(name, sandbox, Cu),
+      buildHostHandler: (
+        sandbox: SandboxGlobal,
+        Cu: SandboxCu,
+        context: StyleUtilityContext,
+      ) => buildHostHandlerFactory(name, sandbox, Cu, context),
     };
   }
 
@@ -857,7 +953,13 @@ const UTILITY_DEFINITION_FACTORIES = {
   text: defineCloningHostSyncUtility(hostText),
   plainText: defineCloningHostSyncUtility(hostPlainText),
   textCase: defineCloningHostSyncUtility(hostTextCase),
-  debug: defineCloningHostSyncUtility(hostDebug),
+  debug: {
+    buildRuntimeSource: (name) => serializeHostSyncRuntimeFunction(name),
+    buildHostHandler:
+      (_name, sandbox, Cu, context) =>
+      (...args: unknown[]) =>
+        cloneHostUtilityResult(hostDebug(context.debug, ...args), sandbox, Cu),
+  },
   uuid: defineCloningHostSyncUtility(hostUuid),
   getExtraValue: defineLocalUtility(runtimeGetExtraValue),
   safeString: defineLocalUtility(runtimeSafeString),
@@ -924,13 +1026,17 @@ function buildSandboxContextViewSource(): string {
 
 const SANDBOX_CONTEXT_VIEW_SOURCE = buildSandboxContextViewSource();
 
-export function installUtilities(sandbox: SandboxGlobal, Cu: SandboxCu): void {
+export function installUtilities(
+  sandbox: SandboxGlobal,
+  Cu: SandboxCu,
+  debugContext: StyleDebugContext = createStyleDebugContext(),
+): void {
   const hostBridge = (
     Cu.createObjectIn ? Cu.createObjectIn(sandbox) : {}
   ) as Record<string, unknown>;
 
   for (const [name, fn] of Object.entries(
-    createHostUtilityHandlers(sandbox, Cu),
+    createHostUtilityHandlers(sandbox, Cu, { debug: debugContext }),
   )) {
     if (typeof fn !== "function") continue;
 
@@ -1008,6 +1114,7 @@ export function installSandboxContexts(
 function createHostUtilityHandlers(
   sandbox: SandboxGlobal,
   Cu: SandboxCu,
+  context: StyleUtilityContext,
 ): Record<string, UnknownArgsFunction> {
   const handlers: Record<string, UnknownArgsFunction> = {};
 
@@ -1016,7 +1123,7 @@ function createHostUtilityHandlers(
     if (!buildHostHandler) {
       continue;
     }
-    handlers[name] = buildHostHandler(sandbox, Cu);
+    handlers[name] = buildHostHandler(sandbox, Cu, context);
   }
 
   return handlers;
@@ -1104,21 +1211,35 @@ function cloneValueWithMaintainedAPI<T>(value: T): T {
   return hostStructuredClone(value) as T;
 }
 
-function resolvePath(path: string) {
+function normalizePathForContainment(path: string): string {
+  const normalized = PathUtils.normalize(path).replace(/\\/g, "/");
+  const trimmed = normalized.replace(/\/+$/g, "");
+  return Zotero.isWin ? trimmed.toLowerCase() : trimmed;
+}
+
+function isPathInsideDirectory(candidate: string, directory: string): boolean {
+  const normalizedCandidate = normalizePathForContainment(candidate);
+  const normalizedDirectory = normalizePathForContainment(directory);
+  return (
+    normalizedCandidate === normalizedDirectory ||
+    normalizedCandidate.startsWith(`${normalizedDirectory}/`)
+  );
+}
+
+function resolvePath(path: string): string {
   const dataDir = Zotero.DataDirectory.dir;
-  const banyanDir = PathUtils.join(dataDir, "banyan");
+  const banyanDir = PathUtils.normalize(PathUtils.join(dataDir, "banyan"));
   if (typeof path !== "string" || !path.trim()) {
     throw new Error("Invalid path to resolve");
   }
+  const rawPath = path.trim();
   const isAbs =
-    /^[a-zA-Z]:/.test(path) || path.startsWith("/") || path.startsWith("\\");
-  const candidate = isAbs ? path : PathUtils.join(banyanDir, path);
+    /^[a-zA-Z]:/.test(rawPath) ||
+    rawPath.startsWith("/") ||
+    rawPath.startsWith("\\");
+  const candidate = isAbs ? rawPath : PathUtils.join(banyanDir, rawPath);
   const normalized = PathUtils.normalize(candidate);
-  const inBanyan =
-    normalized === banyanDir ||
-    normalized.startsWith(banyanDir + "\\") ||
-    normalized.startsWith(banyanDir + "/");
-  if (!inBanyan) {
+  if (!isPathInsideDirectory(normalized, banyanDir)) {
     throw new Error("Only files in banyan data directory are allowed");
   }
   return normalized;

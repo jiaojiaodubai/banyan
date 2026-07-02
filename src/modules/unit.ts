@@ -189,7 +189,7 @@ function applyTextCaseToUnits(
     .filter((unit) => unit.value.length > 0);
 }
 
-function applyTextCase(
+export function applyTextCase(
   str: string,
   form: TextCaseForm,
   ignoreWords: string[] = [],

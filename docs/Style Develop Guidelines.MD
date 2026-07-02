@@ -6,7 +6,7 @@
 
 - `INFO`：必需，包含样式元信息（id、title、updated、description 等）。
 - `generate()`：必需，无参函数，读取全局 `contexts` 生成引用和参考文献，返回 `{ citations, bibliography }`。支持异步。
-- `UI`：可选，定义参数表单（checkbox/select/text），用于弹窗收集用户输入。
+- `UI`：可选，定义参数表单（checkbox/select/input），用于弹窗收集用户输入。
 
 ## 全局变量
 
@@ -60,13 +60,13 @@
 - `getExtraValue(item, key)` 读取 `Item.extra` 中的值，默认返回 `string`；只有传入 `getExtraValue(item, key, "array")` 时才返回 `string[]`。
 - `getMultilingualItems(item)` 返回当前条目的其他多语版本列表；返回值是只读安全视图。
 - `getMultilingualItem(item, language)` 按 `item.language` 匹配指定语言的多语版本；`language` 可传字符串或字符串数组，支持 `zh` 匹配 `zh-CN` 这类前缀形式，未命中时回退到当前条目。
-- 仅允许访问 banyan 数据目录下的文件。
+- 仅允许访问 banyan 数据目录下的文件。路径会在宿主侧规范化并拒绝目录穿越或绝对路径绕过。`readText`/`readBytes`/`readJSON` 与 Zotero 底层 API 一样不设置文件大小硬限制；读取外部数据前应先约束文件来源、命名和格式，尽量使用已预清洗的小型数据文件，避免一次性读入过大的文本、JSON 或二进制内容。
 
 ### 8. 代码结构建议
 
 - 推荐将主逻辑拆分为小函数，主入口只做调度。
 - 辅助函数/常量建议用 `const` 定义。
-- citations 和 bibliography 在同一个 `generate()` 函数内生成，天然共享作用域，方便实现相互引用（如 citation 链接到 bibliography entry）。
+- citations 和 bibliography 在同一个 `generate()` 函数内生成，天然共享作用域，方便实现相互引用（如 citation 链接到 bibliography entry）。`r`n- 在提交样式前，至少用样式编辑器的渲染预览检查一次；如果只想快速确认已安装样式，可在 Zotero 文库中选中样例条目后，到首选项的样式管理器中预览。
 
 ### 9. 错误处理
 
@@ -80,8 +80,8 @@
 ### 11. 渲染单元
 
 - `generate()` 返回的 `citations` 和 `bibliography` 现在统一使用 `units` 字段。
-- `units` 接收声明式 `Unit[]`；最简单的叶子文本可以写成 `text("...")`，也可以手写 `{ value: "..." }`。
-- 复杂拼接建议优先使用 `group(...)`、`affix(...)`、`fallback(...)`、`when(...)`、`textCase(...)` 这些声明式 helper，最终由宿主统一编译。
+- `units` 接收单个声明式 `Unit`；字段名沿用复数是因为宿主标准化后会得到 `TextUnit[]`。最简单的叶子文本可以写成 `text("...")`，也可以手写 `{ value: "..." }`。
+- 复杂拼接建议优先使用 `group(...)`、`affix(...)`、`fallback(...)`、`when(...)`、`textCase(...)` 这些声明式 helper，最终由宿主统一编译。多个片段应包装成 `group([...])` 或 `fallback([...])`，不要直接把 `Unit[]` 放到 `units`。
 - 尽量使用 `group([...], delimiter)` 拼接部件，谨慎使用 `Array.prototype.join`（最好不要用于 Unit 相关拼接）。
   - 原因：`join` 只能安全处理纯字符串数组；如果数组中混入 `group/affix/textCase` 等 helper 返回的 Unit 对象，会被 JavaScript 强制转成 `"[object Object]"` 并直接进入最终输出。
   - 错误示例：`firstName.split(" ").map(word => affix(word, "", ".")).join(" ")`

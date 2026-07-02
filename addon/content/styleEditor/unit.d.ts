@@ -45,12 +45,7 @@ type WithStyleUnit = {
 };
 
 type TextCaseForm =
-  | "lower"
-  | "upper"
-  | "small-caps"
-  | "title"
-  | "sentence"
-  | "name";
+  "lower" | "upper" | "small-caps" | "title" | "sentence" | "name";
 
 type TextCaseUnit = {
   type: "text-case";

@@ -1,6 +1,6 @@
-import type { IO as CitationDialogIO } from "../dialogs/citationDialog";
-import type { IO as BibliographyDialogIO } from "../dialogs/bibliographyDialog";
-import type { IO as StyleDialogIO } from "../dialogs/styleDialog";
+import type { IO as CitationDialogIO } from "../../dialogs/citationDialog";
+import type { IO as BibliographyDialogIO } from "../../dialogs/bibliographyDialog";
+import type { IO as StyleDialogIO } from "../../dialogs/styleDialog";
 import type {
   BibliographyRequestData,
   BibliographyResponseData,
@@ -16,18 +16,29 @@ import type {
   ShowInLibraryRequestData,
   StyleIdentifier,
   StyleResponseData,
-} from "../../typings/server";
-import { getStyle } from "./styles";
-import { ProgressBar } from "../utils/progressBar";
-import type { CitationContext, Cite } from "../../typings/style";
-import { toBanyanItem } from "../utils/item";
+} from "../../../typings/server";
+import { getPref, setPref } from "../../utils/prefs";
+import { getStyle } from "../styles";
+import { ProgressBar } from "../../utils/progressBar";
+import type { CitationContext, Cite } from "../../../typings/style";
+import { toBanyanItem } from "../../utils/item";
 import {
   scanInaccessibleItems,
   showInaccessibleItemsDialog,
   importInaccessibleItems,
-} from "./inaccessibleItems";
-import { convertCitationFields } from "./converter";
-import type { CallbackStyle } from "./sandbox";
+} from "../inaccessibleItems";
+import { convertCitationFields } from "../converter";
+import type { CallbackStyle } from "../sandbox";
+import {
+  enableBanyanCORS,
+  restoreBanyanCORS as restoreBanyanCORSPatch,
+} from "./corsPatch";
+import {
+  acquireDocumentLock,
+  acquireStyleLock,
+  withDocumentLock,
+} from "./documentLock";
+export { restoreBanyanCORSPatch as restoreBanyanCORS };
 
 type EndpointData<P extends HttpPath> = RouteTable[P]["req"] extends never
   ? undefined
@@ -35,10 +46,10 @@ type EndpointData<P extends HttpPath> = RouteTable[P]["req"] extends never
 
 type JsonEndpointRequest<P extends HttpPath> = {
   method: "GET" | "POST";
-  pathname: P;
+  pathname: string;
   pathParams: Record<string, string>;
   searchParams: URLSearchParams;
-  headers: Record<string, unknown>;
+  headers: Record<string, string>;
   data: EndpointData<P>;
 };
 
@@ -59,9 +70,33 @@ type JsonEndpointCallbackHandler<P extends HttpPath> = (
 ) => void;
 
 const WPS_CONFIG_FILE = "Banyan-for-WPS-Config.cfg";
-const WPS_CONFIG_KEY = "port";
+const WPS_CONFIG_PORT_KEY = "port";
+const WPS_CONFIG_TOKEN_KEY = "token";
 const ROOT_PATH = "banyan";
 const MAIN_WINDOW_READY_TIMEOUT_MS = 5000;
+const BANYAN_CLIENT_HEADER = "x-banyan-client";
+const BANYAN_TOKEN_HEADER = "x-banyan-token";
+const PAIRABLE_ORIGIN_PATTERN =
+  /^https?:\/\/(?:localhost|(?:\[[0-9a-f:.]+\])|[a-z0-9.-]+)(?::\d{1,5})?$/i;
+const SERVER_AUTH_TOKEN_PREF = "serverAuthToken";
+const TRUSTED_ORIGINS_PREF = "serverTrustedOrigins";
+const MAX_JSON_BODY_BYTES = 20 * 1024 * 1024;
+const RATE_LIMIT_WINDOW_MS = 10_000;
+const RATE_LIMIT_MAX_REQUESTS = 80;
+const AUTH_PROMPT_COOLDOWN_MS = 60_000;
+const EPHEMERAL_REQUEST_STATE_MAX_ENTRIES = 1_000;
+const PUBLIC_ENDPOINTS = new Set<HttpPath>(["hello"]);
+type TrustedOriginEntry = {
+  origin: string;
+  clientName: string;
+  grantedAt: number;
+  lastSeenAt: number;
+};
+
+type RateLimitBucket = {
+  windowStartedAt: number;
+  count: number;
+};
 
 // Global progress bar instance for endpoints
 const progressBar = new ProgressBar();
@@ -72,10 +107,8 @@ const progressBar = new ProgressBar();
 // but prevents a single document from opening duplicate dialogs
 const openWindowsByDocument = new Map<string, Window>();
 
-// Document-level mutex: ensures all operations on the same document are serialized
-// Key: documentId, Value: Promise representing the currently running operation
-// This prevents race conditions when multiple requests target the same document
-const documentLocks = new Map<string, Promise<void>>();
+const rateLimitBuckets = new Map<string, RateLimitBucket>();
+const authPromptCooldownByOrigin = new Map<string, number>();
 
 type ZoteroMainWindow = Window & {
   ZoteroPane: {
@@ -86,6 +119,225 @@ type ZoteroMainWindow = Window & {
     ): Promise<boolean>;
   };
 };
+
+function getHeader(
+  headers: Record<string, string> | undefined,
+  name: string,
+): string {
+  return headers?.[name.toLowerCase()]?.trim() ?? "";
+}
+
+function getRequestOrigin(headers: Record<string, string>): string {
+  return getHeader(headers, "origin");
+}
+
+function isPairableOrigin(origin: string): boolean {
+  return PAIRABLE_ORIGIN_PATTERN.test(origin);
+}
+
+function getClientName(headers: Record<string, string>): string {
+  const raw = getHeader(headers, BANYAN_CLIENT_HEADER);
+  const cleaned = raw.replace(/[^\w .:@/-]/g, "").trim();
+  return cleaned.slice(0, 80) || "Unknown client";
+}
+
+function getServerAuthToken(): string {
+  const current = getPref(SERVER_AUTH_TOKEN_PREF).trim();
+  if (current) {
+    return current;
+  }
+
+  const next = crypto.randomUUID();
+  setPref(SERVER_AUTH_TOKEN_PREF, next);
+  return next;
+}
+
+function hasValidServerAuthToken(headers: Record<string, string>): boolean {
+  const provided = getHeader(headers, BANYAN_TOKEN_HEADER);
+  return Boolean(provided && provided === getServerAuthToken());
+}
+
+function loadTrustedOrigins(): TrustedOriginEntry[] {
+  return JSON.parse(getPref(TRUSTED_ORIGINS_PREF)) as TrustedOriginEntry[];
+}
+
+function saveTrustedOrigins(entries: TrustedOriginEntry[]): void {
+  setPref(TRUSTED_ORIGINS_PREF, JSON.stringify(entries));
+}
+
+function findTrustedOrigin(origin: string): TrustedOriginEntry | undefined {
+  return loadTrustedOrigins().find((entry) => entry.origin === origin);
+}
+
+function touchTrustedOrigin(origin: string): void {
+  const entries = loadTrustedOrigins();
+  const entry = entries.find((item) => item.origin === origin);
+  if (!entry) {
+    return;
+  }
+
+  const now = Date.now();
+  if (now - entry.lastSeenAt < 60_000) {
+    return;
+  }
+  entry.lastSeenAt = now;
+  saveTrustedOrigins(entries);
+}
+
+function addTrustedOrigin(origin: string, clientName: string): void {
+  const now = Date.now();
+  const entries = loadTrustedOrigins().filter(
+    (entry) => entry.origin !== origin,
+  );
+  entries.push({
+    origin,
+    clientName,
+    grantedAt: now,
+    lastSeenAt: now,
+  });
+  saveTrustedOrigins(entries);
+}
+
+function pruneRateLimitBuckets(now: number): void {
+  if (rateLimitBuckets.size < EPHEMERAL_REQUEST_STATE_MAX_ENTRIES) {
+    return;
+  }
+
+  for (const [key, bucket] of rateLimitBuckets) {
+    if (now - bucket.windowStartedAt >= RATE_LIMIT_WINDOW_MS) {
+      rateLimitBuckets.delete(key);
+    }
+  }
+}
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  pruneRateLimitBuckets(now);
+
+  const bucket = rateLimitBuckets.get(key);
+  if (!bucket || now - bucket.windowStartedAt >= RATE_LIMIT_WINDOW_MS) {
+    rateLimitBuckets.set(key, { windowStartedAt: now, count: 1 });
+    return true;
+  }
+
+  bucket.count += 1;
+  return bucket.count <= RATE_LIMIT_MAX_REQUESTS;
+}
+
+function getRateLimitKey(
+  headers: Record<string, string>,
+  path: string,
+): string {
+  const origin = getRequestOrigin(headers);
+  if (origin) {
+    return `origin:${origin}:${path}`;
+  }
+  const client = getClientName(headers);
+  return `client:${client || "unknown"}:${path}`;
+}
+
+function pruneAuthPromptCooldowns(now: number): void {
+  if (authPromptCooldownByOrigin.size < EPHEMERAL_REQUEST_STATE_MAX_ENTRIES) {
+    return;
+  }
+
+  for (const [origin, lastPromptAt] of authPromptCooldownByOrigin) {
+    if (now - lastPromptAt >= AUTH_PROMPT_COOLDOWN_MS) {
+      authPromptCooldownByOrigin.delete(origin);
+    }
+  }
+}
+
+function confirmUnknownOriginAccess(
+  origin: string,
+  clientName: string,
+): boolean {
+  const now = Date.now();
+  pruneAuthPromptCooldowns(now);
+
+  const lastPromptAt = authPromptCooldownByOrigin.get(origin) || 0;
+  if (now - lastPromptAt < AUTH_PROMPT_COOLDOWN_MS) {
+    return false;
+  }
+
+  const message = [
+    `${clientName} is requesting access to Banyan's local endpoints.`,
+    "",
+    `Origin: ${origin}`,
+    "",
+    "Allow this origin to send Banyan integration requests?",
+  ].join("\n");
+
+  try {
+    const allowed = Services.prompt.confirm(
+      Zotero.getMainWindow() as unknown as mozIDOMWindowProxy,
+      addon.data.config.addonName,
+      message,
+    );
+    if (allowed) {
+      addTrustedOrigin(origin, clientName);
+    } else {
+      authPromptCooldownByOrigin.set(origin, now);
+    }
+    return allowed;
+  } catch (error) {
+    ztoolkit.logError(error);
+    return false;
+  }
+}
+
+function responseAuthError<P extends HttpPath>(
+  status: number,
+  message: string,
+): JsonEndpointResult<P> {
+  return json(status, responseError<P>(`http_${status}`, message));
+}
+
+function authorizeJsonEndpointRequest<P extends HttpPath>(
+  path: P,
+  headers: Record<string, string>,
+): JsonEndpointResult<P> | null {
+  if (PUBLIC_ENDPOINTS.has(path)) {
+    return null;
+  }
+
+  const rateLimitKey = getRateLimitKey(headers, path);
+  if (!checkRateLimit(rateLimitKey)) {
+    return responseAuthError<P>(429, "Too many Banyan requests");
+  }
+
+  if (hasValidServerAuthToken(headers)) {
+    return null;
+  }
+
+  const origin = getRequestOrigin(headers);
+  if (!origin || origin === "null") {
+    return responseAuthError<P>(
+      403,
+      "Banyan endpoints require a trusted Origin or valid token",
+    );
+  }
+
+  if (!isPairableOrigin(origin)) {
+    return responseAuthError<P>(
+      403,
+      "Banyan endpoints require a valid token for this Origin",
+    );
+  }
+
+  const trusted = findTrustedOrigin(origin);
+  if (trusted) {
+    touchTrustedOrigin(origin);
+    return null;
+  }
+
+  const clientName = getClientName(headers);
+  if (confirmUnknownOriginAccess(origin, clientName)) {
+    return null;
+  }
+
+  return responseAuthError<P>(403, "Banyan origin is not trusted");
+}
 
 function isReadyMainWindow(window: Window | null): window is ZoteroMainWindow {
   return Boolean(
@@ -164,16 +416,6 @@ function summarizeUnknownError(error: unknown): string {
   return String(error);
 }
 
-function summarizeDocumentId(documentId: string): string {
-  const normalized = String(documentId || "").trim();
-  if (!normalized) {
-    return "unknown-document";
-  }
-
-  const segments = normalized.split(/[\\/]/).filter(Boolean);
-  return segments[segments.length - 1] || normalized;
-}
-
 function buildRefreshFailureResult(
   requestStartedAt: number,
   error: unknown,
@@ -186,17 +428,13 @@ function buildRefreshFailureResult(
 
   if (isStyleOutputError) {
     // Surface style-script contract failures to frontend as 4xx errors.
-    ztoolkit.logError(
-      `[refresh] invalid style output after ${Date.now() - requestStartedAt}ms: ${errorMessage}`,
-    );
     ztoolkit.logError(error);
     return json(400, responseError<"refresh">("invalid_params", errorMessage));
   }
 
   ztoolkit.logError(
-    `[refresh] internal error after ${Date.now() - requestStartedAt}ms: ${summarizeUnknownError(error)}`,
+    `[server] refresh.internal-error elapsedMs=${Date.now() - requestStartedAt} message=${summarizeUnknownError(error)}`,
   );
-  ztoolkit.logError(error);
   return json(
     500,
     responseError<"refresh">(
@@ -204,56 +442,6 @@ function buildRefreshFailureResult(
       "Failed to refresh citations and bibliography",
     ),
   );
-}
-
-/**
- * Acquires a lock for the given document, ensuring serialized access.
- * All operations on the same document will be queued and executed sequentially.
- *
- * @param documentId - The document identifier
- * @param operation - The async operation to execute while holding the lock
- * @returns The result of the operation
- */
-async function acquireDocumentLock(documentId: string): Promise<() => void> {
-  // Wait for any existing operation on this document to complete
-  const existingLock = documentLocks.get(documentId);
-  if (existingLock) {
-    await existingLock.catch(() => {
-      // Ignore errors from previous operations - we still want to proceed
-    });
-  }
-
-  // Create a new lock for this operation
-  let resolveLock: () => void;
-  const newLock = new Promise<void>((resolve) => {
-    resolveLock = resolve;
-  });
-  documentLocks.set(documentId, newLock);
-  let released = false;
-
-  return () => {
-    if (released) {
-      return;
-    }
-    released = true;
-    resolveLock!();
-    if (documentLocks.get(documentId) === newLock) {
-      documentLocks.delete(documentId);
-    }
-  };
-}
-
-async function withDocumentLock<T>(
-  documentId: string,
-  operation: () => Promise<T>,
-): Promise<T> {
-  const releaseLock = await acquireDocumentLock(documentId);
-
-  try {
-    return await operation();
-  } finally {
-    releaseLock();
-  }
 }
 
 /**
@@ -295,9 +483,6 @@ async function getItemWithMergeFallback(
         return item;
       }
     } catch (e) {
-      ztoolkit.logError(
-        `[getItemWithMergeFallback] failed to check merged item for URI ${itemUri}`,
-      );
       ztoolkit.logError(e);
     }
   }
@@ -397,6 +582,15 @@ function registerJsonEndpoint<P extends HttpPath>(
     supportedDataTypes = supportedDataTypes;
 
     async init(request: JsonEndpointRequest<P>) {
+      const authError = authorizeJsonEndpointRequest(path, request.headers);
+      if (authError) {
+        return [
+          authError.status,
+          "application/json",
+          JSON.stringify(authError.body),
+        ];
+      }
+
       const result = await handler(request);
       return [result.status, "application/json", JSON.stringify(result.body)];
     }
@@ -420,87 +614,31 @@ function registerJsonCallbackEndpoint<P extends HttpPath>(
     supportedMethods = supportedMethods;
     supportedDataTypes = supportedDataTypes;
 
-    init(
-      data: EndpointData<P>,
-      sendResponse: (status: number, contentType: string, body: string) => void,
-    ) {
-      const send: JsonEndpointCallback<P> = (result) => {
-        sendResponse(
-          result.status,
-          "application/json",
-          JSON.stringify(result.body),
-        );
-      };
+    init(request: JsonEndpointRequest<P>) {
+      return new Promise<[number, string, string]>((resolve) => {
+        const send: JsonEndpointCallback<P> = (result) => {
+          resolve([
+            result.status,
+            "application/json",
+            JSON.stringify(result.body),
+          ]);
+        };
 
-      try {
-        handler({ data }, send);
-      } catch (error) {
-        ztoolkit.logError(error);
-        send(json(500, responseError<P>("internal_error", "Internal error")));
-      }
+        try {
+          const authError = authorizeJsonEndpointRequest(path, request.headers);
+          if (authError) {
+            send(authError);
+            return;
+          }
+
+          handler({ data: request.data }, send);
+        } catch (error) {
+          ztoolkit.logError(error);
+          send(json(500, responseError<P>("internal_error", "Internal error")));
+        }
+      });
     }
   };
-}
-
-/**
- * Monkey-patch Zotero.Server.RequestHandler to add CORS headers for Banyan endpoints.
- *
- * Why this is needed:
- * - Zotero's HTTP server only adds CORS headers when the request origin matches
- *   the bookmarklet origin (see server.js _generateResponse).
- * - Browser-based clients (like the WPS plugin frontend) need CORS headers to make
- *   cross-origin requests.
- * - OPTIONS preflight requests are handled in handleRequest before reaching endpoints,
- *   so we need to patch _generateResponse to inject CORS headers for our paths.
- */
-function enableCORS(): void {
-  // @ts-expect-error Accessing internal Zotero.Server.RequestHandler
-  const RequestHandler = Zotero.Server.RequestHandler;
-  if (!RequestHandler || !RequestHandler.prototype) {
-    ztoolkit.logError("Banyan: Cannot enable CORS - RequestHandler not found");
-    return;
-  }
-
-  const originalGenerateResponse = RequestHandler.prototype._generateResponse;
-
-  RequestHandler.prototype._generateResponse = function (
-    this: { pathname?: string },
-    status: number,
-    contentTypeOrHeaders: string | Record<string, string> | undefined,
-    body?: string,
-  ) {
-    // Only add CORS headers for Banyan routes
-    const pathname = this.pathname || "";
-    if (!pathname.startsWith(`/${ROOT_PATH}/`)) {
-      return originalGenerateResponse.call(
-        this,
-        status,
-        contentTypeOrHeaders,
-        body,
-      );
-    }
-
-    // Normalize headers to object form
-    let headers: Record<string, string>;
-    if (!contentTypeOrHeaders) {
-      headers = {};
-    } else if (typeof contentTypeOrHeaders === "string") {
-      headers = { "Content-Type": contentTypeOrHeaders };
-    } else {
-      headers = { ...contentTypeOrHeaders };
-    }
-
-    // Inject CORS headers
-    headers["Access-Control-Allow-Origin"] = "*";
-    headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
-    headers["Access-Control-Allow-Headers"] =
-      "Content-Type, X-Zotero-Connector-API-Version, Zotero-Allowed-Request";
-    headers["Access-Control-Max-Age"] = "600";
-
-    return originalGenerateResponse.call(this, status, headers, body);
-  };
-
-  ztoolkit.log(`Banyan: CORS enabled for /${ROOT_PATH}/* endpoints`);
 }
 
 function handleRefreshRequest(
@@ -515,7 +653,7 @@ function handleRefreshRequest(
     !data.style ||
     !Array.isArray(data.contexts)
   ) {
-    ztoolkit.logError("[refresh] invalid request payload");
+    ztoolkit.logError("[server] refresh.invalid-payload");
     send(
       json(
         400,
@@ -532,17 +670,22 @@ function handleRefreshRequest(
   const documentId = refreshData.documentId;
   let settled = false;
   let releaseLock: (() => void) | undefined;
+  let releaseStyleLock: (() => void) | undefined;
 
   const finish = (result: JsonEndpointResult<"refresh">) => {
     if (settled) {
-      ztoolkit.logError("[refresh] callback attempted to finish twice");
+      ztoolkit.logError("[server] refresh.finish.duplicate");
       return;
     }
     settled = true;
     try {
-      releaseLock?.();
+      releaseStyleLock?.();
     } finally {
-      send(result);
+      try {
+        releaseLock?.();
+      } finally {
+        send(result);
+      }
     }
   };
 
@@ -550,13 +693,10 @@ function handleRefreshRequest(
     finish(buildRefreshFailureResult(requestStartedAt, error));
   };
 
-  ztoolkit.log(
-    `[refresh] start: document=${summarizeDocumentId(documentId)}, styleId=${refreshData.style.id}`,
-  );
-
   void (async () => {
     try {
       releaseLock = await acquireDocumentLock(documentId);
+      releaseStyleLock = await acquireStyleLock(refreshData.style.id);
 
       const style = await getStyle(refreshData.style);
 
@@ -569,7 +709,6 @@ function handleRefreshRequest(
         const userChoice = await showInaccessibleItemsDialog(inaccessibleItems);
 
         if (userChoice === "cancel") {
-          ztoolkit.log("[refresh] cancelled by user (inaccessible items)");
           finish(
             json(
               400,
@@ -608,9 +747,6 @@ function handleRefreshRequest(
                 }
                 return cite;
               } catch (error) {
-                ztoolkit.logError(
-                  `[refresh] failed to hydrate cite item: context=${context.id}, itemID=${cite.item.id}, itemURI=${cite.item.uri}`,
-                );
                 ztoolkit.logError(error);
                 return cite;
               }
@@ -630,9 +766,6 @@ function handleRefreshRequest(
 
       generateWithCallbacks(contexts, {
         resolve: ({ citations, bibliography }) => {
-          ztoolkit.log(
-            `[refresh] success in ${Date.now() - requestStartedAt}ms`,
-          );
           finish(json(200, responseOk<"refresh">({ citations, bibliography })));
         },
         reject: finishWithError,
@@ -649,7 +782,12 @@ function handleRefreshRequest(
  */
 export function registerEndpoints(): void {
   // Enable CORS before registering endpoints
-  enableCORS();
+  enableBanyanCORS({
+    rootPath: ROOT_PATH,
+    maxJsonBodyBytes: MAX_JSON_BODY_BYTES,
+    getHeader,
+    responseError,
+  });
 
   registerJsonEndpoint("hello", async () => {
     return json(200, responseOk<"hello">("Hello from Banyan server!"));
@@ -667,7 +805,6 @@ export function registerEndpoints(): void {
 
       const item = await getItemByStrictUri(uri);
       if (!item) {
-        ztoolkit.log(`[showInLibrary] item not found for uri=${uri}`);
         return json(
           404,
           responseError<"showInLibrary">(
@@ -684,7 +821,7 @@ export function registerEndpoints(): void {
 
       if (!shown) {
         ztoolkit.logError(
-          `[showInLibrary] item matched uri but could not be selected: uri=${uri}, itemId=${item.id}`,
+          `[server] show-in-library.item.select.failed uri=${uri} itemID=${item.id}`,
         );
         return json(
           409,
@@ -698,9 +835,6 @@ export function registerEndpoints(): void {
       // @ts-expect-error activate is not typed
       Zotero.Utilities.Internal.activate(mainWindow);
       mainWindow.focus();
-      ztoolkit.log(
-        `[showInLibrary] selected item: uri=${uri}, itemId=${item.id}`,
-      );
       return json(200, responseOk<"showInLibrary">({ uri, shown: true }));
     } catch (e) {
       ztoolkit.logError(e);
@@ -833,15 +967,10 @@ export function registerEndpoints(): void {
     }
 
     const documentId = data.documentId;
-    const requestStartedAt = Date.now();
 
     return withDocumentLock(documentId, async () => {
       try {
         const result = await convertCitationFields(data as ConvertRequestData);
-        const convertedCount = Object.keys(result).length;
-        ztoolkit.log(
-          `[convert] succeeded in ${Date.now() - requestStartedAt}ms (converted=${convertedCount})`,
-        );
         return json(200, responseOk<"convert">(result));
       } catch (e) {
         ztoolkit.logError(e);
@@ -904,8 +1033,12 @@ export function registerEndpoints(): void {
 export async function savePortToConfigFile(port: number): Promise<void> {
   try {
     const filePath = PathUtils.join(PathUtils.tempDir, WPS_CONFIG_FILE);
-    await IOUtils.writeUTF8(filePath, `${WPS_CONFIG_KEY}=${port}\n`);
-    ztoolkit.log(`Saved port ${port} to ${filePath}`);
+    const token = getServerAuthToken();
+    const content = [
+      `${WPS_CONFIG_PORT_KEY}=${port}`,
+      `${WPS_CONFIG_TOKEN_KEY}=${token}`,
+    ].join("\n");
+    await IOUtils.writeUTF8(filePath, content);
   } catch (e) {
     ztoolkit.logError(e);
   }
@@ -928,9 +1061,6 @@ export async function openStyleDialog(
   if (existingWindow && !existingWindow.closed) {
     // @ts-expect-error activate is not typed
     Zotero.Utilities.Internal.activate(existingWindow);
-    ztoolkit.log(
-      `[openStyleDialog] Window already open for document ${documentId}, activating existing window`,
-    );
     return null;
   }
 
@@ -969,9 +1099,6 @@ export async function openCitationDialog(
   if (existingWindow && !existingWindow.closed) {
     // @ts-expect-error activate is not typed
     Zotero.Utilities.Internal.activate(existingWindow);
-    ztoolkit.log(
-      `[openCitationDialog] Window already open for document ${data.documentId}, activating existing window`,
-    );
     return null;
   }
 
@@ -1013,9 +1140,6 @@ export async function openBibliographyDialog(
   if (existingWindow && !existingWindow.closed) {
     // @ts-expect-error activate is not typed
     Zotero.Utilities.Internal.activate(existingWindow);
-    ztoolkit.log(
-      `[openBibliographyDialog] Window already open for document ${data.documentId}, activating existing window`,
-    );
     return null;
   }
 

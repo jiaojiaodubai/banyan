@@ -53,7 +53,7 @@ style-editor-lint-install-eslint = 无法运行 ESLint，未找到可执行文�
   请按以下步骤完成安装：
   1. 如果尚未安装 Node.js，请先安装 Node.js。
   2. 打开终端并进入目录：{ $dir }
-  3. 运行：npm install
+  3. 运行：pnpm install
   完成后返回编辑器并点击“重试”。
 
 style-editor-menu-file = 文件

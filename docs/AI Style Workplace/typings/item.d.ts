@@ -14,17 +14,24 @@ export type CreatorType =
   | "bookAuthor"
   | "cartographer"
   | "castMember"
+  | "chair"
   | "commenter"
   | "composer"
   | "contributor"
   | "cosponsor"
   | "counsel"
+  | "creator"
   | "director"
   | "editor"
+  | "executiveProducer"
   | "guest"
+  | "host"
   | "interviewee"
   | "interviewer"
   | "inventor"
+  | "narrator"
+  | "organizer"
+  | "originalCreator"
   | "performer"
   | "podcaster"
   | "presenter"
@@ -33,6 +40,7 @@ export type CreatorType =
   | "recipient"
   | "reviewedAuthor"
   | "scriptwriter"
+  | "seriesCreator"
   | "seriesEditor"
   | "sponsor"
   | "translator"
@@ -53,8 +61,7 @@ type CreatorSingleName<T extends CreatorType = CreatorType> = {
 };
 
 export type Creator<T extends CreatorType = CreatorType> =
-  | CreatorPersonalName<T>
-  | CreatorSingleName<T>;
+  CreatorPersonalName<T> | CreatorSingleName<T>;
 
 export type ItemType =
   | "artwork"
@@ -124,12 +131,15 @@ export type ItemBase<T extends ItemType = ItemType> = {
 };
 
 export type ArtworkItem = ItemBase<"artwork"> & {
+  DOI?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   artworkMedium?: string;
   artworkSize?: string;
   callNumber?: string;
+  citationKey?: string;
+  eventPlace?: string;
   language?: string;
   libraryCatalog?: string;
   rights?: string;
@@ -139,12 +149,14 @@ export type ArtworkItem = ItemBase<"artwork"> & {
 };
 
 export type AudioRecordingItem = ItemBase<"audioRecording"> & {
+  DOI?: string;
   ISBN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   audioRecordingFormat?: string;
   callNumber?: string;
+  citationKey?: string;
   label?: string;
   language?: string;
   libraryCatalog?: string;
@@ -156,12 +168,21 @@ export type AudioRecordingItem = ItemBase<"audioRecording"> & {
   shortTitle?: string;
   url?: string;
   volume?: string;
-  creators?: Creator<"composer" | "contributor" | "performer" | "wordsBy">[];
+  creators?: Creator<
+    | "composer"
+    | "contributor"
+    | "originalCreator"
+    | "performer"
+    | "translator"
+    | "wordsBy"
+  >[];
 };
 
 export type BillItem = ItemBase<"bill"> & {
+  DOI?: string;
   accessDate?: string;
   billNumber?: string;
+  citationKey?: string;
   code?: string;
   codePages?: string;
   codeVolume?: string;
@@ -177,27 +198,37 @@ export type BillItem = ItemBase<"bill"> & {
 };
 
 export type BlogPostItem = ItemBase<"blogPost"> & {
+  DOI?: string;
+  ISSN?: string;
   accessDate?: string;
   blogTitle?: string;
+  citationKey?: string;
   language?: string;
   rights?: string;
   shortTitle?: string;
   url?: string;
   websiteType?: string;
-  creators?: Creator<"author" | "commenter" | "contributor">[];
+  creators?: Creator<"author" | "commenter" | "contributor" | "translator">[];
 };
 
 export type BookItem = ItemBase<"book"> & {
+  DOI?: string;
   ISBN?: string;
+  ISSN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   edition?: string;
+  format?: string;
   language?: string;
   libraryCatalog?: string;
   numPages?: string;
   numberOfVolumes?: string;
+  originalDate?: string;
+  originalPlace?: string;
+  originalPublisher?: string;
   place?: string;
   publisher?: string;
   rights?: string;
@@ -212,16 +243,23 @@ export type BookItem = ItemBase<"book"> & {
 };
 
 export type BookSectionItem = ItemBase<"bookSection"> & {
+  DOI?: string;
   ISBN?: string;
+  ISSN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   bookTitle?: string;
   callNumber?: string;
+  citationKey?: string;
   edition?: string;
+  format?: string;
   language?: string;
   libraryCatalog?: string;
   numberOfVolumes?: string;
+  originalDate?: string;
+  originalPlace?: string;
+  originalPublisher?: string;
   pages?: string;
   place?: string;
   publisher?: string;
@@ -242,8 +280,10 @@ export type BookSectionItem = ItemBase<"bookSection"> & {
 };
 
 export type CaseItem = ItemBase<"case"> & {
+  DOI?: string;
   accessDate?: string;
   caseName?: string;
+  citationKey?: string;
   court?: string;
   dateDecided?: string;
   docketNumber?: string;
@@ -259,11 +299,13 @@ export type CaseItem = ItemBase<"case"> & {
 };
 
 export type ComputerProgramItem = ItemBase<"computerProgram"> & {
+  DOI?: string;
   ISBN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   company?: string;
   libraryCatalog?: string;
   place?: string;
@@ -280,19 +322,25 @@ export type ComputerProgramItem = ItemBase<"computerProgram"> & {
 export type ConferencePaperItem = ItemBase<"conferencePaper"> & {
   DOI?: string;
   ISBN?: string;
+  ISSN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   conferenceName?: string;
+  eventPlace?: string;
+  issue?: string;
   language?: string;
   libraryCatalog?: string;
+  numberOfVolumes?: string;
   pages?: string;
   place?: string;
   proceedingsTitle?: string;
   publisher?: string;
   rights?: string;
   series?: string;
+  seriesNumber?: string;
   shortTitle?: string;
   url?: string;
   volume?: string;
@@ -323,11 +371,13 @@ export type DatasetItem = ItemBase<"dataset"> & {
 };
 
 export type DictionaryEntryItem = ItemBase<"dictionaryEntry"> & {
+  DOI?: string;
   ISBN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   dictionaryTitle?: string;
   edition?: string;
   language?: string;
@@ -348,15 +398,19 @@ export type DictionaryEntryItem = ItemBase<"dictionaryEntry"> & {
 };
 
 export type DocumentItem = ItemBase<"document"> & {
+  DOI?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   language?: string;
   libraryCatalog?: string;
+  place?: string;
   publisher?: string;
   rights?: string;
   shortTitle?: string;
+  type?: string;
   url?: string;
   creators?: Creator<
     "author" | "contributor" | "editor" | "reviewedAuthor" | "translator"
@@ -364,21 +418,25 @@ export type DocumentItem = ItemBase<"document"> & {
 };
 
 export type EmailItem = ItemBase<"email"> & {
+  DOI?: string;
   accessDate?: string;
+  citationKey?: string;
   language?: string;
   rights?: string;
   shortTitle?: string;
   subject?: string;
   url?: string;
-  creators?: Creator<"author" | "contributor" | "recipient">[];
+  creators?: Creator<"author" | "contributor" | "recipient" | "translator">[];
 };
 
 export type EncyclopediaArticleItem = ItemBase<"encyclopediaArticle"> & {
+  DOI?: string;
   ISBN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   edition?: string;
   encyclopediaTitle?: string;
   language?: string;
@@ -399,26 +457,39 @@ export type EncyclopediaArticleItem = ItemBase<"encyclopediaArticle"> & {
 };
 
 export type FilmItem = ItemBase<"film"> & {
+  DOI?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   distributor?: string;
   genre?: string;
   language?: string;
   libraryCatalog?: string;
+  place?: string;
   rights?: string;
   runningTime?: string;
   shortTitle?: string;
   url?: string;
   videoRecordingFormat?: string;
   creators?: Creator<
-    "contributor" | "director" | "producer" | "scriptwriter"
+    | "castMember"
+    | "contributor"
+    | "director"
+    | "guest"
+    | "host"
+    | "narrator"
+    | "producer"
+    | "scriptwriter"
+    | "translator"
   >[];
 };
 
 export type ForumPostItem = ItemBase<"forumPost"> & {
+  DOI?: string;
   accessDate?: string;
+  citationKey?: string;
   forumTitle?: string;
   language?: string;
   postType?: string;
@@ -429,7 +500,9 @@ export type ForumPostItem = ItemBase<"forumPost"> & {
 };
 
 export type HearingItem = ItemBase<"hearing"> & {
+  DOI?: string;
   accessDate?: string;
+  citationKey?: string;
   committee?: string;
   documentNumber?: string;
   history?: string;
@@ -447,7 +520,9 @@ export type HearingItem = ItemBase<"hearing"> & {
 };
 
 export type InstantMessageItem = ItemBase<"instantMessage"> & {
+  DOI?: string;
   accessDate?: string;
+  citationKey?: string;
   language?: string;
   rights?: string;
   shortTitle?: string;
@@ -456,13 +531,17 @@ export type InstantMessageItem = ItemBase<"instantMessage"> & {
 };
 
 export type InterviewItem = ItemBase<"interview"> & {
+  DOI?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   interviewMedium?: string;
   language?: string;
   libraryCatalog?: string;
+  place?: string;
+  publisher?: string;
   rights?: string;
   shortTitle?: string;
   url?: string;
@@ -474,17 +553,25 @@ export type InterviewItem = ItemBase<"interview"> & {
 export type JournalArticleItem = ItemBase<"journalArticle"> & {
   DOI?: string;
   ISSN?: string;
+  PMCID?: string;
+  PMID?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   issue?: string;
   journalAbbreviation?: string;
   language?: string;
   libraryCatalog?: string;
   pages?: string;
+  partNumber?: string;
+  partTitle?: string;
+  place?: string;
   publicationTitle?: string;
+  publisher?: string;
   rights?: string;
+  section?: string;
   series?: string;
   seriesText?: string;
   seriesTitle?: string;
@@ -497,30 +584,37 @@ export type JournalArticleItem = ItemBase<"journalArticle"> & {
 };
 
 export type LetterItem = ItemBase<"letter"> & {
+  DOI?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
+  eventPlace?: string;
   language?: string;
   letterType?: string;
   libraryCatalog?: string;
   rights?: string;
   shortTitle?: string;
   url?: string;
-  creators?: Creator<"author" | "contributor" | "recipient">[];
+  creators?: Creator<"author" | "contributor" | "recipient" | "translator">[];
 };
 
 export type MagazineArticleItem = ItemBase<"magazineArticle"> & {
+  DOI?: string;
   ISSN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   issue?: string;
   language?: string;
   libraryCatalog?: string;
   pages?: string;
+  place?: string;
   publicationTitle?: string;
+  publisher?: string;
   rights?: string;
   shortTitle?: string;
   url?: string;
@@ -531,14 +625,18 @@ export type MagazineArticleItem = ItemBase<"magazineArticle"> & {
 };
 
 export type ManuscriptItem = ItemBase<"manuscript"> & {
+  DOI?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
+  institution?: string;
   language?: string;
   libraryCatalog?: string;
   manuscriptType?: string;
   numPages?: string;
+  number?: string;
   place?: string;
   rights?: string;
   shortTitle?: string;
@@ -547,11 +645,13 @@ export type ManuscriptItem = ItemBase<"manuscript"> & {
 };
 
 export type MapItem = ItemBase<"map"> & {
+  DOI?: string;
   ISBN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   edition?: string;
   language?: string;
   libraryCatalog?: string;
@@ -567,30 +667,37 @@ export type MapItem = ItemBase<"map"> & {
 };
 
 export type NewspaperArticleItem = ItemBase<"newspaperArticle"> & {
+  DOI?: string;
   ISSN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   edition?: string;
+  issue?: string;
   language?: string;
   libraryCatalog?: string;
   pages?: string;
   place?: string;
   publicationTitle?: string;
+  publisher?: string;
   rights?: string;
   section?: string;
   shortTitle?: string;
   url?: string;
+  volume?: string;
   creators?: Creator<
     "author" | "contributor" | "reviewedAuthor" | "translator"
   >[];
 };
 
 export type PatentItem = ItemBase<"patent"> & {
+  DOI?: string;
   accessDate?: string;
   applicationNumber?: string;
   assignee?: string;
+  citationKey?: string;
   country?: string;
   filingDate?: string;
   issueDate?: string;
@@ -600,6 +707,7 @@ export type PatentItem = ItemBase<"patent"> & {
   pages?: string;
   patentNumber?: string;
   place?: string;
+  priorityDate?: string;
   priorityNumbers?: string;
   references?: string;
   rights?: string;
@@ -609,16 +717,31 @@ export type PatentItem = ItemBase<"patent"> & {
 };
 
 export type PodcastItem = ItemBase<"podcast"> & {
+  DOI?: string;
   accessDate?: string;
   audioFileType?: string;
+  citationKey?: string;
   episodeNumber?: string;
   language?: string;
+  place?: string;
+  publisher?: string;
   rights?: string;
   runningTime?: string;
   seriesTitle?: string;
   shortTitle?: string;
   url?: string;
-  creators?: Creator<"contributor" | "guest" | "podcaster">[];
+  creators?: Creator<
+    | "castMember"
+    | "contributor"
+    | "director"
+    | "executiveProducer"
+    | "guest"
+    | "podcaster"
+    | "producer"
+    | "scriptwriter"
+    | "seriesCreator"
+    | "translator"
+  >[];
 };
 
 export type PreprintItem = ItemBase<"preprint"> & {
@@ -645,23 +768,31 @@ export type PreprintItem = ItemBase<"preprint"> & {
 };
 
 export type PresentationItem = ItemBase<"presentation"> & {
+  DOI?: string;
   accessDate?: string;
+  citationKey?: string;
   language?: string;
   meetingName?: string;
   place?: string;
   presentationType?: string;
   rights?: string;
+  series?: string;
+  sessionTitle?: string;
   shortTitle?: string;
   url?: string;
-  creators?: Creator<"contributor" | "presenter">[];
+  creators?: Creator<
+    "chair" | "contributor" | "organizer" | "presenter" | "translator"
+  >[];
 };
 
 export type RadioBroadcastItem = ItemBase<"radioBroadcast"> & {
+  DOI?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   audioRecordingFormat?: string;
   callNumber?: string;
+  citationKey?: string;
   episodeNumber?: string;
   language?: string;
   libraryCatalog?: string;
@@ -675,18 +806,27 @@ export type RadioBroadcastItem = ItemBase<"radioBroadcast"> & {
   creators?: Creator<
     | "castMember"
     | "contributor"
+    | "creator"
     | "director"
+    | "executiveProducer"
     | "guest"
+    | "host"
     | "producer"
     | "scriptwriter"
+    | "seriesCreator"
+    | "translator"
   >[];
 };
 
 export type ReportItem = ItemBase<"report"> & {
+  DOI?: string;
+  ISBN?: string;
+  ISSN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   institution?: string;
   language?: string;
   libraryCatalog?: string;
@@ -695,27 +835,32 @@ export type ReportItem = ItemBase<"report"> & {
   reportNumber?: string;
   reportType?: string;
   rights?: string;
+  seriesNumber?: string;
   seriesTitle?: string;
   shortTitle?: string;
   url?: string;
   creators?: Creator<
-    "author" | "contributor" | "seriesEditor" | "translator"
+    "author" | "contributor" | "editor" | "seriesEditor" | "translator"
   >[];
 };
 
 export type StandardItem = ItemBase<"standard"> & {
   DOI?: string;
+  ISBN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
   citationKey?: string;
   committee?: string;
+  edition?: string;
   language?: string;
   libraryCatalog?: string;
   numPages?: string;
   number?: string;
   organization?: string;
+  partNumber?: string;
+  partTitle?: string;
   place?: string;
   publisher?: string;
   rights?: string;
@@ -724,11 +869,13 @@ export type StandardItem = ItemBase<"standard"> & {
   type?: string;
   url?: string;
   versionNumber?: string;
-  creators?: Creator<"author" | "contributor">[];
+  creators?: Creator<"author" | "contributor" | "editor">[];
 };
 
 export type StatuteItem = ItemBase<"statute"> & {
+  DOI?: string;
   accessDate?: string;
+  citationKey?: string;
   code?: string;
   codeNumber?: string;
   dateEnacted?: string;
@@ -746,15 +893,21 @@ export type StatuteItem = ItemBase<"statute"> & {
 };
 
 export type ThesisItem = ItemBase<"thesis"> & {
+  DOI?: string;
+  ISBN?: string;
+  ISSN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   language?: string;
   libraryCatalog?: string;
   numPages?: string;
   place?: string;
   rights?: string;
+  series?: string;
+  seriesNumber?: string;
   shortTitle?: string;
   thesisType?: string;
   university?: string;
@@ -763,10 +916,12 @@ export type ThesisItem = ItemBase<"thesis"> & {
 };
 
 export type TvBroadcastItem = ItemBase<"tvBroadcast"> & {
+  DOI?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   episodeNumber?: string;
   language?: string;
   libraryCatalog?: string;
@@ -782,18 +937,25 @@ export type TvBroadcastItem = ItemBase<"tvBroadcast"> & {
     | "castMember"
     | "contributor"
     | "director"
+    | "executiveProducer"
     | "guest"
+    | "host"
+    | "narrator"
     | "producer"
     | "scriptwriter"
+    | "seriesCreator"
+    | "translator"
   >[];
 };
 
 export type VideoRecordingItem = ItemBase<"videoRecording"> & {
+  DOI?: string;
   ISBN?: string;
   accessDate?: string;
   archive?: string;
   archiveLocation?: string;
   callNumber?: string;
+  citationKey?: string;
   language?: string;
   libraryCatalog?: string;
   numberOfVolumes?: string;
@@ -807,13 +969,27 @@ export type VideoRecordingItem = ItemBase<"videoRecording"> & {
   videoRecordingFormat?: string;
   volume?: string;
   creators?: Creator<
-    "castMember" | "contributor" | "director" | "producer" | "scriptwriter"
+    | "castMember"
+    | "contributor"
+    | "creator"
+    | "director"
+    | "executiveProducer"
+    | "guest"
+    | "host"
+    | "narrator"
+    | "producer"
+    | "scriptwriter"
+    | "translator"
   >[];
 };
 
 export type WebpageItem = ItemBase<"webpage"> & {
+  DOI?: string;
   accessDate?: string;
+  citationKey?: string;
   language?: string;
+  place?: string;
+  publisher?: string;
   rights?: string;
   shortTitle?: string;
   url?: string;

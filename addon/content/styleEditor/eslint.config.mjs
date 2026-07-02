@@ -28,6 +28,7 @@ export default [
       // Entry globals (INFO/UI/gen*) are consumed by sandbox loader, not local references.
       "no-unused-vars": "off",
       "banyanStyle/require-style-contract": "error",
+      "banyanStyle/warn-risky-runtime-pattern": "warn",
     },
   },
   {

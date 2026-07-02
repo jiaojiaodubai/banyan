@@ -1,4 +1,3 @@
-// TODO: Refector AI generated: Review and adjust the code as necessary.
 import type {
   CitationRequestData,
   CitationResponseData,
@@ -9,12 +8,11 @@ import type {
   StyleComponent,
   StyleUI,
 } from "../../typings/style";
-import { getStyle } from "../modules/styles";
 import { BubbleInput } from "../components/bubbleInput";
 import { renderStyleComponentOptions } from "../components/styleComponentOptions";
 import { toBanyanItem } from "../utils/item";
 import { useL10n } from "../utils/locale";
-import { getPref } from "../utils/prefs";
+import { getPref, setPref } from "../utils/prefs";
 
 export type IO = {
   data: CitationRequestData;
@@ -44,37 +42,17 @@ const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
 const t = useL10n(["citationDialog.ftl"]);
 
-function isStyleIdentifier(
-  styleInput: CitationRequestData["style"],
-): styleInput is { id: string; title: string } {
-  return (
-    !!styleInput &&
-    typeof styleInput === "object" &&
-    "id" in styleInput &&
-    "title" in styleInput &&
-    typeof styleInput.id === "string" &&
-    typeof styleInput.title === "string"
-  );
-}
-
-async function resolveCitationStyleUI(
-  styleInput: CitationRequestData["style"],
-): Promise<StyleUI> {
-  if (isStyleIdentifier(styleInput)) {
-    const style = await getStyle(styleInput);
-    return style.UI ?? { cite: [], citation: [] };
-  }
-
-  return {
-    cite: Array.isArray(styleInput.cite) ? styleInput.cite : [],
-    citation: Array.isArray(styleInput.citation) ? styleInput.citation : [],
-  };
-}
+const CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF =
+  "citationDialogInitialCollectionMode" as const;
+const CITATION_DIALOG_LAST_SELECTED_COLLECTION_PREF =
+  "integration.citationDialogCollectionLastSelected";
+const CITATION_DIALOG_COLLECTION_TREE_WIDTH_PREF =
+  "citationDialogCollectionTreeWidth" as const;
 
 let io: IO | null = null;
 let resolved = false;
 let collectionsView: _ZoteroTypes.CollectionTree | null = null;
-let itemsView: _ZoteroTypes.ItemTree | null = null;
+let itemsView: _ZoteroTypes.CollectionViewItemTree | null = null;
 let acceptButton: HTMLButtonElement | null = null;
 let bubbleInput: BubbleInput | null = null;
 
@@ -96,6 +74,104 @@ let minHeightUpdateTimer: number | null = null;
 let windowResizeHandler: (() => void) | null = null;
 let headerResizeObserver: ResizeObserver | null = null;
 let footerResizeObserver: ResizeObserver | null = null;
+
+function getItemsViewCollectionTreeRows(): _ZoteroTypes.CollectionTreeRow[] {
+  if (!itemsView) return [];
+  // Backward Compatibly: compatible with Zotero before upstream commit 15c2c9547
+  // (Support multiple-collection selection, #5954), where CollectionViewItemTree
+  // only exposed a singular collectionTreeRow.
+  if (Array.isArray(itemsView.collectionTreeRows)) {
+    return itemsView.collectionTreeRows.filter(Boolean);
+  }
+  return itemsView.collectionTreeRow ? [itemsView.collectionTreeRow] : [];
+}
+
+function getItemsViewPrimaryCollectionTreeRow(): _ZoteroTypes.CollectionTreeRow | null {
+  return getItemsViewCollectionTreeRows()[0] ?? null;
+}
+
+function getSelectedCollectionTreeRows(): _ZoteroTypes.CollectionTreeRow[] {
+  if (!collectionsView?.selection.count) return [];
+
+  const selected = collectionsView.selection.selected;
+  if (selected?.size) {
+    return Array.from(selected)
+      .sort((a, b) => a - b)
+      .map((index) => collectionsView!.getRow(index))
+      .filter(Boolean);
+  }
+
+  return [collectionsView.getRow(collectionsView.selection.focused)].filter(
+    Boolean,
+  );
+}
+
+function getSortedCollectionTreeRowIDs(
+  collectionTreeRows: _ZoteroTypes.CollectionTreeRow[],
+): string[] {
+  return collectionTreeRows.map((row) => String(row.id)).sort();
+}
+
+function areCollectionTreeRowSelectionsEqual(
+  a: _ZoteroTypes.CollectionTreeRow[],
+  b: _ZoteroTypes.CollectionTreeRow[],
+): boolean {
+  if (a.length !== b.length) return false;
+
+  const aIDs = getSortedCollectionTreeRowIDs(a);
+  const bIDs = getSortedCollectionTreeRowIDs(b);
+  return aIDs.every((id, index) => id === bIDs[index]);
+}
+
+async function waitForCollectionTreeRowLibraries(
+  collectionTreeRows: _ZoteroTypes.CollectionTreeRow[],
+): Promise<boolean> {
+  const loadPromises: Array<Promise<void>> = [];
+
+  for (const libraryID of new Set(
+    collectionTreeRows.map((row) => row.ref.libraryID),
+  )) {
+    const library = Zotero.Libraries.get(libraryID);
+    if (!library) return false;
+
+    if (!library.getDataLoaded("item")) {
+      loadPromises.push(library.waitForDataLoad("item"));
+    }
+  }
+
+  await Promise.all(loadPromises);
+
+  return true;
+}
+
+async function changeItemsViewCollectionTreeRows(
+  collectionTreeRows: _ZoteroTypes.CollectionTreeRow[],
+): Promise<void> {
+  if (!itemsView) return;
+  if (!collectionTreeRows.length) return;
+
+  // Backward Compatibly: compatible with Zotero at/after upstream commit 15c2c9547
+  // (#5954), which added multi-row collectionTreeRows/changeCollectionTreeRows().
+  if (typeof itemsView.changeCollectionTreeRows === "function") {
+    await itemsView.changeCollectionTreeRows(collectionTreeRows);
+    return;
+  }
+
+  // Backward Compatibly: compatible with Zotero at upstream commit 5ca1fbb16
+  // (Item tree refactor megacommit) and nearby revisions that still require the
+  // legacy singular changeCollectionTreeRow() API.
+  await itemsView.changeCollectionTreeRow(collectionTreeRows[0]);
+}
+
+function getItemsViewFocusedRowIndex(): number {
+  const focused = itemsView?.tree?.selection?.focused;
+  if (typeof focused === "number") return focused;
+
+  // Backward Compatibly: compatible with older Zotero item tree builds around
+  // upstream commit 5ca1fbb16 where selection may still be read from itemsView.
+  const fallbackFocused = itemsView?.selection?.focused;
+  return typeof fallbackFocused === "number" ? fallbackFocused : -1;
+}
 
 window.addEventListener("load", initCitationDialog);
 window.addEventListener("unload", () => {
@@ -158,7 +234,7 @@ async function initCitationDialog(): Promise<void> {
 
     initResizableSidebar();
     await initLibrary();
-    await selectMainLibraryByDefault();
+    await selectInitialCollection();
     renderCitationOptions(citationUI);
 
     // Restore initial cites if dialog is opened to edit an existing citation
@@ -179,11 +255,37 @@ async function initCitationDialog(): Promise<void> {
   }
 }
 
+function isStyleIdentifier(
+  styleInput: CitationRequestData["style"],
+): styleInput is { id: string; title: string } {
+  return (
+    !!styleInput &&
+    typeof styleInput === "object" &&
+    "id" in styleInput &&
+    "title" in styleInput &&
+    typeof styleInput.id === "string" &&
+    typeof styleInput.title === "string"
+  );
+}
+
+async function resolveCitationStyleUI(
+  styleInput: CitationRequestData["style"],
+): Promise<StyleUI> {
+  if (isStyleIdentifier(styleInput)) {
+    return addon.api.getStyleUI(styleInput);
+  }
+
+  return {
+    cite: Array.isArray(styleInput.cite) ? styleInput.cite : [],
+    citation: Array.isArray(styleInput.citation) ? styleInput.citation : [],
+  };
+}
+
 async function initLibrary(): Promise<void> {
   try {
     const loader = window.require;
     const CollectionTree = loader("zotero/collectionTree");
-    const ItemTree = loader("zotero/itemTree");
+    const CollectionViewItemTree = loader("zotero/collectionViewItemTree");
     const { COLUMNS } = loader("zotero/itemTreeColumns") as {
       COLUMNS: ItemTreeColumn[];
     };
@@ -200,10 +302,11 @@ async function initLibrary(): Promise<void> {
           void handleLibraryCollectionSelection();
         },
         hideSources: ["duplicates", "trash", "feeds"],
+        multiSelect: true,
       },
     );
 
-    itemsView = await ItemTree.init(
+    itemsView = await CollectionViewItemTree.init(
       document.getElementById("zotero-items-tree"),
       {
         id: "citationDialog",
@@ -228,9 +331,20 @@ async function initLibrary(): Promise<void> {
   }
 }
 
+async function selectInitialCollection(): Promise<void> {
+  if (!collectionsView) return;
+
+  const mode = getPref(CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF);
+  if (mode === "lastSelected") {
+    const restored = await restoreLastSelectedCollection();
+    if (restored) return;
+  }
+
+  await selectMainLibraryByDefault();
+}
+
 async function selectMainLibraryByDefault(): Promise<void> {
   if (!collectionsView) return;
-  if (!getPref("defaultSelectMainLibraryOnCitationOpen")) return;
 
   const userLibraryID = Zotero.Libraries?.userLibraryID;
   if (typeof userLibraryID !== "number") return;
@@ -241,6 +355,31 @@ async function selectMainLibraryByDefault(): Promise<void> {
     ztoolkit.log("默认选中主文库失败");
     ztoolkit.logError(e);
   }
+}
+
+async function restoreLastSelectedCollection(): Promise<boolean> {
+  if (!collectionsView) return false;
+
+  const lastSelected = Zotero.Prefs.get(
+    CITATION_DIALOG_LAST_SELECTED_COLLECTION_PREF,
+  ) as string | undefined;
+  if (!lastSelected) return false;
+
+  try {
+    const restored = await collectionsView.selectByID?.(lastSelected);
+    return restored !== false;
+  } catch (e) {
+    ztoolkit.log("恢复上次选中的分类失败");
+    ztoolkit.logError(e);
+    return false;
+  }
+}
+
+function saveLastSelectedCollection(): void {
+  const selectedTreeRow = collectionsView?.selectedTreeRow;
+  const id = selectedTreeRow?.id;
+  if (typeof id !== "string") return;
+  Zotero.Prefs.set(CITATION_DIALOG_LAST_SELECTED_COLLECTION_PREF, id);
 }
 
 function bindButtons(): void {
@@ -299,6 +438,9 @@ function onKeydown(event: KeyboardEvent): void {
 
 async function onItemsActivated() {
   toggleSelectedItemsCommitState({ fallbackToFocusedItem: false });
+  window.setTimeout(() => {
+    bubbleInput?.focus();
+  }, 5);
 }
 
 function getItemsTreeSelection(options?: {
@@ -310,7 +452,7 @@ function getItemsTreeSelection(options?: {
     return selectedItems;
   }
 
-  const focused = itemsView.tree?.selection?.focused;
+  const focused = getItemsViewFocusedRowIndex();
   if (typeof focused !== "number" || focused < 0) {
     return [];
   }
@@ -371,36 +513,39 @@ function toggleSelectedItemsCommitState(options?: {
 }
 
 async function handleLibraryCollectionSelection(): Promise<void> {
+  saveLastSelectedCollection();
   if (!collectionsView?.selection.count || !itemsView) {
     return;
   }
-  const collectionTreeRow = collectionsView.getRow(
-    collectionsView.selection.focused,
-  );
+  const selectedRows = getSelectedCollectionTreeRows();
+  if (!selectedRows.length) return;
+
+  const currentCollectionTreeRows = getItemsViewCollectionTreeRows();
   if (
-    itemsView.collectionTreeRow &&
-    itemsView.collectionTreeRow.id === collectionTreeRow.id
+    areCollectionTreeRowSelectionsEqual(currentCollectionTreeRows, selectedRows)
   ) {
     return;
   }
-  const library = Zotero.Libraries.get(collectionTreeRow.ref.libraryID);
-  if (!library) return;
-  if (!library.getDataLoaded("item")) {
-    await library.waitForDataLoad("item");
-  }
-  await itemsView.changeCollectionTreeRow({
-    id: collectionTreeRow.id,
-    getItems: async () => {
-      return await collectionTreeRow.getItems();
-    },
-    // Required for ItemTree.setFilter('search' | 'citation-search')
-    // ItemTree will call this.collectionTreeRow.setSearch(...)
-    isSearch: () => true,
-    isSearchMode: () => true,
-    setSearch: (searchText: string, mode?: string) =>
-      collectionTreeRow.setSearch?.(searchText, mode),
-    ref: collectionTreeRow.ref,
-  });
+
+  const librariesLoaded = await waitForCollectionTreeRowLibraries(selectedRows);
+  if (!librariesLoaded) return;
+
+  await changeItemsViewCollectionTreeRows(
+    selectedRows.map((collectionTreeRow) => ({
+      id: collectionTreeRow.id,
+      getItems: async () => {
+        return await collectionTreeRow.getItems();
+      },
+      // Required for ItemTree.setFilter('search' | 'citation-search')
+      // ItemTree will call this.collectionTreeRow.setSearch(...)
+      isSearch: () => true,
+      isSearchMode: () => true,
+      setSearch: (searchText: string, mode?: string) =>
+        collectionTreeRow.setSearch?.(searchText, mode),
+      clearCache: () => collectionTreeRow.clearCache?.(),
+      ref: collectionTreeRow.ref,
+    })),
+  );
 
   // Re-apply active filter after switching collections
   await applyItemsFilter(bubbleInput?.SearchText ?? lastSearchQuery);
@@ -649,11 +794,11 @@ function showItemsTreeContextMenu(
   ).openPopupAtScreen?.(screenX, screenY, true);
 }
 
-async function ensureItemsViewReady(): Promise<_ZoteroTypes.ItemTree | null> {
+async function ensureItemsViewReady(): Promise<_ZoteroTypes.CollectionViewItemTree | null> {
   if (!itemsView) return null;
   // Avoid errors when setting filter before initial collection row is set
   const deadline = Date.now() + 2000;
-  while (!itemsView.collectionTreeRow) {
+  while (!getItemsViewPrimaryCollectionTreeRow()) {
     if (Date.now() > deadline) return itemsView;
     await delay(10);
   }
@@ -816,7 +961,9 @@ function initResizableSidebar(): void {
     return clamped;
   };
 
-  applyWidth(SIDEBAR_MIN);
+  let currentWidth = applyWidth(
+    getPref(CITATION_DIALOG_COLLECTION_TREE_WIDTH_PREF) || SIDEBAR_MIN + 50,
+  );
 
   splitter.addEventListener("pointerdown", (event: PointerEvent) => {
     if (event.button !== 0) {
@@ -832,7 +979,7 @@ function initResizableSidebar(): void {
     dialogRoot?.classList.add("is-resizing");
 
     const onPointerMove = (e: PointerEvent) => {
-      applyWidth(startWidth + (e.clientX - startX));
+      currentWidth = applyWidth(startWidth + (e.clientX - startX));
     };
 
     const onLostPointerCapture = () => {
@@ -840,10 +987,15 @@ function initResizableSidebar(): void {
       dialogRoot?.classList.remove("is-resizing");
       splitter.removeEventListener("pointermove", onPointerMove);
       splitter.removeEventListener("lostpointercapture", onLostPointerCapture);
+      setPref(CITATION_DIALOG_COLLECTION_TREE_WIDTH_PREF, currentWidth);
     };
 
     splitter.addEventListener("pointermove", onPointerMove);
     splitter.addEventListener("lostpointercapture", onLostPointerCapture);
+  });
+
+  window.addEventListener("resize", () => {
+    currentWidth = applyWidth(currentWidth);
   });
 }
 

@@ -1,7 +1,7 @@
 import { dialogExample } from "./modules/debug";
 import { registerPrefs, onPrefsWindowLoad } from "./modules/preferences";
 import { createZToolkit } from "./utils/ztoolkit";
-import { loadStyles } from "./modules/styles";
+import { getStyle, installPresetStyles, loadStyles } from "./modules/styles";
 import { useL10n } from "./utils/locale";
 import {
   registerStyleSheet,
@@ -9,7 +9,18 @@ import {
 } from "./modules/mainWindow";
 import { registerToolsMenu, registerContextMenu } from "./modules/menu";
 import { ensureStyleEditorRuntimeAssets } from "./modules/styleEditor";
-import { registerEndpoints, savePortToConfigFile } from "./modules/server";
+import {
+  registerEndpoints,
+  restoreBanyanCORS,
+  savePortToConfigFile,
+} from "./modules/server";
+
+function registerAPIs(): void {
+  addon.api.getStyleUI = async (style) => {
+    const cachedStyle = await getStyle(style);
+    return cachedStyle.UI ?? { cite: [], citation: [] };
+  };
+}
 
 async function onStartup() {
   await Promise.all([
@@ -18,6 +29,7 @@ async function onStartup() {
     Zotero.uiReadyPromise,
   ]);
 
+  registerAPIs();
   registerPrefs();
   registerItemPaneSection();
   registerEndpoints();
@@ -41,7 +53,6 @@ async function saveZoteroServerPort(): Promise<void> {
     const port = Number(Zotero.Prefs.get("httpServer.port"));
     if (Number.isFinite(port) && port > 0) {
       await savePortToConfigFile(port);
-      ztoolkit.log(`Banyan: Zotero HTTP server running on port ${port}`);
     }
   } catch (e) {
     ztoolkit.logError(e);
@@ -69,6 +80,7 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
     .show();
 
   await loadStyles();
+  await installPresetStyles();
 
   popupWin.changeLine({
     progress: 30,
@@ -100,6 +112,7 @@ async function onMainWindowUnload(_win: Window): Promise<void> {
 }
 
 function onShutdown(): void {
+  restoreBanyanCORS();
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();
   // Remove addon object

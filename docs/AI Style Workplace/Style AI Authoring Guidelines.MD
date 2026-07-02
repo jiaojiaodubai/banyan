@@ -13,7 +13,7 @@
 - 脚本必须实现 `INFO` 和 `generate()`。
 - 如果需求包含可配置参数，才实现 `UI`。
 - `generate()` 必须读取全局只读变量 `contexts`，并返回 `{ citations, bibliography }`。
-- 生成结果中的 citation 与 bibliography 均使用 `units` 字段（`Unit[]`）。
+- 生成结果中的 citation 与 bibliography 均使用 `units` 字段；脚本侧类型是单个 `Unit`，多片段请用 `group([...])` 或 `fallback([...])` 组合。
 
 ## 2. 运行环境约束（硬性）
 
@@ -34,7 +34,7 @@
 - `getMultilingualItems(item)`
 - `getMultilingualItem(item, language)`
 
-说明：只能访问 banyan 数据目录下的文件。多语言 item API 返回的是只读安全视图；`getMultilingualItem(item, language)` 会按 `item.language` 匹配语言，支持 `zh` 匹配 `zh-CN`，未命中时回退到当前条目。
+说明：只能访问 banyan 数据目录下的文件，宿主会规范化路径并拒绝目录穿越或绝对路径绕过。文件读取不设置大小硬限制；生成脚本时应只读取来源明确、格式固定、已预清洗的小型数据文件，不要把大型文本、JSON 或二进制数据一次性读入内存。多语言 item API 返回的是只读安全视图；`getMultilingualItem(item, language)` 会按 `item.language` 匹配语言，支持 `zh` 匹配 `zh-CN`，未命中时回退到当前条目。
 
 ## 3.5 类型声明位置
 
@@ -103,9 +103,9 @@ return {
 
 ## 7. 单元（units）构建规范
 
-- 每个 citation/bibliography entry 使用 `units: Unit[]`。
+- 每个 citation/bibliography entry 使用 `units: Unit`。字段名是复数 `units`，但脚本侧值不是数组；运行时会把它标准化为前端渲染使用的 `TextUnit[]`。
 - 简单文本优先使用 `text("...")`。
-- 复杂拼接可使用：`group(...)`、`affix(...)`、`fallback(...)`、`when(...)`、`textCase(...)`。
+- 复杂拼接可使用：`group(...)`、`affix(...)`、`fallback(...)`、`when(...)`、`textCase(...)`。需要返回多个片段时，把片段放进 `group([...])`，不要把数组直接赋给 `units`。
 - 允许直接写叶子对象：`{ value: "..." }`。
 - 组装 Unit 片段时优先使用 `group([...], delimiter)`，不要对可能含 Unit 的数组使用 `.join(...)`。
   - `.join(...)` 只适合纯字符串数组；如果元素是 Unit 对象（例如 `affix(...)` 的返回值），会被隐式串化成 `"[object Object]"`，导致错误文本泄漏到结果中。

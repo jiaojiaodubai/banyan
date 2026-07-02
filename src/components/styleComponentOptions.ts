@@ -80,7 +80,7 @@ export function renderStyleComponentOptions({
         menulist.setAttribute("native", "true");
 
         const menupopup = createXULElementCompat("menupopup");
-        for (const [value, label] of Object.entries(comp.data)) {
+        for (const [value, label] of Object.entries(comp.options)) {
           const menuitem = createXULElementCompat("menuitem");
           menuitem.setAttribute("value", value);
           menuitem.setAttribute("label", label);
@@ -103,7 +103,7 @@ export function renderStyleComponentOptions({
         const label = doc.createElement("label");
         label.textContent = comp.label;
         const select = doc.createElement("select");
-        for (const [value, label] of Object.entries(comp.data)) {
+        for (const [value, label] of Object.entries(comp.options)) {
           const el = doc.createElement("option");
           el.value = value;
           el.textContent = label;
@@ -132,9 +132,6 @@ export function renderStyleComponentOptions({
       input.setAttribute("id", id);
       input.setAttribute("type", "text");
       input.value = String(values[comp.id] ?? "");
-      if (comp.data?.placeholder) {
-        input.setAttribute("placeholder", comp.data.placeholder);
-      }
       input.addEventListener("input", () => {
         onChange(comp.id, String(input.value ?? ""));
       });
@@ -146,9 +143,6 @@ export function renderStyleComponentOptions({
       const input = doc.createElement("input");
       input.type = "text";
       input.value = String(values[comp.id] ?? "");
-      if (comp.data?.placeholder) {
-        input.placeholder = comp.data.placeholder;
-      }
       input.addEventListener("input", () => {
         onChange(comp.id, input.value);
       });

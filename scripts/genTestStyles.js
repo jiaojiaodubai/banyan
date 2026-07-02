@@ -30,10 +30,9 @@ const styleTemplate = (
   '  citation: [',
   '    {',
   '      id: "param1",',
-  '      type: "text",',
+  '      type: "input",',
   '      value: "",',
   `      label: "参数1（样式${index}）",`,
-  `      data: { placeholder: "请输入参数（样式${index}）" }`,
   '    }',
   '    ,',
   '    {',
@@ -41,21 +40,18 @@ const styleTemplate = (
   '      type: "select",',
   '      value: "a",',
   `      label: "下拉参数（样式${index}）",`,
-  '      data: {',
-  '        options: [',
-  `          { value: "a", label: "选项A-${index}" },`,
-  `          { value: "b", label: "选项B-${index}" }`,
-  '        ]',
+  '      option: {',
+  `        a: "选项A-${index}",`,
+  `        b: "选项B-${index}"`,
   '      }',
   '    }',
   '  ],',
   '  cite: [',
   '    {',
   '      id: "citeText1",',
-  '      type: "text",',
+  '      type: "input",',
   '      value: "",',
   `      label: "逐条参数（样式${index}）",`,
-  `      data: { placeholder: "逐条请输入（样式${index}）" }`,
   '    }',
   '    ,',
   '    {',
@@ -64,11 +60,9 @@ const styleTemplate = (
   '      itemType: ["book", "journalArticle"],',
   '      value: "a",',
   `      label: "逐条下拉（样式${index}）",`,
-  '      data: {',
-  '        options: [',
-  `          { value: "a", label: "逐条选项A-${index}" },`,
-  `          { value: "b", label: "逐条选项B-${index}" }`,
-  '        ]',
+  '      options: {',
+  `        a: "逐条选项A-${index}",`,
+  `        b: "逐条选项B-${index}"`,
   '      }',
   '    }',
   '    ,',
@@ -143,14 +137,35 @@ const styleTemplate = (
 '}',
 ].join('\n');
 
-function formatDate(date) {
-  return date.toISOString().slice(0, 10);
+function pad(value) {
+  return String(value).padStart(2, '0');
+}
+
+function formatUpdatedTime(date) {
+  const offsetMinutes = -date.getTimezoneOffset();
+  const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+  const offsetAbs = Math.abs(offsetMinutes);
+  const datePart = [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+  ].join('-');
+  const timePart = [
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    pad(date.getSeconds()),
+  ].join(':');
+  const offsetPart = [
+    pad(Math.floor(offsetAbs / 60)),
+    pad(offsetAbs % 60),
+  ].join(':');
+  return `${datePart}T${timePart}${offsetSign}${offsetPart}`;
 }
 
 function genStyleScript(styleId, title) {
   const m = String(styleId).match(/(\d+)$/);
   const index = m ? Number(m[1]) : 0;
-  return styleTemplate(styleId, title, formatDate(new Date()), index);
+  return styleTemplate(styleId, title, formatUpdatedTime(new Date()), index);
 }
 
 function createStyleScripts(targetDir, count) {
@@ -166,4 +181,3 @@ function createStyleScripts(targetDir, count) {
 
 // 直接运行，无需命令行参数
 createStyleScripts(targetDir, count);
-

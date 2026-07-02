@@ -1,7 +1,12 @@
 import type { TextUnit } from "../../typings/unit";
+import { sanitizeLink } from "../utils/html";
 import { useL10n } from "../utils/locale";
 
 type UnitStyle = Omit<TextUnit, "value">;
+type UnitLinkHandler = (link: string, event: Event) => boolean | void;
+type RenderUnitsOptions = {
+  onLinkClick?: UnitLinkHandler;
+};
 
 const NAV_KEYS = new Set([
   "ArrowLeft",
@@ -198,16 +203,19 @@ export class RichTextEditor {
   }
 }
 
-export function renderUnitsToFragment(items: TextUnit[]): DocumentFragment {
+export function renderUnitsToFragment(
+  items: TextUnit[],
+  options: RenderUnitsOptions = {},
+): DocumentFragment {
   const fragment = document.createDocumentFragment();
   for (const unit of items) {
-    const node = createNodeFromUnit(unit);
+    const node = createNodeFromUnit(unit, options);
     fragment.appendChild(node);
   }
   return fragment;
 }
 
-function createNodeFromUnit(unit: TextUnit): Node {
+function createNodeFromUnit(unit: TextUnit, options: RenderUnitsOptions): Node {
   let current: Node = document.createTextNode(unit.value ?? "");
 
   if (unit.bold) {
@@ -239,12 +247,22 @@ function createNodeFromUnit(unit: TextUnit): Node {
   }
 
   if (unit.link) {
-    const a = document.createElement("a");
-    a.href = unit.link;
-    a.target = "_blank";
-    a.rel = "noreferrer";
-    a.appendChild(current);
-    current = a;
+    const link = sanitizeLink(unit.link);
+    if (link) {
+      const a = document.createElement("a");
+      a.href = link;
+      a.target = "_blank";
+      a.rel = "noreferrer";
+      a.addEventListener("click", (event) => {
+        event.preventDefault();
+        const handled = options.onLinkClick?.(link, event);
+        if (handled !== true) {
+          Zotero.launchURL(link);
+        }
+      });
+      a.appendChild(current);
+      current = a;
+    }
   }
 
   return current;
@@ -301,7 +319,8 @@ function unitsFromEditor(editor: HTMLElement): TextUnit[] {
     if (tag === "sub") nextStyle.script = "subscript";
     if (tag === "a") {
       const href = el.getAttribute("href");
-      if (href) nextStyle.link = href;
+      const link = sanitizeLink(href);
+      if (link) nextStyle.link = link;
     }
 
     if (tag === "br") {

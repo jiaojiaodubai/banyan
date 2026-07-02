@@ -11,7 +11,7 @@ import type {
 
 /**
  * Route-to-payload mapping used by the local HTTP server.
- * Keep in sync with src/modules/server.ts.
+ * Keep in sync with src/modules/server/index.ts.
  * Must declare route's request and response types before implementing server logic.
  */
 export type RouteTable = {

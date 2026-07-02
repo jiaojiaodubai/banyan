@@ -4,6 +4,7 @@ import { openStyleEditorWindow } from "./styleEditor";
 import { openDialogWindow } from "./server";
 import { toBanyanItem } from "../utils/item";
 import { getStyle } from "./styles";
+import { escapeAttribute, escapeHtml, sanitizeLink } from "../utils/html";
 import type { Item } from "../../typings/item";
 import type {
   CitationContext,
@@ -14,7 +15,6 @@ import type {
 import type { TextUnit } from "../../typings/unit";
 
 const t = useL10n(["mainWindow.ftl"]);
-
 type LegacySupportsString = {
   data: string;
 };
@@ -214,14 +214,12 @@ async function generateAndOutputResult(
 
   if (outputMethod === "clipboard") {
     await copyToClipboard(outputFragment, outputFormat);
-    ztoolkit.log("Output copied to clipboard");
     return;
   }
 
   const fileContent =
     outputFormat === "html" ? wrapHtmlOutput(outputFragment) : outputFragment;
   await saveToFile(fileContent, outputFormat, outputType);
-  ztoolkit.log("Output saved to file");
 }
 
 function renderBibliographyLineToHtml(line: BibliographyLine): string {
@@ -238,12 +236,13 @@ function renderBibliographyLineToHtml(line: BibliographyLine): string {
 function renderUnitsToHtml(units: TextUnit[]): string {
   return units
     .map((unit) => {
-      let text = unit.value;
+      let text = escapeHtml(unit.value);
       if (unit.bold) text = `<strong>${text}</strong>`;
       if (unit.italic) text = `<em>${text}</em>`;
       if (unit.script === "superscript") text = `<sup>${text}</sup>`;
       if (unit.script === "subscript") text = `<sub>${text}</sub>`;
-      if (unit.link) text = `<a href="${unit.link}">${text}</a>`;
+      const link = sanitizeLink(unit.link);
+      if (link) text = `<a href="${escapeAttribute(link)}">${text}</a>`;
       return text;
     })
     .join("");

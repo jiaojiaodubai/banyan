@@ -24,7 +24,7 @@ let extraCitation: CitationSource | undefined;
 
 let editorEl: HTMLDivElement | null = null;
 let editor: RichTextEditor | null = null;
-let uncitedItemsView: _ZoteroTypes.ItemTree | null = null;
+let uncitedItemsView: _ZoteroTypes.CollectionViewItemTree | null = null;
 
 const DEFAULT_VISIBLE_COLUMNS: readonly string[] = [
   "title",
@@ -122,7 +122,7 @@ async function initUncitedItemsTree(): Promise<void> {
   if (!container) return;
   try {
     const loader = window.require;
-    const ItemTree = loader("zotero/itemTree");
+    const CollectionViewItemTree = loader("zotero/collectionViewItemTree");
     const { COLUMNS } = loader("zotero/itemTreeColumns") as {
       COLUMNS: Array<{ dataKey: string; hidden?: boolean }>;
     };
@@ -132,7 +132,7 @@ async function initUncitedItemsTree(): Promise<void> {
       return clone;
     });
 
-    uncitedItemsView = await ItemTree.init(container, {
+    uncitedItemsView = await CollectionViewItemTree.init(container, {
       id: "banyan-uncited-items",
       dragAndDrop: false,
       columnPicker: true,

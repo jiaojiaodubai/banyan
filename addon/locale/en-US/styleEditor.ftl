@@ -53,7 +53,7 @@ style-editor-lint-install-eslint = ESLint cannot run because the executable was 
   Complete the setup with these steps:
   1. If Node.js is not installed, install Node.js first.
   2. Open a terminal and go to: { $dir }
-  3. Run: npm install
+  3. Run: pnpm install
   Then return to the editor and choose "Try Again".
 
 style-editor-menu-file = File

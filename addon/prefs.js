@@ -1,3 +1,9 @@
 pref("progressTimeout", 300000);
 pref("styleEditorAssetsVersion", "");
-pref("defaultSelectMainLibraryOnCitationOpen", true);
+pref("citationDialogInitialCollectionMode", "mainLibrary");
+pref("citationDialogCollectionTreeWidth", 170);
+pref("serverAuthToken", "");
+pref("serverTrustedOrigins", "[]");
+pref("debugLoggingEnabled", false);
+pref("debugLoggingModules", "");
+pref("debugLoggingDesktopAutoExport", false);

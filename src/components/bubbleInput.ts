@@ -1,9 +1,11 @@
-// TODO: Refector AI generated: Review and adjust the code as necessary.
 import type { Cite, CiteStyleComponent } from "../../typings/style";
 import type { Item } from "../../typings/item";
+import { useL10n } from "../utils/locale";
 
 type XULCheckboxElement = Element & { checked: boolean };
 type XULMenulistElement = Element & { value: string };
+
+const t = useL10n(["citationDialog.ftl"]);
 
 export interface BubbleInputDelegate {
   onSearch: (query: string) => void;
@@ -176,7 +178,19 @@ export class BubbleInput {
   }
 
   public focus(): void {
-    this.getCurrentInput()?.focus();
+    this.refocusInput();
+  }
+
+  public refocusInput(): HTMLInputElement | null {
+    let input = this.getCurrentInput();
+    const allInputs = this.getAllInputs();
+
+    input ??= allInputs.find((inp) => inp.value.length) ?? null;
+    input ??= allInputs[allInputs.length - 1] ?? null;
+    if (!input) return null;
+
+    this.focusInput(input);
+    return input;
   }
 
   public clearSearch(): void {
@@ -224,12 +238,12 @@ export class BubbleInput {
       options?.index == null
         ? this.cites.length
         : Math.max(0, Math.min(this.cites.length, options.index));
-    this.cites.splice(insertIndex, 0, cite);
-    this.render();
-
     if (!(options?.preserveSearch ?? false)) {
       this.clearSearch();
     }
+    this.cites.splice(insertIndex, 0, cite);
+    this.render();
+
     this.delegate.onCitesChanged(this.cites);
 
     if (options?.focusAfter ?? true) {
@@ -271,6 +285,7 @@ export class BubbleInput {
     // if focus was already within the bubble input.
     const hadFocusInside = this.body.contains(document.activeElement);
     const active = hadFocusInside ? this.getCurrentInput() : null;
+    const activeInputIndex = active ? this.inputElements.indexOf(active) : -1;
     this.body.replaceChildren();
 
     // Refresh element caches (used by drag/keyboard hot paths)
@@ -312,10 +327,16 @@ export class BubbleInput {
 
     // Keep focus in bubble input only if it previously had focus
     if (hadFocusInside) {
-      if (active && this.body.contains(active)) {
-        active.focus();
+      const restoredInput =
+        activeInputIndex >= 0
+          ? this.inputElements[
+              Math.min(activeInputIndex, this.inputElements.length - 1)
+            ]
+          : null;
+      if (restoredInput) {
+        this.focusInput(restoredInput);
       } else {
-        this.getCurrentInput()?.focus();
+        this.refocusInput();
       }
     }
 
@@ -599,7 +620,7 @@ export class BubbleInput {
     if (this.lastFocusedInput && this.body.contains(this.lastFocusedInput)) {
       return this.lastFocusedInput;
     }
-    return this.getAllInputs()[0] ?? null;
+    return null;
   }
 
   private createInputElem(): HTMLInputElement {
@@ -681,18 +702,22 @@ export class BubbleInput {
     return Math.max(1, Math.ceil(width));
   }
 
+  private focusInput(input: HTMLInputElement): void {
+    input.focus();
+    const end = input.value.length;
+    try {
+      input.setSelectionRange(end, end);
+    } catch {
+      // ignore
+    }
+  }
+
   private focusInputAfterBubble(bubbleIndex: number): void {
     // DOM layout: input, (bubble, input) * n
     const childIndex = 2 * bubbleIndex + 2;
     const el = this.body.children.item(childIndex);
     if (el && this.isInput(el)) {
-      (el as HTMLInputElement).focus();
-      const end = (el as HTMLInputElement).value.length;
-      try {
-        (el as HTMLInputElement).setSelectionRange(end, end);
-      } catch {
-        // ignore
-      }
+      this.focusInput(el as HTMLInputElement);
     }
   }
 
@@ -826,6 +851,9 @@ export class BubbleInput {
 
     if (e.key === "Enter") {
       e.preventDefault();
+      if (this.popup?.contains(e.target as Node)) {
+        this.closePopup();
+      }
       this.delegate.onConfirm?.();
       return;
     }
@@ -985,7 +1013,7 @@ export class BubbleInput {
       let input: Element;
       const currentVal = cite.params?.[comp.id];
 
-      if (comp.type === "text") {
+      if (comp.type === "input") {
         const label = document.createElement("label");
         label.classList.add("bubble-popup-label");
         label.textContent = comp.label;
@@ -995,7 +1023,6 @@ export class BubbleInput {
         el.type = "text";
         el.classList.add("bubble-popup-control");
         el.value = String(currentVal ?? comp.value ?? "");
-        if (comp.data?.placeholder) el.placeholder = comp.data.placeholder;
         el.addEventListener("input", () => {
           this.updateCiteParam(cite, comp.id, el.value);
         });
@@ -1027,7 +1054,7 @@ export class BubbleInput {
         el.classList.add("bubble-popup-control");
 
         const menupopup = createXULElement("menupopup");
-        Object.entries(comp.data).forEach(([value, label]) => {
+        Object.entries(comp.options).forEach(([value, label]) => {
           const menuitem = createXULElement("menuitem");
           menuitem.setAttribute("value", value);
           menuitem.setAttribute("label", label);
@@ -1058,7 +1085,7 @@ export class BubbleInput {
     actions.classList.add("bubble-popup-actions");
 
     const removeBtn = document.createElement("button");
-    removeBtn.textContent = "移除";
+    removeBtn.textContent = t("citation-dialog-bubble-remove");
     removeBtn.addEventListener("click", () => {
       this.removeCite(cite);
       this.closePopup();
@@ -1066,7 +1093,7 @@ export class BubbleInput {
     actions.appendChild(removeBtn);
 
     const confirmBtn = document.createElement("button");
-    confirmBtn.textContent = "确认";
+    confirmBtn.textContent = t("citation-dialog-bubble-done");
     confirmBtn.addEventListener("click", () => {
       this.closePopup();
     });

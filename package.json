@@ -2,6 +2,7 @@
   "name": "banyan",
   "type": "module",
   "version": "0.0.1",
+  "packageManager": "pnpm@10.24.0",
   "description": "Fully customize citation styles using JavaScript in Zotero",
   "config": {
     "addonName": "Banyan",
@@ -21,16 +22,18 @@
   "homepage": "https://github.com/jiaojiaodubai/banyan#readme",
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "start": "pnpm gen:style-editor-dts && pnpm gen:wps-addin-manifest && zotero-plugin serve",
-    "build": "pnpm gen:style-editor-dts && pnpm gen:wps-addin-manifest && zotero-plugin build && tsc --noEmit",
+    "start": "pnpm gen:style-editor-dts && pnpm gen:wps-addin-manifest && pnpm gen:presets-manifest && zotero-plugin serve",
+    "build": "pnpm gen:style-editor-dts && pnpm gen:wps-addin-manifest && pnpm gen:presets-manifest && zotero-plugin build && tsc --noEmit",
     "gen:i10n": "node scripts/genFluentTypings.mjs",
     "gen:style-editor-dts": "node scripts/genStyleEditorDTS.mjs",
     "gen:wps-addin-manifest": "node scripts/genWPSAddinManifest.mjs",
+    "gen:presets-manifest": "node scripts/genPresetsManifest.mjs",
     "lint:check": "prettier --check . && eslint . && eslint --config addon/content/styleEditor/eslint.config.mjs addon/content/styleEditor",
     "lint:fix": "prettier --write . && eslint . --fix && eslint --config addon/content/styleEditor/eslint.config.mjs addon/content/styleEditor --fix",
     "release": "zotero-plugin release",
-    "test": "zotero-plugin test",
-    "update-deps": "npm update --save"
+    "test": "node scripts/runTestWithLog.mjs",
+    "test:scaffold": "zotero-plugin test",
+    "update-deps": "pnpm update"
   },
   "dependencies": {
     "zotero-plugin-toolkit": "5.1.0-beta.13"
@@ -39,12 +42,12 @@
     "@eslint/js": "^9.39.4",
     "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^24.12.4",
+    "@types/node": "^24.13.2",
     "@zotero-plugin/eslint-config": "^0.6.9",
     "chai": "^5.3.3",
     "eslint": "^9.39.4",
-    "mocha": "^11.7.5",
-    "prettier": "^3.8.3",
+    "mocha": "^11.7.6",
+    "prettier": "^3.9.4",
     "typescript": "^5.9.3",
     "zotero-plugin-scaffold": "^0.8.6",
     "zotero-types": "4.1.0-beta.4"

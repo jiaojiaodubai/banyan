@@ -1,9 +1,14 @@
 import { config } from "../package.json";
-import { ColumnOptions, DialogHelper } from "zotero-plugin-toolkit";
+import {
+  ColumnOptions,
+  DialogHelper,
+  VirtualizedTableHelper,
+} from "zotero-plugin-toolkit";
 import hooks from "./hooks";
 import { createZToolkit } from "./utils/ztoolkit";
 import { StyleFile, Style } from "../typings/style";
 import { createLocale } from "./utils/locale";
+import { getStyleUI } from "./modules/styles";
 
 class Addon {
   public data: {
@@ -17,6 +22,7 @@ class Addon {
       window: Window;
       columns: Array<ColumnOptions>;
       rows: Array<{ [dataKey: string]: string }>;
+      tableHelper: VirtualizedTableHelper | null;
     };
     styles: {
       files: Map<string, StyleFile>;
@@ -27,7 +33,9 @@ class Addon {
   // Lifecycle hooks
   public hooks: typeof hooks;
   // APIs
-  public api: object;
+  public api: {
+    getStyleUI: typeof getStyleUI;
+  };
 
   constructor() {
     this.data = {
@@ -43,7 +51,9 @@ class Addon {
       },
     };
     this.hooks = hooks;
-    this.api = {};
+    this.api = {
+      getStyleUI,
+    };
   }
 }
 

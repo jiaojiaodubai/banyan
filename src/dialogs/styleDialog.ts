@@ -2,6 +2,7 @@ import { VirtualizedTableHelper } from "zotero-plugin-toolkit";
 import { config } from "../../package.json";
 import { loadStyles, promptImportStyle } from "../modules/styles";
 import { useL10n } from "../utils/locale";
+import { formatStyleUpdatedDate } from "../utils/styleUpdated";
 import type { StyleIdentifier, StyleResponseData } from "../../typings/server";
 import { StyleSummary } from "../../typings/style";
 
@@ -61,12 +62,10 @@ async function initstyleDialog(): Promise<void> {
       //  When clear selection, index will be undefined, don't update selected
       if (index === undefined) return;
       selected = rows[index];
-      ztoolkit.log("Selected style:", selected);
     })
     .setProp("onActivate", onConfirm)
     .setProp("onItemContextMenu", () => {
-      // Do nothing now, to suppress undefined error in console
-      // TODO: Implement context menu
+      // Suppress the toolkit default context-menu handler; this dialog has no row actions.
     });
   await updateTable();
   bindSearch();
@@ -90,7 +89,7 @@ function getAllRows(): StyleSummary[] {
         title: style.title,
         citationType: style.citationType,
         description: style.description,
-        updated: style.updated,
+        updated: formatStyleUpdatedDate(style.updated),
       };
     })
     .toSorted((a, b) => a.title.localeCompare(b.title));

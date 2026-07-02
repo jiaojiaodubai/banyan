@@ -50,7 +50,6 @@ const EMPTY_SOURCE: CitationSource = {
     suffix: "",
   },
 };
-
 export async function convertCitationFields(
   request: ConvertRequestData,
 ): Promise<ConvertResponseData> {
@@ -58,7 +57,6 @@ export async function convertCitationFields(
 
   if (request.citationType === "intext-citation") {
     const mapped: Record<string, IntextCitation> = {};
-    const totals = { ok: 0, fallback: 0, error: 0 };
 
     for (const field of fields) {
       const converted = await convertSingleField(field);
@@ -68,18 +66,13 @@ export async function convertCitationFields(
         source: converted.source,
         units: converted.units,
       };
-      totals[converted.status] += 1;
-      logFieldStatus(field.fieldId, converted);
+      logConvertedFieldStatus(field.fieldId, converted);
     }
 
-    ztoolkit.log(
-      `[convert] finished (type=intext-citation, all=${fields.length}, ok=${totals.ok}, fallback=${totals.fallback}, error=${totals.error})`,
-    );
     return mapped;
   }
 
   const mapped: Record<string, NoteCitation> = {};
-  const totals = { ok: 0, fallback: 0, error: 0 };
 
   for (const field of fields) {
     const converted = await convertSingleField(field);
@@ -90,13 +83,9 @@ export async function convertCitationFields(
       units: converted.units,
       reference: [],
     };
-    totals[converted.status] += 1;
-    logFieldStatus(field.fieldId, converted);
+    logConvertedFieldStatus(field.fieldId, converted);
   }
 
-  ztoolkit.log(
-    `[convert] finished (type=note-citation, all=${fields.length}, ok=${totals.ok}, fallback=${totals.fallback}, error=${totals.error})`,
-  );
   return mapped;
 }
 
@@ -437,17 +426,16 @@ function buildErrorResult(message: string): ConvertedFieldBase {
   };
 }
 
-function logFieldStatus(fieldId: string, converted: ConvertedFieldBase): void {
+function logConvertedFieldStatus(
+  fieldId: string,
+  converted: ConvertedFieldBase,
+): void {
   if (converted.status === "error") {
     ztoolkit.logError(
-      `[convert] field=${fieldId} status=error ${converted.message || "unknown_error"}`,
+      `[converter] field.convert.error fieldId=${fieldId} message=${converted.message || "unknown_error"}`,
     );
     return;
   }
-
-  ztoolkit.log(
-    `[convert] field=${fieldId} status=${converted.status}${converted.message ? ` (${converted.message})` : ""}`,
-  );
 }
 
 function generateCitationId(): string {

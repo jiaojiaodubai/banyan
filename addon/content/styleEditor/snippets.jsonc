@@ -55,6 +55,101 @@
       "$0"
     ]
   },
+  "UI: Citation Checkbox": {
+    "prefix": ["ui-citation-checkbox", "citation-checkbox"],
+    "description": "Insert a checkbox component for UI.citation",
+    "body": [
+      "{",
+      "  id: \"${1:show-url}\",",
+      "  label: \"${2:Show URL}\",",
+      "  type: \"checkbox\",",
+      "  value: ${3:false},",
+      "  disabled: ${4:false},",
+      "},",
+      "$0"
+    ]
+  },
+  "UI: Citation Select": {
+    "prefix": ["ui-citation-select", "citation-select"],
+    "description": "Insert a select component for UI.citation",
+    "body": [
+      "{",
+      "  id: \"${1:name-format}\",",
+      "  label: \"${2:Name Format}\",",
+      "  type: \"select\",",
+      "  value: \"${3:full}\",",
+      "  options: {",
+      "    \"${4:full}\": \"${5:Full Name}\",",
+      "    \"${6:abbr}\": \"${7:Abbreviated}\",",
+      "  },",
+      "  disabled: ${8:false},",
+      "},",
+      "$0"
+    ]
+  },
+  "UI: Citation Input": {
+    "prefix": ["ui-citation-input", "citation-input"],
+    "description": "Insert an input component for UI.citation",
+    "body": [
+      "{",
+      "  id: \"${1:prefix}\",",
+      "  label: \"${2:Prefix}\",",
+      "  type: \"input\",",
+      "  value: \"${3:}\",",
+      "  disabled: ${4:false},",
+      "},",
+      "$0"
+    ]
+  },
+  "UI: Cite Checkbox": {
+    "prefix": ["ui-cite-checkbox", "cite-checkbox"],
+    "description": "Insert a checkbox component for UI.cite",
+    "body": [
+      "{",
+      "  id: \"${1:suppress-author}\",",
+      "  label: \"${2:Suppress Author}\",",
+      "  type: \"checkbox\",",
+      "  value: ${3:false},",
+      "  disabled: ${4:false},",
+      "  itemType: [\"${5:book}\"],",
+      "},",
+      "$0"
+    ]
+  },
+  "UI: Cite Select": {
+    "prefix": ["ui-cite-select", "cite-select"],
+    "description": "Insert a select component for UI.cite",
+    "body": [
+      "{",
+      "  id: \"${1:page-kind}\",",
+      "  label: \"${2:Page Kind}\",",
+      "  type: \"select\",",
+      "  value: \"${3:page}\",",
+      "  options: {",
+      "    \"${4:page}\": \"${5:Page}\",",
+      "    \"${6:folio}\": \"${7:Folio}\",",
+      "  },",
+      "  disabled: ${8:false},",
+      "  itemType: [\"${9:manuscript}\"],",
+      "},",
+      "$0"
+    ]
+  },
+  "UI: Cite Input": {
+    "prefix": ["ui-cite-input", "cite-input"],
+    "description": "Insert an input component for UI.cite",
+    "body": [
+      "{",
+      "  id: \"${1:locator}\",",
+      "  label: \"${2:Locator}\",",
+      "  type: \"input\",",
+      "  value: \"${3:}\",",
+      "  disabled: ${4:false},",
+      "  itemType: [\"${5:book}\"],",
+      "},",
+      "$0"
+    ]
+  },
   "generate: In-text": {
     "prefix": ["gen", "generate-intext"],
     "description": "Insert in-text generate implementation",

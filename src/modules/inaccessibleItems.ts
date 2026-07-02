@@ -199,7 +199,14 @@ export async function importInaccessibleItems(
         // Copy creators
         if (Array.isArray(cachedItem.creators)) {
           for (let i = 0; i < cachedItem.creators.length; i++) {
-            newItem.setCreator(i, cachedItem.creators[i]);
+            newItem.setCreator(
+              i,
+              // TODO: Remove this assertion after zotero-types syncs newer
+              // Zotero creator types such as "originalCreator".
+              cachedItem.creators[i] as Parameters<
+                Zotero.Item["setCreator"]
+              >[1],
+            );
           }
         }
 
@@ -212,14 +219,7 @@ export async function importInaccessibleItems(
 
         await newItem.save();
         imported.set(info.uri, newItem);
-
-        ztoolkit.log(
-          `[importInaccessibleItems] Imported item: ${cachedItem.title} (old URI: ${info.uri}, new URI: ${Zotero.URI.getItemURI(newItem)})`,
-        );
       } catch (e) {
-        ztoolkit.logError(
-          `[importInaccessibleItems] Failed to import item from URI ${info.uri}`,
-        );
         ztoolkit.logError(e);
       }
     }

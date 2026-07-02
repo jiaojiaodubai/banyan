@@ -9,7 +9,13 @@ declare namespace _ZoteroTypes {
     PluginPrefsMap: {
       "progressTimeout": number;
       "styleEditorAssetsVersion": string;
-      "defaultSelectMainLibraryOnCitationOpen": boolean;
+      "citationDialogInitialCollectionMode": string;
+      "citationDialogCollectionTreeWidth": number;
+      "serverAuthToken": string;
+      "serverTrustedOrigins": string;
+      "debugLoggingEnabled": boolean;
+      "debugLoggingModules": string;
+      "debugLoggingDesktopAutoExport": boolean;
     };
   }
 }

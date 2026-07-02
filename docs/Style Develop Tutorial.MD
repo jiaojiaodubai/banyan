@@ -33,8 +33,8 @@ Banyan Style 是配合 Banyan for Zotero 使用的 JavaScript 脚本，用于生
 
 JavaScript 是文本脚本，理论上你可以用任意文本编辑器编写脚本，但为了方便，推荐你使用以下方案：
 
-- Banyan for Zotero 插件内置的脚本编辑器。它是一个集成环境，提供了模板、代码片段、语法高亮、错误提示、渲染预览等功能。
-- [Visual Studio Code](https://code.visualstudio.com/)。你可以在安装 Banyan for Zotero 插件后，使用 VS Code 打开 Banyan 的数据目录，并在集成终端中运行 `npm install` 安装依赖包。之后，你可以用 `npm run lint` 检查代码问题。
+- Banyan for Zotero 插件内置的脚本编辑器。它是一个集成环境，提供了模板、代码片段、语法高亮、错误提示、渲染预览等功能。`r`n- Zotero 首选项中的样式管理器。选中一个样式后可以点击“预览样式”，或双击样式行，用当前文库中已选中的常规条目生成快速预览。
+- [Visual Studio Code](https://code.visualstudio.com/)。你可以在安装 Banyan for Zotero 插件后，使用 VS Code 打开 Banyan 的数据目录，并在集成终端中运行 `pnpm install` 安装依赖包。之后，你可以用 `pnpm run lint:check` 检查代码问题。
 
 这两个方案都需要你准备 Node.js 环境。如果你没有安装 Node.js，请按照 [Node.js 安装指南](https://nodejs.org/zh-cn/download/) 安装。
 
@@ -56,9 +56,11 @@ JavaScript 是文本脚本，理论上你可以用任意文本编辑器编写脚
 - `item`：引用的条目。
 - `params`：引用的其它的参数，用于控制样式的生成。
 
-### Unit
+### Unit 对象
 
 参考文献格式规范除了规定参考文献的内容之外，还规定了文本的格式。Banyan 用 `Unit` 这个概念来表示带有字符格式的文本，`Unit` 可以是简单的字符串或者纯数字，或者 [Unit 工具](#unit工具)提到的类型。
+
+脚本输出对象里的字段名叫 `units`，但它接收的是单个 `Unit`。这个复数字段名来自宿主标准化后的结果：渲染前会被编译成 `TextUnit[]`。
 
 ### citations
 
@@ -67,13 +69,13 @@ JavaScript 是文本脚本，理论上你可以用任意文本编辑器编写脚
 `intext-citation` 类型的引注是具有如下属性的对象：
 
 - `id`：引注的 ID，用于标识引注，一般你只需要沿用 `contexts` 中的 ID，这样你的引注就会取代旧的引注。
-- `units`：引注内容，是 `Unit` 对象组成的数组。
+- `units`：引注内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
 
 `note-citation` 类型有正文标记和脚注区内容两部分，它包括以下属性：
 
 - `id`：引注的 ID，用于标识引注，一般你只需要沿用 `contexts` 中的 ID，这样你的引注就会取代旧的引注。
-- `units`：脚注内容，是 `Unit` 对象组成的数组。
-- `note`：正文中的标记，是 `Unit` 对象组成的数组。这个属性可以留空，此时脚注标记由字处理器自动分配。
+- `units`：脚注内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
+- `reference`：正文中的标记，是单个 `Unit`。这个属性可以留空，此时脚注标记由字处理器自动分配。
 
 ### bibliography
 
@@ -81,14 +83,14 @@ JavaScript 是文本脚本，理论上你可以用任意文本编辑器编写脚
 
 `BibliographyEntry` 类型表示一个参考文献列表项目，有如下属性：
 
-- `id`：参考文献列表项目的 ID，用于标识项目。
+- `id`：参考文献列表项目的 ID，用于标识项目，可作为超链接的跳转靶点。
 - `type`：必须是 `bibliography-entry`，用以自明身份。
-- `units`：参考文献列表项目的内容，是 `Unit` 对象组成的数组。
+- `units`：参考文献列表项目的内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
 
 `BibliographyTitle` 类型表示参考文献列表的标题，有如下属性：
 
 - `type`：必须是 `bibliography-title`，用以自明身份。
-- `units`：参考文献列表的标题内容，是 `Unit` 对象组成的数组。
+- `units`：参考文献列表的标题内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
 
 ## 样式结构
 
@@ -160,7 +162,7 @@ const UI = {
 所有控件对象都有这几个属性：
 
 - `id`：控件的 ID，用于标识控件。
-- `type`：控件的类型，可选值有 `checkbox`、`select`、`text`。
+- `type`：控件的类型，可选值有 `checkbox`、`select`、`input`。
 - `label`：控件的标签，用于显示给用户。
 - `disabled`：是否禁用控件，默认为 `false`。
 
@@ -168,7 +170,7 @@ const UI = {
 
 `type` 属性取不同的值时，相应可取的组件属性不同：
 
--`checkbox`：`value` 属性表示控件的默认值，默认为 `false`。-`select`：`options` 属性是一个对象，对象中的键是选项的 ID，值是选项的标签。`value` 属性取其中一个键表示默认选中的选项。-`text`：`value` 属性表示控件的默认值，默认为空字符串。
+- `checkbox`：`value` 属性表示控件的默认值，默认为 `false`。`r`n- `select`：`options` 属性是一个对象，对象中的键是选项的 ID，值是选项的标签。`value` 属性取其中一个键表示默认选中的选项。- `input`：`value` 属性表示控件的默认值，默认为空字符串。
 
 在 `UI.citation` 和 `UI.cite` 中指定的控件，其获取的值会被分别存储到 `CitationContext` 和 `Cite` 对象的 `params` 属性。
 
@@ -291,9 +293,12 @@ type plainText = (input: Unit | Unit[]) => string;
 Bnayan 还提供了其他实用的工具：
 
 - `uuid()`：生成一个 UUID。
-- `readText(relPath)`：读取 Banyan 插件目录下的文件内容，返回字符串。
-- `readBytes(relPath)`：读取 Banyan 插件目录下的文件内容，返回字节数组。
-- `readJSON(relPath)`：读取 Banyan 插件目录下的文件内容，返回 JSON 对象。
+- `readText(relPath)`：读取 Zotero 数据目录下 `banyan` 目录内的文件内容，返回字符串。
+- `readBytes(relPath)`：读取 Zotero 数据目录下 `banyan` 目录内的文件内容，返回字节数组。
+- `readJSON(relPath)`：读取 Zotero 数据目录下 `banyan` 目录内的文件内容，返回 JSON 对象。
+
+文件读取不设置大小硬限制；建议只读取来源明确、格式固定、已经预清洗的小型数据文件，避免把过大的文本、JSON 或二进制内容一次性读入。
+
 - `getExtraValue(item, key, mode)`：读取条目的 `item.extra` 字段中的值，返回字符串。可选参数 `mode` 指定为 `"array"` 时返回字符串数组。
 - `debug(...values)`：脚本被执行的时候在 Zotero 控制台中打印调试信息。
 - `safeRecord(object)`：返回一个只读对象，取不存在的属性时返回空字符串 `""`，而不是 `undefined`。
@@ -333,7 +338,9 @@ function generate() {
     const content = genCitation(ctx);
     const target = getTargetItem(ctx);
     return {
+      // 这是 Citation 自身的 id，沿用自 Context
       id: ctx.id,
+      // 这里的 tartget.id 对应目标 BibliographyEntry 的 id
       units: withStyle(content, { link: `bayan://entry/${target.id}` }),
     };
   });
@@ -341,6 +348,7 @@ function generate() {
   const bibliography = items.map((item) => {
     const content = genBibliography(item);
     return {
+      // 这是 BibliographyEntry 的 id
       id: item.id,
       type: "bibliography-entry",
       units: content,

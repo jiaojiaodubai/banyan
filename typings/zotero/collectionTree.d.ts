@@ -28,6 +28,7 @@ declare namespace _ZoteroTypes {
     ref: CollectionTreeRowRef;
     getItems: () => Promise<Array<Zotero.Item>>;
     setSearch?: (searchText: string, mode?: string) => void;
+    clearCache?: () => void;
     isSearch?: () => boolean;
     isSearchMode?: () => boolean;
     isCollection?: () => boolean;
@@ -39,19 +40,25 @@ declare namespace _ZoteroTypes {
   interface TreeSelection {
     count: number;
     focused: number;
+    selected?: Set<number>;
   }
 
   interface CollectionTreeInitOptions {
     onSelectionChange: () => void;
+    initialFolder?: string;
     dragAndDrop?: boolean;
     filterLibraryIDs?: number[];
     hideSources?: string[];
+    multiSelect?: boolean;
     onContextMenu?: (...args: unknown[]) => void;
   }
 
   interface CollectionTree {
     selection: TreeSelection;
+    selectedTreeRow?: CollectionTreeRow;
     getRow: (index: number) => CollectionTreeRow;
+    selectByID?: (id: string, ensureRowVisible?: boolean) => Promise<boolean>;
+    selectLibrary: (libraryID?: number) => Promise<void>;
   }
 }
 

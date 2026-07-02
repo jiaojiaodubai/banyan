@@ -36,8 +36,8 @@ declare namespace _ZoteroTypes {
   }
 
   interface ItemTree {
-    collectionTreeRow?: CollectionTreeRow;
     tree?: VirtualizedTable;
+    selection?: VirtualizedTableSelection;
     rowCount?: number;
     getRow: (index: number) => ItemTreeRow;
     getSelectedItems: {
@@ -45,11 +45,19 @@ declare namespace _ZoteroTypes {
       (asIDs: true): number[];
       (asIDs: boolean): Zotero.Item[] | number[];
     };
+    setFilter: (type: string, data?: unknown) => Promise<void>;
+    setHighlightedRows?: (ids: number[]) => Promise<void>;
+  }
+
+  interface CollectionViewItemTree extends ItemTree {
+    collectionTreeRow?: CollectionTreeRow;
+    collectionTreeRows?: CollectionTreeRow[];
     changeCollectionTreeRow: (
       collectionTreeRow: CollectionTreeRow,
     ) => Promise<void>;
-    setFilter: (type: string, data?: unknown) => Promise<void>;
-    setHighlightedRows?: (ids: number[]) => Promise<void>;
+    changeCollectionTreeRows?: (
+      collectionTreeRows: CollectionTreeRow[],
+    ) => Promise<void>;
   }
 }
 
@@ -61,6 +69,16 @@ declare module "zotero/itemTree" {
     ) => Promise<_ZoteroTypes.ItemTree>;
   };
   export = ItemTree;
+}
+
+declare module "zotero/collectionViewItemTree" {
+  const CollectionViewItemTree: {
+    init: (
+      domEl: HTMLElement | null,
+      opts: _ZoteroTypes.ItemTreeInitOptions,
+    ) => Promise<_ZoteroTypes.CollectionViewItemTree>;
+  };
+  export = CollectionViewItemTree;
 }
 
 declare module "zotero/itemTreeColumns" {

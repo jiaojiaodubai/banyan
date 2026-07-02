@@ -45,12 +45,7 @@ export type WithStyleUnit = {
 };
 
 export type TextCaseForm =
-  | "lower"
-  | "upper"
-  | "small-caps"
-  | "title"
-  | "sentence"
-  | "name";
+  "lower" | "upper" | "small-caps" | "title" | "sentence" | "name";
 
 export type TextCaseUnit = {
   type: "text-case";

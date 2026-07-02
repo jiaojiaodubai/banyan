@@ -44,11 +44,17 @@ export default defineConfig({
       // Build dialog window scripts (exclude development-only helpers)
       {
         entryPoints: [
-          "src/dialogs/styleDialog.ts",
-          "src/dialogs/styleEditor.ts",
-          "src/dialogs/citationDialog.ts",
-          "src/dialogs/bibliographyDialog.ts",
-          "src/dialogs/createOutputDialog.ts",
+          { in: "src/dialogs/styleDialog.ts", out: "styleDialog" },
+          { in: "src/dialogs/styleEditor/index.ts", out: "styleEditor" },
+          { in: "src/dialogs/citationDialog.ts", out: "citationDialog" },
+          {
+            in: "src/dialogs/bibliographyDialog.ts",
+            out: "bibliographyDialog",
+          },
+          {
+            in: "src/dialogs/createOutputDialog.ts",
+            out: "createOutputDialog",
+          },
         ],
         define: {
           __env__: `"${process.env.NODE_ENV}"`,

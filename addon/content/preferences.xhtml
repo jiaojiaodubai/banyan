@@ -9,17 +9,31 @@
   <groupbox id="prefs-general-settings">
     <label><html:h2 data-l10n-id="prefs-settings-title"></html:h2></label>
 
-    <checkbox
-      id="__addonRef__-defaultSelectMainLibraryOnCitationOpen"
-      native="true"
-      preference="defaultSelectMainLibraryOnCitationOpen"
-      aria-describedby="__addonRef__-defaultSelectMainLibraryOnCitationOpen-help"
-      data-l10n-id="prefs-default-select-main-library-on-citation-open"
-    />
+    <hbox align="center">
+      <label
+        data-l10n-id="prefs-citation-dialog-initial-collection-mode"
+        control="__addonRef__-citationDialogInitialCollectionMode"
+      ></label>
+      <radiogroup
+        id="__addonRef__-citationDialogInitialCollectionMode"
+        orient="horizontal"
+      >
+        <radio
+          id="__addonRef__-citationDialogInitialCollectionMode-mainLibrary"
+          value="mainLibrary"
+          data-l10n-id="prefs-citation-dialog-initial-collection-mode-main-library"
+        />
+        <radio
+          id="__addonRef__-citationDialogInitialCollectionMode-lastSelected"
+          value="lastSelected"
+          data-l10n-id="prefs-citation-dialog-initial-collection-mode-last-selected"
+        />
+      </radiogroup>
+    </hbox>
     <label
-      id="__addonRef__-defaultSelectMainLibraryOnCitationOpen-help"
+      id="__addonRef__-citationDialogInitialCollectionMode-help"
       width="45em"
-      data-l10n-id="prefs-default-select-main-library-on-citation-open-help"
+      data-l10n-id="prefs-citation-dialog-initial-collection-mode-help"
     ></label>
   </groupbox>
 
