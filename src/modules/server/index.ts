@@ -15,10 +15,12 @@ import type {
   RouteTable,
   ShowInLibraryRequestData,
   StyleIdentifier,
+  StyleListEntry,
+  StyleListRequestData,
   StyleResponseData,
 } from "../../../typings/server";
 import { getPref, setPref } from "../../utils/prefs";
-import { getStyle } from "../styles";
+import { getStyle, getStyleUI } from "../styles";
 import { ProgressBar } from "../../utils/progressBar";
 import type { CitationContext, Cite } from "../../../typings/style";
 import { toBanyanItem } from "../../utils/item";
@@ -109,16 +111,6 @@ const openWindowsByDocument = new Map<string, Window>();
 
 const rateLimitBuckets = new Map<string, RateLimitBucket>();
 const authPromptCooldownByOrigin = new Map<string, number>();
-
-type ZoteroMainWindow = Window & {
-  ZoteroPane: {
-    collectionsView?: unknown;
-    selectItem(
-      itemID: number,
-      options?: { inLibraryRoot?: boolean },
-    ): Promise<boolean>;
-  };
-};
 
 function getHeader(
   headers: Record<string, string> | undefined,
@@ -339,17 +331,33 @@ function authorizeJsonEndpointRequest<P extends HttpPath>(
   return responseAuthError<P>(403, "Banyan origin is not trusted");
 }
 
-function isReadyMainWindow(window: Window | null): window is ZoteroMainWindow {
+function isReadyMainWindow(window: Window | null): window is Window & {
+  ZoteroPane: Zotero.ZoteroPane & {
+    collectionsView: _ZoteroTypes.CollectionTree;
+    selectItem: (
+      itemID: number,
+      options?: { inLibraryRoot?: boolean },
+    ) => Promise<boolean>;
+  };
+} {
   return Boolean(
-    window &&
-    !window.closed &&
-    (window as Partial<ZoteroMainWindow>).ZoteroPane?.collectionsView,
+    window && !window.closed && window.ZoteroPane?.collectionsView,
   );
 }
 
 async function waitForReadyMainWindow(
   timeoutMs = MAIN_WINDOW_READY_TIMEOUT_MS,
-): Promise<ZoteroMainWindow> {
+): Promise<
+  Window & {
+    ZoteroPane: Zotero.ZoteroPane & {
+      collectionsView: _ZoteroTypes.CollectionTree;
+      selectItem: (
+        itemID: number,
+        options?: { inLibraryRoot?: boolean },
+      ) => Promise<boolean>;
+    };
+  }
+> {
   if (!Zotero.getMainWindow()) {
     Zotero.openMainWindow();
   }
@@ -641,6 +649,39 @@ function registerJsonCallbackEndpoint<P extends HttpPath>(
   };
 }
 
+async function getStyleList(
+  options?: StyleListRequestData,
+): Promise<RouteTable["style/list"]["res"]> {
+  const summaries = Array.from(addon.data.styles.files.values())
+    .map((style): StyleListEntry => ({
+      id: style.id,
+      title: style.title,
+      citationType: style.citationType,
+      description: style.description,
+      updated: style.updated,
+    }))
+    .toSorted((a, b) => a.title.localeCompare(b.title));
+
+  if (!options?.includeUI) {
+    return summaries;
+  }
+
+  return Promise.all(
+    summaries.map(async (style) => {
+      try {
+        const ui = await getStyleUI({ id: style.id, title: style.title });
+        return {
+          ...style,
+          ui,
+        };
+      } catch (error) {
+        ztoolkit.logError(error);
+        return style;
+      }
+    }),
+  );
+}
+
 function handleRefreshRequest(
   { data }: Pick<JsonEndpointRequest<"refresh">, "data">,
   send: JsonEndpointCallback<"refresh">,
@@ -699,64 +740,69 @@ function handleRefreshRequest(
       releaseStyleLock = await acquireStyleLock(refreshData.style.id);
 
       const style = await getStyle(refreshData.style);
+      const shouldSyncItems = refreshData.syncItems !== false;
 
-      const inaccessibleItems = await scanInaccessibleItems(
-        refreshData.contexts,
-      );
+      let contexts = refreshData.contexts;
+      if (shouldSyncItems) {
+        const inaccessibleItems = await scanInaccessibleItems(
+          refreshData.contexts,
+        );
 
-      let importedItemsMap = new Map<string, Zotero.Item>();
-      if (inaccessibleItems.length > 0) {
-        const userChoice = await showInaccessibleItemsDialog(inaccessibleItems);
+        let importedItemsMap = new Map<string, Zotero.Item>();
+        if (inaccessibleItems.length > 0) {
+          const userChoice =
+            await showInaccessibleItemsDialog(inaccessibleItems);
 
-        if (userChoice === "cancel") {
-          finish(
-            json(
-              400,
-              responseError<"refresh">(
-                "cancelled",
-                "Refresh cancelled by user due to inaccessible items",
+          if (userChoice === "cancel") {
+            finish(
+              json(
+                400,
+                responseError<"refresh">(
+                  "cancelled",
+                  "Refresh cancelled by user due to inaccessible items",
+                ),
               ),
-            ),
-          );
-          return;
+            );
+            return;
+          }
+
+          if (userChoice === "import") {
+            importedItemsMap = await importInaccessibleItems(inaccessibleItems);
+          }
         }
 
-        if (userChoice === "import") {
-          importedItemsMap = await importInaccessibleItems(inaccessibleItems);
-        }
+        contexts = await Promise.all(
+          refreshData.contexts.map(async (context: CitationContext) => {
+            const cites = await Promise.all(
+              context.cites.map(async (cite: Cite) => {
+                try {
+                  let item: Zotero.Item | null = null;
+
+                  if (cite.item.uri && importedItemsMap.has(cite.item.uri)) {
+                    item = importedItemsMap.get(cite.item.uri)!;
+                  } else {
+                    item = await getItemWithMergeFallback(
+                      cite.item.id,
+                      cite.item.uri,
+                    );
+                  }
+
+                  if (item) {
+                    cite.item = toBanyanItem(item);
+                  }
+                  return cite;
+                } catch (error) {
+                  ztoolkit.logError(error);
+                  return cite;
+                }
+              }),
+            );
+            context.cites = cites;
+
+            return context;
+          }),
+        );
       }
-
-      const contexts = await Promise.all(
-        refreshData.contexts.map(async (context: CitationContext) => {
-          const cites = await Promise.all(
-            context.cites.map(async (cite: Cite) => {
-              try {
-                let item: Zotero.Item | null = null;
-
-                if (cite.item.uri && importedItemsMap.has(cite.item.uri)) {
-                  item = importedItemsMap.get(cite.item.uri)!;
-                } else {
-                  item = await getItemWithMergeFallback(
-                    cite.item.id,
-                    cite.item.uri,
-                  );
-                }
-
-                if (item) {
-                  cite.item = toBanyanItem(item);
-                }
-                return cite;
-              } catch (error) {
-                ztoolkit.logError(error);
-                return cite;
-              }
-            }),
-          );
-          context.cites = cites;
-
-          return context;
-        }),
-      );
 
       const generateWithCallbacks = (style as CallbackStyle)
         .__banyanGenerateWithCallbacks;
@@ -874,6 +920,10 @@ export function registerEndpoints(): void {
         );
       }
     });
+  });
+
+  registerJsonEndpoint("style/list", async ({ data }) => {
+    return json(200, responseOk<"style/list">(await getStyleList(data)));
   });
 
   registerJsonEndpoint("citation", async ({ data }) => {

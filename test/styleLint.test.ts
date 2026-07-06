@@ -50,7 +50,7 @@ describe("style author lint rules", function () {
     const [result] = await lintStyleScript(`
 ${validInfo}
 function generate() {
-  return { citations: contexts.map((ctx) => ({ id: ctx.id, units: "" })), bibliography: [] };
+  return { citations: contexts.map((ctx) => ({ id: ctx.id, content: "" })), bibliography: [] };
 }
 `);
 

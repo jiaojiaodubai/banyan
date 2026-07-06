@@ -2,7 +2,6 @@ type RenderStyle = {
   italic?: boolean;
   bold?: boolean;
   script?: "superscript" | "subscript";
-  link?: string;
   color?: string;
   backgroundColor?: string;
 };
@@ -44,6 +43,12 @@ type WithStyleUnit = {
   unit: Unit;
 };
 
+type LinkUnit = {
+  type: "link";
+  link: string;
+  unit: Unit;
+};
+
 type TextCaseForm =
   "lower" | "upper" | "small-caps" | "title" | "sentence" | "name";
 
@@ -62,7 +67,30 @@ type Unit =
   | WhenUnit
   | TextCaseUnit
   | WithStyleUnit
+  | LinkUnit
   | PrintableValue;
+
+type TextRange = {
+  /** Inclusive JS string offset in UTF-16 code units. */
+  start: number;
+  /** Exclusive JS string offset in UTF-16 code units. */
+  end: number;
+};
+
+type InlineMark =
+  | (TextRange & { type: "bold"; value: boolean })
+  | (TextRange & { type: "italic"; value: boolean })
+  | (TextRange & { type: "script"; value: "superscript" | "subscript" })
+  | (TextRange & { type: "color"; value: string })
+  | (TextRange & { type: "backgroundColor"; value: string })
+  | (TextRange & { type: "link"; value: string });
+
+type RichText = {
+  /** Plain text content for the full rendered unit. */
+  text: string;
+  /** Visual and interactive ranges over `text`. */
+  marks: InlineMark[];
+};
 
 type UnitUtils = {
   text: (value: PrintableValue, style?: RenderStyle) => TextUnit;
@@ -77,4 +105,5 @@ type UnitUtils = {
     ignoreWords?: string[],
   ) => TextCaseUnit;
   withStyle: (unit: Unit, style: RenderStyle) => WithStyleUnit;
+  link: (unit: Unit, link: string) => LinkUnit;
 };

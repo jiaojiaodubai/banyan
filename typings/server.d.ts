@@ -21,6 +21,7 @@ export type RouteTable = {
     res: ShowInLibraryResponseData;
   };
   style: { req: StyleRequestData; res: StyleResponseData };
+  "style/list": { req: StyleListRequestData; res: StyleListResponseData };
   citation: { req: CitationRequestData; res: CitationResponseData };
   bibliography: {
     req: BibliographyRequestData;
@@ -55,9 +56,15 @@ export type ShowInLibraryResponseData = {
 /* style dialog */
 export type StyleIdentifier = Pick<StyleInfo, "id" | "title">;
 export type StyleRequestData =
-  | (StyleIdentifier & { documentId: string })
-  | { documentId: string };
+  (StyleIdentifier & { documentId: string }) | { documentId: string };
 export type StyleResponseData = StyleSummary | null;
+export type StyleListRequestData = {
+  includeUI?: boolean;
+};
+export type StyleListEntry = StyleSummary & {
+  ui?: StyleUI;
+};
+export type StyleListResponseData = StyleListEntry[];
 
 /* Citation dialog */
 export type CitationRequestData = {
@@ -142,5 +149,4 @@ type ErrorResponse = {
 };
 
 export type ResponsePayload<P extends HttpPath = HttpPath> =
-  | SuccessResponse<P>
-  | ErrorResponse;
+  SuccessResponse<P> | ErrorResponse;

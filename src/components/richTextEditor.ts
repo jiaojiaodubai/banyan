@@ -1,10 +1,16 @@
-import type { TextUnit } from "../../typings/unit";
+import type { RichText } from "../../typings/unit";
+import {
+  getRichTextSegments,
+  richTextFromRuns,
+  RichTextRun,
+  RichTextSegment,
+} from "../utils/richText";
 import { sanitizeLink } from "../utils/html";
 import { useL10n } from "../utils/locale";
 
-type UnitStyle = Omit<TextUnit, "value">;
+type UnitStyle = Omit<RichTextRun, "value">;
 type UnitLinkHandler = (link: string, event: Event) => boolean | void;
-type RenderUnitsOptions = {
+type RenderRichTextOptions = {
   onLinkClick?: UnitLinkHandler;
 };
 
@@ -20,11 +26,7 @@ const NAV_KEYS = new Set([
 ]);
 
 type ToolbarCommand =
-  | "bold"
-  | "italic"
-  | "superscript"
-  | "subscript"
-  | "removeFormat";
+  "bold" | "italic" | "superscript" | "subscript" | "removeFormat";
 
 export class RichTextEditor {
   private readonly editorEl: HTMLDivElement;
@@ -110,13 +112,13 @@ export class RichTextEditor {
     }
   };
 
-  setUnits(units: TextUnit[]): void {
+  setRichText(richText: RichText): void {
     this.editorEl.textContent = "";
-    this.editorEl.appendChild(renderUnitsToFragment(units));
+    this.editorEl.appendChild(renderRichTextToFragment(richText));
   }
 
-  getUnits(): TextUnit[] {
-    return unitsFromEditor(this.editorEl);
+  getRichText(): RichText {
+    return richTextFromEditor(this.editorEl);
   }
 
   private patchNavKey(): void {
@@ -203,19 +205,35 @@ export class RichTextEditor {
   }
 }
 
-export function renderUnitsToFragment(
-  items: TextUnit[],
-  options: RenderUnitsOptions = {},
+export function renderRichTextToFragment(
+  richText: RichText,
+  options: RenderRichTextOptions = {},
 ): DocumentFragment {
   const fragment = document.createDocumentFragment();
-  for (const unit of items) {
-    const node = createNodeFromUnit(unit, options);
-    fragment.appendChild(node);
+  let currentLink = "";
+  let currentAnchor: HTMLAnchorElement | null = null;
+
+  for (const unit of getRichTextSegments(richText)) {
+    const node = createNodeFromUnit(unit);
+    const link = sanitizeLink(unit.link);
+    if (!link) {
+      currentLink = "";
+      currentAnchor = null;
+      fragment.appendChild(node);
+      continue;
+    }
+
+    if (!currentAnchor || currentLink !== link) {
+      currentLink = link;
+      currentAnchor = createLinkElement(link, options);
+      fragment.appendChild(currentAnchor);
+    }
+    currentAnchor.appendChild(node);
   }
   return fragment;
 }
 
-function createNodeFromUnit(unit: TextUnit, options: RenderUnitsOptions): Node {
+function createNodeFromUnit(unit: RichTextSegment): Node {
   let current: Node = document.createTextNode(unit.value ?? "");
 
   if (unit.bold) {
@@ -246,32 +264,31 @@ function createNodeFromUnit(unit: TextUnit, options: RenderUnitsOptions): Node {
     current = span;
   }
 
-  if (unit.link) {
-    const link = sanitizeLink(unit.link);
-    if (link) {
-      const a = document.createElement("a");
-      a.href = link;
-      a.target = "_blank";
-      a.rel = "noreferrer";
-      a.addEventListener("click", (event) => {
-        event.preventDefault();
-        const handled = options.onLinkClick?.(link, event);
-        if (handled !== true) {
-          Zotero.launchURL(link);
-        }
-      });
-      a.appendChild(current);
-      current = a;
-    }
-  }
-
   return current;
 }
 
-function unitsFromEditor(editor: HTMLElement): TextUnit[] {
-  const units: TextUnit[] = [];
+function createLinkElement(
+  link: string,
+  options: RenderRichTextOptions,
+): HTMLAnchorElement {
+  const a = document.createElement("a");
+  a.href = link;
+  a.target = "_blank";
+  a.rel = "noreferrer";
+  a.addEventListener("click", (event) => {
+    event.preventDefault();
+    const handled = options.onLinkClick?.(link, event);
+    if (handled !== true) {
+      Zotero.launchURL(link);
+    }
+  });
+  return a;
+}
 
-  const sameStyle = (a: TextUnit, b: UnitStyle): boolean => {
+function richTextFromEditor(editor: HTMLElement): RichText {
+  const units: RichTextRun[] = [];
+
+  const sameStyle = (a: RichTextRun, b: UnitStyle): boolean => {
     return (
       a.bold === b.bold &&
       a.italic === b.italic &&
@@ -346,5 +363,5 @@ function unitsFromEditor(editor: HTMLElement): TextUnit[] {
     pushUnit(editor.value ?? "", {});
   }
 
-  return units;
+  return richTextFromRuns(units);
 }

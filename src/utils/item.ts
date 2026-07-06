@@ -1,4 +1,5 @@
 import type { ExtraMap, Item } from "../../typings/item";
+import type { ScriptItem } from "../../typings/style";
 
 function parseExtra(extraText: string): ExtraMap {
   const out: ExtraMap = {};
@@ -98,7 +99,7 @@ export function toBanyanItem(zoteroItem: Zotero.Item): Item {
   return json as Item;
 }
 
-export function isBanyanItem(value: unknown): value is Item {
+export function isBanyanItem(value: unknown): value is Item | ScriptItem {
   if (!value || typeof value !== "object") {
     return false;
   }

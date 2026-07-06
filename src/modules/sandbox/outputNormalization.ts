@@ -11,6 +11,8 @@ import type {
   AffixUnit,
   FallbackUnit,
   GroupUnit,
+  LinkUnit,
+  RichText,
   TextCaseForm,
   TextCaseUnit,
   TextUnit,
@@ -20,6 +22,7 @@ import type {
 } from "../../../typings/unit";
 import { applyTextCase, normalizeTextValue } from "../unit";
 import { sanitizeLink } from "../../utils/html";
+import { richTextFromRuns, RichTextRun } from "../../utils/richText";
 import { normalizeUnitInput } from "../sandboxUtils";
 import { createBanyanRuntimeError } from "./runtimeErrors";
 
@@ -30,7 +33,7 @@ type OutputBudget = {
   textLength: number;
 };
 
-type InternalTextUnit = TextUnit & {
+type InternalTextUnit = RichTextRun & {
   smallCaps?: boolean;
   noCase?: boolean;
 };
@@ -181,18 +184,24 @@ function normalizeCitation(
   };
 
   const rawCitation = citation as Record<string, unknown>;
-  const { units: _rawUnits, type: _rawType, ...rest } = rawCitation;
-  const normalized: Citation & { reference?: TextUnit[] } = {
-    ...(rest as Omit<Citation, "id" | "source" | "units">),
+  const {
+    content: rawContent,
+    units: _legacyUnits,
+    type: _rawType,
+    ...rest
+  } = rawCitation;
+  const normalized: Citation & { reference?: RichText } = {
+    ...(rest as Omit<Citation, "id" | "source" | "content">),
     id,
     type: citationType,
     source,
-    units: normalizeRequiredTopLevelUnit(
-      _rawUnits,
-      `${outputPath}.units`,
+    content: normalizeRequiredTopLevelUnit(
+      rawContent,
+      `${outputPath}.content`,
       budget,
     ),
   };
+  void _legacyUnits;
   void _rawType;
   if (citationType === "note-citation") {
     normalized.reference = normalizeRequiredTopLevelUnit(
@@ -230,23 +239,23 @@ function normalizeBibliographyLine(
 ): BibliographyLine {
   const line = (input ?? {}) as Record<string, unknown>;
   const type = normalizeBibliographyLineType(line.type, `${outputPath}.type`);
-  const units = normalizeRequiredTopLevelUnit(
-    line.units,
-    `${outputPath}.units`,
+  const content = normalizeRequiredTopLevelUnit(
+    line.content,
+    `${outputPath}.content`,
     budget,
   );
 
   if (type === "bibliography-title") {
     return {
       type: "bibliography-title",
-      units,
+      content,
     };
   }
 
   return {
     id: requireNonEmptyString(line.id, `${outputPath}.id`),
     type: "bibliography-entry",
-    units,
+    content,
   };
 }
 
@@ -284,7 +293,7 @@ function normalizeRequiredTopLevelUnit(
   input: unknown,
   fieldName: string,
   budget: OutputBudget,
-): TextUnit[] {
+): RichText {
   if (input == null) {
     throw createBanyanRuntimeError(`${fieldName} is required.`, {
       banyanPhase: "generate-output",
@@ -298,7 +307,7 @@ function normalizeTopLevelUnit(
   input: unknown,
   fieldName: string,
   budget: OutputBudget,
-): TextUnit[] {
+): RichText {
   if (Array.isArray(input)) {
     throw createBanyanRuntimeError(
       `${fieldName} must be a single Unit. Use group([...]) or fallback([...]) to combine multiple units.`,
@@ -309,13 +318,13 @@ function normalizeTopLevelUnit(
     );
   }
 
-  const out: TextUnit[] = [];
+  const out: RichTextRun[] = [];
   for (const compiled of compileUserUnit(input)) {
     const unit = finalizeInternalTextUnit(compiled);
     addTextToOutputBudget(unit.value, fieldName, budget);
-    pushMergedTextUnit(out, unit);
+    pushMergedTextRun(out, unit);
   }
-  return out;
+  return richTextFromRuns(out);
 }
 
 function compileUserUnit(input: unknown): InternalTextUnit[] {
@@ -347,6 +356,8 @@ function compileOutputUnit(unit: Unit): InternalTextUnit[] {
       return compileOutputTextCase(unit);
     case "style":
       return compileOutputStyle(unit);
+    case "link":
+      return compileOutputLink(unit);
     default:
       return [];
   }
@@ -422,6 +433,17 @@ function compileOutputStyle(unit: WithStyleUnit): InternalTextUnit[] {
   return compileOutputUnit(unit.unit).map((textUnit) => ({
     ...textUnit,
     ...unit.style,
+  }));
+}
+
+function compileOutputLink(unit: LinkUnit): InternalTextUnit[] {
+  const link = sanitizeLink(unit.link);
+  if (!link) {
+    return compileOutputUnit(unit.unit);
+  }
+  return compileOutputUnit(unit.unit).map((textUnit) => ({
+    ...textUnit,
+    link,
   }));
 }
 
@@ -561,7 +583,7 @@ function decodeEntities(text: string): string {
     .replace(/&nbsp;/g, " ");
 }
 
-function pushMergedTextUnit(out: TextUnit[], unit: TextUnit): void {
+function pushMergedTextRun(out: RichTextRun[], unit: RichTextRun): void {
   if (!unit.value) return;
   const last = out[out.length - 1];
   if (!last) {
@@ -677,7 +699,7 @@ function transformCaseRun(
     .filter((unit) => unit.value.length > 0);
 }
 
-function finalizeInternalTextUnit(unit: InternalTextUnit): TextUnit {
+function finalizeInternalTextUnit(unit: InternalTextUnit): RichTextRun {
   const { smallCaps, noCase: _noCase, value, ...style } = unit;
   return {
     ...style,

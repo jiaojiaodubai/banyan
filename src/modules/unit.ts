@@ -3,8 +3,10 @@ import {
   WhenUnit as WhenUnit,
   FallbackUnit,
   GroupUnit,
+  LinkUnit,
   PrintableValue,
   RenderStyle,
+  RichText,
   TextCaseForm,
   TextCaseUnit,
   TextUnit,
@@ -12,6 +14,7 @@ import {
   UnitUtils,
   WithStyleUnit,
 } from "../../typings/unit";
+import { richTextFromRuns, RichTextRun } from "../utils/richText";
 
 export function normalizeTextValue(value: unknown): string {
   if (typeof value === "number") {
@@ -29,10 +32,7 @@ function toUnit(value: PrintableValue, style?: RenderStyle): TextUnit {
 
 export function plainText(input: Unit | readonly Unit[]): string {
   const units = Array.isArray(input) ? input : [input];
-  return units
-    .flatMap((unit) => compile(unit))
-    .map((unit) => unit.value)
-    .join("");
+  return units.map((unit) => compile(unit).text).join("");
 }
 
 export const unitUtils = {
@@ -65,13 +65,20 @@ export const unitUtils = {
   withStyle: (unit: Unit, style: RenderStyle): WithStyleUnit => {
     return { type: "style", unit, style };
   },
+  link: (unit: Unit, link: string): LinkUnit => {
+    return { type: "link", unit, link };
+  },
 } satisfies UnitUtils;
 
-function hasVisualText(units: TextUnit[]): boolean {
+function hasVisualText(units: RichTextRun[]): boolean {
   return units.length > 0 && units.some((u) => u.value !== "");
 }
 
-export function compile(unit: Unit): TextUnit[] {
+export function compile(unit: Unit): RichText {
+  return richTextFromRuns(compileTextRuns(unit));
+}
+
+function compileTextRuns(unit: Unit): RichTextRun[] {
   if (typeof unit === "string") {
     return [toUnit(unit)];
   }
@@ -94,43 +101,45 @@ export function compile(unit: Unit): TextUnit[] {
       return compileTextCase(unit);
     case "style":
       return compileStyle(unit);
+    case "link":
+      return compileLink(unit);
     default:
       return [];
   }
 }
 
-function compileGroup(unit: GroupUnit): TextUnit[] {
+function compileGroup(unit: GroupUnit): RichTextRun[] {
   const { units, delimiter } = unit;
-  const blocks = units.map(compile).filter(hasVisualText);
+  const blocks = units.map(compileTextRuns).filter(hasVisualText);
   if (blocks.length === 0) {
     return [];
   }
-  const result: TextUnit[] = [];
+  const result: RichTextRun[] = [];
   blocks.forEach((block, index) => {
     if (index > 0 && delimiter) {
-      result.push(...compile(delimiter));
+      result.push(...compileTextRuns(delimiter));
     }
     result.push(...block);
   });
   return result;
 }
 
-function compileAffix(unit: AffixUnit): TextUnit[] {
+function compileAffix(unit: AffixUnit): RichTextRun[] {
   const { unit: mainUnit, prefix, suffix } = unit;
-  const blocks = compile(mainUnit);
+  const blocks = compileTextRuns(mainUnit);
   if (blocks.length === 0) {
     return [];
   }
-  const result: TextUnit[] = [];
+  const result: RichTextRun[] = [];
   if (prefix != undefined) {
-    const prefixBlocks = compile(prefix);
+    const prefixBlocks = compileTextRuns(prefix);
     if (hasVisualText(prefixBlocks)) {
       result.push(...prefixBlocks);
     }
   }
   result.push(...blocks);
   if (suffix != undefined) {
-    const suffixBlocks = compile(suffix);
+    const suffixBlocks = compileTextRuns(suffix);
     if (hasVisualText(suffixBlocks)) {
       result.push(...suffixBlocks);
     }
@@ -138,10 +147,10 @@ function compileAffix(unit: AffixUnit): TextUnit[] {
   return result;
 }
 
-function compileFall(unit: FallbackUnit): TextUnit[] {
+function compileFall(unit: FallbackUnit): RichTextRun[] {
   const { units } = unit;
   for (const unit of units) {
-    const result = compile(unit);
+    const result = compileTextRuns(unit);
     if (hasVisualText(result)) {
       return result;
     }
@@ -149,22 +158,26 @@ function compileFall(unit: FallbackUnit): TextUnit[] {
   return [];
 }
 
-function compileWhen(unit: WhenUnit): TextUnit[] {
+function compileWhen(unit: WhenUnit): RichTextRun[] {
   const { condition, trueUnit, flseUnit } = unit;
-  return condition ? compile(trueUnit) : flseUnit ? compile(flseUnit) : [];
+  return condition
+    ? compileTextRuns(trueUnit)
+    : flseUnit
+      ? compileTextRuns(flseUnit)
+      : [];
 }
 
-function compileTextCase(unit: TextCaseUnit): TextUnit[] {
+function compileTextCase(unit: TextCaseUnit): RichTextRun[] {
   const { unit: innerUnit, form, ignoreWords } = unit;
-  const blocks = compile(innerUnit);
+  const blocks = compileTextRuns(innerUnit);
   return applyTextCaseToUnits(blocks, form, ignoreWords);
 }
 
 function applyTextCaseToUnits(
-  units: TextUnit[],
+  units: RichTextRun[],
   form: TextCaseForm,
   ignoreWords: string[] = [],
-): TextUnit[] {
+): RichTextRun[] {
   if (units.length === 0) {
     return [];
   }
@@ -258,8 +271,15 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function compileStyle(unit: WithStyleUnit): TextUnit[] {
+function compileStyle(unit: WithStyleUnit): RichTextRun[] {
   const { unit: mainUnit, style } = unit;
-  const result = compile(mainUnit);
+  const result = compileTextRuns(mainUnit);
   return result.map((u) => ({ ...u, ...style }));
+}
+
+function compileLink(unit: LinkUnit): RichTextRun[] {
+  return compileTextRuns(unit.unit).map((textUnit) => ({
+    ...textUnit,
+    link: unit.link,
+  }));
 }

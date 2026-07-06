@@ -12,7 +12,8 @@ import type {
   NoteCitation,
   BibliographyLine,
 } from "../../typings/style";
-import type { TextUnit } from "../../typings/unit";
+import type { RichText } from "../../typings/unit";
+import { getRichTextSegments, RichTextSegment } from "../utils/richText";
 
 const t = useL10n(["mainWindow.ftl"]);
 type LegacySupportsString = {
@@ -198,8 +199,8 @@ async function generateAndOutputResult(
     outputFragment = result.citations
       .map((citation: IntextCitation | NoteCitation) => {
         return outputFormat === "html"
-          ? renderUnitsToHtml(citation.units)
-          : renderUnitsToText(citation.units);
+          ? renderRichTextToHtml(citation.content)
+          : renderRichTextToText(citation.content);
       })
       .join(outputFormat === "html" ? "<br/>" : "\n");
   } else {
@@ -207,7 +208,7 @@ async function generateAndOutputResult(
       .map((line: BibliographyLine) => {
         return outputFormat === "html"
           ? renderBibliographyLineToHtml(line)
-          : renderUnitsToText(line.units);
+          : renderRichTextToText(line.content);
       })
       .join(outputFormat === "html" ? "" : "\n");
   }
@@ -223,7 +224,7 @@ async function generateAndOutputResult(
 }
 
 function renderBibliographyLineToHtml(line: BibliographyLine): string {
-  const inner = renderUnitsToHtml(line.units);
+  const inner = renderRichTextToHtml(line.content);
   if (line.type === "bibliography-title") {
     return `<h1>${inner}</h1>`;
   }
@@ -231,28 +232,64 @@ function renderBibliographyLineToHtml(line: BibliographyLine): string {
 }
 
 /**
- * Render units to HTML
+ * Render RichText to HTML
  */
-function renderUnitsToHtml(units: TextUnit[]): string {
-  return units
-    .map((unit) => {
-      let text = escapeHtml(unit.value);
-      if (unit.bold) text = `<strong>${text}</strong>`;
-      if (unit.italic) text = `<em>${text}</em>`;
-      if (unit.script === "superscript") text = `<sup>${text}</sup>`;
-      if (unit.script === "subscript") text = `<sub>${text}</sub>`;
-      const link = sanitizeLink(unit.link);
-      if (link) text = `<a href="${escapeAttribute(link)}">${text}</a>`;
-      return text;
-    })
-    .join("");
+function renderRichTextToHtml(richText: RichText): string {
+  const out: string[] = [];
+  let currentLink = "";
+  let currentLinkParts: string[] = [];
+
+  const flushLink = () => {
+    if (!currentLink) {
+      return;
+    }
+    out.push(
+      `<a href="${escapeAttribute(currentLink)}">${currentLinkParts.join("")}</a>`,
+    );
+    currentLink = "";
+    currentLinkParts = [];
+  };
+
+  for (const unit of getRichTextSegments(richText)) {
+    const html = renderUnitVisualToHtml(unit);
+    const link = sanitizeLink(unit.link);
+    if (!link) {
+      flushLink();
+      out.push(html);
+      continue;
+    }
+
+    if (currentLink && currentLink !== link) {
+      flushLink();
+    }
+    currentLink = link;
+    currentLinkParts.push(html);
+  }
+
+  flushLink();
+  return out.join("");
+}
+
+function renderUnitVisualToHtml(unit: RichTextSegment): string {
+  let text = escapeHtml(unit.value);
+  if (unit.bold) text = `<strong>${text}</strong>`;
+  if (unit.italic) text = `<em>${text}</em>`;
+  if (unit.script === "superscript") text = `<sup>${text}</sup>`;
+  if (unit.script === "subscript") text = `<sub>${text}</sub>`;
+  const style: string[] = [];
+  if (unit.color) style.push(`color:${escapeAttribute(unit.color)}`);
+  if (unit.backgroundColor) {
+    style.push(`background-color:${escapeAttribute(unit.backgroundColor)}`);
+  }
+  if (style.length) text = `<span style="${style.join(";")}">${text}</span>`;
+  return text;
 }
 
 /**
- * Render units to plain text
+ * Render RichText to plain text
  */
-function renderUnitsToText(units: TextUnit[]): string {
-  return units.map((unit) => unit.value).join("");
+function renderRichTextToText(richText: RichText): string {
+  return richText.text;
 }
 
 /**

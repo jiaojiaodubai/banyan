@@ -41,14 +41,14 @@ function generate() {
     const citationText = ctx.params.paren ? "(" + body + ")" : body;
     return {
       id: ctx.id,
-      units: text(citationText),
+      content: text(citationText),
     };
   });
 
   const bibliography = Array.from(unique.values()).map((item) => ({
     id: String(item.id),
     type: "bibliography-entry",
-    units: text(
+    content: text(
       (item.firstCreator || "Unknown") +
         ". (" +
         (item.year || item.date || "n.d.") +

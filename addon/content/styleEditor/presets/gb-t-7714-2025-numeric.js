@@ -1,7 +1,7 @@
 const INFO = {
-  id: "gb-t-7714-2015-numeric",
-  title: "GB/T 7714-2015 (Numeric)",
-  description: "GB/T 7714-2015 (Numeric)",
+  id: "gb-t-7714-2025-numeric",
+  title: "GB/T 7714-2025 (Numeric)",
+  description: "GB/T 7714-2025 (Numeric)",
   citationType: "intext-citation",
   creator: [
     {
@@ -10,16 +10,19 @@ const INFO = {
       email: "jiaojiaodubai23@gmail.com",
     }
   ],
-  tags: ["Chinese", "GB/T", "GB/T 7714-2015", "Numeric"],
+  tags: ["Chinese", "GB/T", "GB/T 7714-2025", "Numeric"],
   documentation: ["https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=C6CE52E55AC09B9C79A20AEA77CEDD14"],
   license: "MIT",
-  updated: "2026-06-29T14:12:13+08:00",
+  updated: "2026-07-03T16:40:01+08:00",
 };
 
 /**
  * @returns { ScriptResult<"intext-citation"> }
  */
 function generate() {
+  /**
+   * @type {ScriptCite[]}
+   */
   const uniqueCites = [];
   for (const ctx of contexts) {
     for (const cite of ctx.cites) {
@@ -29,7 +32,7 @@ function generate() {
       }
     }
   }
-  const getOrder = (cite) => {
+  const getOrder = (/** @type {ScriptCite} */ cite) => {
     const index = uniqueCites.findIndex(i => i.item.key === cite.item.key);
     return index + 1;
   };
@@ -39,10 +42,10 @@ function generate() {
     return {
       id: cite.item.key,
       type: "bibliography-entry",
-      units: group([order, content], "\t")
+      content: group([order, content], "\t")
     };
   });
-  const genCitation = (context) => {
+  const genCitation = (/** @type {ScriptContext} */ context) => {
     // 在折叠之前先排序，尽可能让相邻的数字集中出现
     const orders = context.cites
       .toSorted((a, b) => {
@@ -51,18 +54,18 @@ function generate() {
         return orderA - orderB;
       })
       .map(getOrder);
-    const order2key = (order) => {
+    const order2key = (/** @type {number} */ order) => {
       const key = uniqueCites.find(i => getOrder(i) === order)?.item.key;
       return key;
     };
     if (orders.length === 1) {
       return {
         id: context.id,
-        units: withStyle(
+        content: withStyle(
           affix(
-            text(
+            link(
               orders[0],
-              { link: `banyan://entry/${order2key(orders[0])}` }
+              `banyan://entry/${order2key(orders[0])}`
             ),
             "[",
             "]"
@@ -71,10 +74,13 @@ function generate() {
         )
       };
     }
+    /**
+     * @type {{ start: number; end: number; }[]}
+     */
     const wrapped = [];
     for (let i = 0; i < orders.length; i++) {
       const current = orders[i];
-      const lastRange = wrapped[wrapped.length - 1];
+      const lastRange = wrapped.at(-1);
       if (lastRange && lastRange.end + 1 === current) {
         lastRange.end = current;
       } else {
@@ -83,13 +89,13 @@ function generate() {
     }
     return {
       id: context.id,
-      units: withStyle(
+      content: withStyle(
         affix(
           group(
             wrapped.map((r) => {
               const { start, end } = r;
-              const startUnit = text(start, { link: `banyan://entry/${order2key(start)}` });
-              const endUnit = text(end, { link: `banyan://entry/${order2key(end)}` });
+              const startUnit = link(start, `banyan://entry/${order2key(start)}`);
+              const endUnit = link(end, `banyan://entry/${order2key(end)}`);
               return start === end
                 ? startUnit
                 : group([startUnit, endUnit], "-");
@@ -110,7 +116,7 @@ function generate() {
 }
 
 /**
- * @param {Cite} cite
+ * @param {ScriptCite} cite
  */
 function dispatcher(cite) {
   const isZh = isChinese(cite);
@@ -442,7 +448,7 @@ function dispatcher(cite) {
 }
 
 /**
- * @param {Cite} cite
+ * @param {ScriptCite} cite
  * @param {CreatorType | CreatorType[]} type
  */
 function getCreators(cite, type = "author") {
@@ -471,14 +477,15 @@ function getCreators(cite, type = "author") {
 }
 
 /**
- * @param {Creator} creator
+ * @param {ScriptCreator} creator
  * @param {Boolean} isZh
  */
 function getCreator(creator, isZh) {
-  const { firstName, lastName, name } = creator;
-  if (name) {
-    return name;
+  if ("name" in creator && creator.name) {
+    return creator.name;
   }
+  const lastName = "lastName" in creator ? creator.lastName : "";
+  const firstName = "firstName" in creator ? creator.firstName : "";
   if (isZh) {
     return `${lastName}${firstName}`;
   }
@@ -489,14 +496,14 @@ function getCreator(creator, isZh) {
 }
 
 /**
- * @param {Cite} cite 
+ * @param {ScriptCite} cite 
  */
 function isChinese(cite) {
   return /^zh\b/.test(cite.item.language);
 }
 
 /**
- * @param {Cite} cite 
+ * @param {ScriptCite} cite 
  */
 function getTypeCode(cite) {
   return affix(
@@ -510,7 +517,7 @@ function getTypeCode(cite) {
 }
 
 /**
- * @param {Cite} cite 
+ * @param {ScriptCite} cite 
  */
 function getLiteratureCode(cite) {
   const itemType = cite.item.itemType;
@@ -552,7 +559,7 @@ function getLiteratureCode(cite) {
 }
 
 /**
- * @param {Cite} cite 
+ * @param {ScriptCite} cite 
  */
 function getMediaCode(cite) {
   const itemType = cite.item.itemType;
@@ -564,7 +571,7 @@ function getMediaCode(cite) {
 }
 
 /**
- * @param {Cite} cite 
+ * @param {ScriptCite} cite 
  */
 function getPublishPlace(cite) { 
   const isZh = isChinese(cite);
@@ -576,7 +583,7 @@ function getPublishPlace(cite) {
 }
 
 /**
- * @param {Cite} cite 
+ * @param {ScriptCite} cite 
  */
 function getPublisher(cite) {
   const isZh = isChinese(cite);
@@ -591,7 +598,7 @@ function getPublisher(cite) {
 }
 
 /**
- * @param {Cite} cite
+ * @param {ScriptCite} cite
  * @param {String} prop
  */
 function getDate(cite, prop="date") {
@@ -621,7 +628,7 @@ function getDate(cite, prop="date") {
 }
 
 /**
- * @param {Cite} cite 
+ * @param {ScriptCite} cite 
  */
 function isElectronic(cite) {
   const electronic = [
@@ -634,7 +641,7 @@ function isElectronic(cite) {
 }
 
 /**
- * @param {Cite} cite
+ * @param {ScriptCite} cite
  */
 function getPage(cite) {
   const page = cite.item.pages;
@@ -642,7 +649,7 @@ function getPage(cite) {
 }
 
 /**
- * @param {Cite} cite
+ * @param {ScriptCite} cite
  */
 function getAccessed(cite) {
   const https = "https://";
@@ -655,7 +662,7 @@ function getAccessed(cite) {
 }
 
 /**
- * @param {Cite} cite
+ * @param {ScriptCite} cite
  */
 function getDOI(cite) {
   const doi = cite.item.DOI;
@@ -665,3 +672,5 @@ function getDOI(cite) {
   }
   return affix(doi, "DOI：https://doi.org/");
 }
+
+

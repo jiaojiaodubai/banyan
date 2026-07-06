@@ -15,7 +15,7 @@ function generate() {
     const notePrefix = ctx.params["show-index"] ? "[" + ctx.page + "] " : "";
     return {
       id: ctx.id,
-      units: group(
+      content: group(
         ctx.cites.map((c) =>
           group([
             affix(index + 1, "", ". "),
@@ -39,7 +39,7 @@ function generate() {
   const bibliography = cites.map((item, index) => ({
     id: String(item.id),
     type: "bibliography-entry",
-    units: group([item.firstCreator, item.title, item.date], ". "),
+    content: group([item.firstCreator, item.title, item.date], ". "),
   }));
 
   return { citations, bibliography };

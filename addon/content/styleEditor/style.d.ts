@@ -4,6 +4,30 @@
 type CitationType = "intext-citation" | "note-citation";
 type MaybePromise<T> = T | Promise<T>;
 
+type ScriptSafeObject<T extends object> = {
+  readonly [
+    K in keyof T as ScriptSafe<T[K]> extends never ? never : K
+  ]-?: ScriptSafe<T[K]>;
+};
+
+type ScriptSafe<T> = T extends undefined
+  ? never
+  : T extends (...args: unknown[]) => unknown
+    ? T
+    : T extends string
+      ? string
+      : T extends number
+        ? number
+        : T extends boolean
+          ? boolean
+          : T extends readonly (infer U)[]
+            ? readonly ScriptSafe<U>[]
+            : T extends (infer U)[]
+              ? readonly ScriptSafe<U>[]
+              : T extends object
+                ? ScriptSafeObject<T>
+                : T;
+
 /**
  * Host-side normalized style API.
  * Callers pass contexts here; the sandbox wrapper injects them as global `contexts`.
@@ -114,20 +138,29 @@ type Cite = {
   params?: { [key: string]: string | boolean };
 };
 
-/** Readonly view exposed to style scripts via the global `contexts`. */
-type ScriptContext = DeepReadonly<CitationContext>;
+/**
+ * Script items keep strongly typed known fields, but allow arbitrary string
+ * indexing so style authors can probe schema/extra-derived fields without
+ * fighting JSDoc narrowing on every access.
+ */
+type ScriptItem = ScriptSafe<Item> & {
+  readonly [field: string]: any;
+};
+
+type ScriptCreator<T extends CreatorType = CreatorType> = ScriptSafe<
+  Creator<T>
+>;
+
+/** Safe readonly view exposed to style scripts via the global `contexts`. */
+type ScriptCitationParams = ScriptSafe<CitationParams>;
+
+type ScriptCite = ScriptSafe<Cite>;
+
+type ScriptCitationSource = ScriptSafe<CitationSource>;
+
+type ScriptContext = ScriptSafe<CitationContext>;
 
 type ScriptContexts = readonly ScriptContext[];
-
-type DeepReadonly<T> = T extends (...args: unknown[]) => unknown
-  ? T
-  : T extends readonly (infer U)[]
-    ? readonly DeepReadonly<U>[]
-    : T extends (infer U)[]
-      ? readonly DeepReadonly<U>[]
-      : T extends object
-        ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
-        : T;
 
 type ScriptResult<T extends CitationType = CitationType> = {
   citations: ScriptCitationsMap[T];
@@ -153,40 +186,40 @@ type Citation<T extends CitationType = CitationType> = {
   id: string;
   type: T;
   source: CitationSource;
-  units: TextUnit[];
+  content: RichText;
 };
 
 type IntextCitation = Citation<"intext-citation">;
 
-// For note citations, inherited units are rendered in the footnote area,
+// For note citations, inherited content is rendered in the footnote area,
 // while reference is the inline marker inserted into the document body.
 type NoteCitation = Citation<"note-citation"> & {
-  reference: TextUnit[];
+  reference: RichText;
 };
 
 type BibliographyTitle = {
   type: "bibliography-title";
-  units: TextUnit[];
+  content: RichText;
 };
 
 type BibliographyEntry = {
   id: string;
   type: "bibliography-entry";
-  units: TextUnit[];
+  content: RichText;
 };
 
 type BibliographyLine = BibliographyTitle | BibliographyEntry;
 
 type ScriptCitation = {
   id: string;
-  // Script authors provide one declarative Unit. The plural field name is
-  // retained because the host normalizes it to TextUnit[] for rendering.
-  units: Unit;
+  // Script authors provide one declarative Unit; the host normalizes it to
+  // RichText for rendering.
+  content: Unit;
 };
 
 type ScriptIntextCitation = ScriptCitation;
 
-// For note citations, inherited units are rendered in the footnote area,
+// For note citations, inherited content is rendered in the footnote area,
 // while reference is the inline marker inserted into the document body.
 type ScriptNoteCitation = ScriptCitation & {
   reference: Unit;
@@ -196,13 +229,13 @@ type ScriptBibliographyTitle = {
   // JS object literal inference widens string properties; keep script-side
   // types permissive and rely on runtime validation for exact tag checking.
   type: "bibliography-title" | string;
-  units: Unit;
+  content: Unit;
 };
 
 type ScriptBibliographyEntry = {
   id: string;
   type: "bibliography-entry" | string;
-  units: Unit;
+  content: Unit;
 };
 
 type ScriptBibliographyLine = ScriptBibliographyTitle | ScriptBibliographyEntry;
@@ -212,4 +245,4 @@ type ScriptBibliographyLine = ScriptBibliographyTitle | ScriptBibliographyEntry;
  * `generate()` is called. Missing object properties fall back to empty
  * strings at runtime, while array semantics stay unchanged.
  */
-declare const contexts: StyleScriptContexts;
+declare const contexts: ScriptContexts;

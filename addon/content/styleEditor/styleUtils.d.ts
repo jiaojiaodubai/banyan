@@ -1,4 +1,4 @@
-/// <reference path="./item.d.ts" />
+/// <reference path="./style.d.ts" />
 /// <reference path="./unit.d.ts" />
 
 type MultilingualLanguage = string | readonly string[];
@@ -20,8 +20,10 @@ type StyleUtils = UnitUtils & {
     relPath: string,
     options?: ReadUTF8Options,
   ) => Promise<T>;
-  getMultilingualItems: <T extends Item = Item>(item: T) => Promise<T[]>;
-  getMultilingualItem: <T extends Item = Item>(
+  getMultilingualItems: <T extends ScriptItem = ScriptItem>(
+    item: T,
+  ) => Promise<readonly T[]>;
+  getMultilingualItem: <T extends ScriptItem = ScriptItem>(
     item: T,
     language: MultilingualLanguage,
   ) => Promise<T>;
@@ -51,3 +53,4 @@ declare const fallback: StyleUtils["fallback"];
 declare const when: StyleUtils["when"];
 declare const textCase: StyleUtils["textCase"];
 declare const withStyle: StyleUtils["withStyle"];
+declare const link: StyleUtils["link"];

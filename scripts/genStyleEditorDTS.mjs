@@ -36,14 +36,14 @@ const declarationFiles = [
  * \`generate()\` is called. Missing object properties fall back to empty
  * strings at runtime, while array semantics stay unchanged.
  */
-declare const contexts: StyleScriptContexts;
+declare const contexts: ScriptContexts;
 `,
   },
   {
     source: path.join(rootDir, "typings", "styleUtils.d.ts"),
     target: path.join(outputDir, "styleUtils.d.ts"),
     globalize: true,
-    references: ["./item.d.ts", "./unit.d.ts"],
+    references: ["./style.d.ts", "./unit.d.ts"],
     generateGlobalsFromStyleUtils: true,
   },
 ];

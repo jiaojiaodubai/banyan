@@ -28,7 +28,7 @@ const UI = {
 function generate() {
   const citations = contexts.map((ctx) => ({
     id: ctx.id,
-    units: text(
+    content: text(
       "[" +
         ctx.page +
         "] " +
@@ -45,7 +45,7 @@ function generate() {
   const bibliography = Array.from(unique.values()).map((item) => ({
     id: String(item.id),
     type: "bibliography-entry",
-    units: text(
+    content: text(
       (item.firstCreator || "Unknown") + ". " + (item.title || item.key) + ".",
     ),
   }));

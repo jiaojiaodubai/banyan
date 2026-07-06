@@ -2,6 +2,7 @@ import { assert } from "chai";
 import { normalizeGenerateResult } from "../src/modules/sandbox/outputNormalization";
 import { applyTextCase } from "../src/modules/unit";
 import type { CitationContext } from "../typings/style";
+import type { InlineMark, RichText } from "../typings/unit";
 
 const contexts = [
   {
@@ -12,6 +13,10 @@ const contexts = [
   },
 ] as unknown as CitationContext[];
 
+function rich(text: string, marks: InlineMark[] = []): RichText {
+  return { text, marks };
+}
+
 describe("generate output normalization", function () {
   it("normalizes in-text citations and bibliography from declarative units", function () {
     const result = normalizeGenerateResult(
@@ -20,7 +25,7 @@ describe("generate output normalization", function () {
           {
             id: "ctx-1",
             type: "ignored-by-host",
-            units: {
+            content: {
               type: "group",
               units: [
                 { value: "smith", italic: true },
@@ -40,7 +45,7 @@ describe("generate output normalization", function () {
           {
             id: "item-1",
             type: "bibliography-entry",
-            units: {
+            content: {
               type: "fall",
               units: ["", { value: "Bibliography", bold: true }],
             },
@@ -60,14 +65,18 @@ describe("generate output normalization", function () {
           cites: contexts[0].cites,
           params: contexts[0].params,
         },
-        units: [{ value: "smith", italic: true }, { value: ",  (2024),  no" }],
+        content: rich("smith,  (2024),  no", [
+          { type: "italic", start: 0, end: 5, value: true },
+        ]),
       },
     ]);
     assert.deepEqual(result.bibliography, [
       {
         id: "item-1",
         type: "bibliography-entry",
-        units: [{ value: "Bibliography", bold: true }],
+        content: rich("Bibliography", [
+          { type: "bold", start: 0, end: 12, value: true },
+        ]),
       },
     ]);
   });
@@ -77,7 +86,7 @@ describe("generate output normalization", function () {
       () =>
         normalizeGenerateResult(
           {
-            citations: [{ id: "ctx-1", units: ["A", "B"] }],
+            citations: [{ id: "ctx-1", content: ["A", "B"] }],
             bibliography: [],
           },
           contexts,
@@ -88,13 +97,13 @@ describe("generate output normalization", function () {
     );
   });
 
-  it("normalizes note citations with reference units", function () {
+  it("normalizes note citations with reference content", function () {
     const result = normalizeGenerateResult(
       {
         citations: [
           {
             id: "ctx-1",
-            units: "Footnote body",
+            content: "Footnote body",
             reference: { value: "1", script: "superscript" },
           },
         ],
@@ -112,8 +121,10 @@ describe("generate output normalization", function () {
         cites: contexts[0].cites,
         params: contexts[0].params,
       },
-      units: [{ value: "Footnote body" }],
-      reference: [{ value: "1", script: "superscript" }],
+      content: rich("Footnote body"),
+      reference: rich("1", [
+        { type: "script", start: 0, end: 1, value: "superscript" },
+      ]),
     });
   });
 
@@ -123,7 +134,7 @@ describe("generate output normalization", function () {
         citations: [
           {
             id: "ctx-1",
-            units: {
+            content: {
               value:
                 'A <strong>B</strong><a href="javascript:alert(1)">bad</a><a href="https://example.test/?a=1&amp;b=2">ok</a><br><sup>2</sup>',
             },
@@ -136,14 +147,19 @@ describe("generate output normalization", function () {
       "intext-citation",
     );
 
-    assert.deepEqual((result.citations as { units: unknown }[])[0].units, [
-      { value: "A " },
-      { value: "B", bold: true },
-      { value: "bad" },
-      { value: "ok", link: "https://example.test/?a=1&b=2" },
-      { value: "\n" },
-      { value: "2", script: "superscript" },
-    ]);
+    assert.deepEqual(
+      (result.citations as { content: unknown }[])[0].content,
+      rich("A Bbadok\n2", [
+        { type: "bold", start: 2, end: 3, value: true },
+        {
+          type: "link",
+          start: 6,
+          end: 8,
+          value: "https://example.test/?a=1&b=2",
+        },
+        { type: "script", start: 9, end: 10, value: "superscript" },
+      ]),
+    );
   });
 
   it("applies text case after markup splitting while honoring rich-text case markers", function () {
@@ -152,7 +168,7 @@ describe("generate output normalization", function () {
         citations: [
           {
             id: "ctx-1",
-            units: {
+            content: {
               type: "text-case",
               form: "lower",
               unit: {
@@ -169,14 +185,13 @@ describe("generate output normalization", function () {
       "intext-citation",
     );
 
-    assert.deepEqual((result.citations as { units: unknown }[])[0].units, [
-      { value: "the " },
-      { value: "quick ", italic: true },
-      { value: "DNA ", italic: true },
-      { value: "Seq", italic: true, bold: true },
-      { value: " and " },
-      { value: applyTextCase("RNA", "small-caps") },
-    ]);
+    assert.deepEqual(
+      (result.citations as { content: unknown }[])[0].content,
+      rich(`the quick DNA Seq and ${applyTextCase("RNA", "small-caps")}`, [
+        { type: "italic", start: 4, end: 17, value: true },
+        { type: "bold", start: 14, end: 17, value: true },
+      ]),
+    );
   });
 
   it("turns textCase small-caps into text after markup normalization", function () {
@@ -185,7 +200,7 @@ describe("generate output normalization", function () {
         citations: [
           {
             id: "ctx-1",
-            units: {
+            content: {
               type: "text-case",
               form: "small-caps",
               unit: { value: "Mixed <i>Case</i>" },
@@ -199,10 +214,13 @@ describe("generate output normalization", function () {
       "intext-citation",
     );
 
-    assert.deepEqual((result.citations as { units: unknown }[])[0].units, [
-      { value: applyTextCase("Mixed ", "small-caps") },
-      { value: applyTextCase("Case", "small-caps"), italic: true },
-    ]);
+    assert.deepEqual(
+      (result.citations as { content: unknown }[])[0].content,
+      rich(
+        `${applyTextCase("Mixed ", "small-caps")}${applyTextCase("Case", "small-caps")}`,
+        [{ type: "italic", start: 6, end: 10, value: true }],
+      ),
+    );
   });
 
   it("reports unmatched citation ids", function () {
@@ -210,7 +228,7 @@ describe("generate output normalization", function () {
       () =>
         normalizeGenerateResult(
           {
-            citations: [{ id: "missing", units: "x" }],
+            citations: [{ id: "missing", content: "x" }],
             bibliography: [],
           },
           contexts,

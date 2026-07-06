@@ -1,4 +1,4 @@
-import type { Item } from "./item";
+import type { ScriptItem } from "./style";
 import type { UnitUtils } from "./unit";
 
 export type MultilingualLanguage = string | readonly string[];
@@ -20,8 +20,10 @@ export type StyleUtils = UnitUtils & {
     relPath: string,
     options?: ReadUTF8Options,
   ) => Promise<T>;
-  getMultilingualItems: <T extends Item = Item>(item: T) => Promise<T[]>;
-  getMultilingualItem: <T extends Item = Item>(
+  getMultilingualItems: <T extends ScriptItem = ScriptItem>(
+    item: T,
+  ) => Promise<readonly T[]>;
+  getMultilingualItem: <T extends ScriptItem = ScriptItem>(
     item: T,
     language: MultilingualLanguage,
   ) => Promise<T>;

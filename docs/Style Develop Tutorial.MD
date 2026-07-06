@@ -33,7 +33,8 @@ Banyan Style 是配合 Banyan for Zotero 使用的 JavaScript 脚本，用于生
 
 JavaScript 是文本脚本，理论上你可以用任意文本编辑器编写脚本，但为了方便，推荐你使用以下方案：
 
-- Banyan for Zotero 插件内置的脚本编辑器。它是一个集成环境，提供了模板、代码片段、语法高亮、错误提示、渲染预览等功能。`r`n- Zotero 首选项中的样式管理器。选中一个样式后可以点击“预览样式”，或双击样式行，用当前文库中已选中的常规条目生成快速预览。
+- Banyan for Zotero 插件内置的脚本编辑器。它是一个集成环境，提供了模板、代码片段、语法高亮、错误提示、渲染预览等功能。
+- Zotero 首选项中的样式管理器。选中一个样式后可以点击“预览样式”，或双击样式行，用当前文库中已选中的常规条目生成快速预览。
 - [Visual Studio Code](https://code.visualstudio.com/)。你可以在安装 Banyan for Zotero 插件后，使用 VS Code 打开 Banyan 的数据目录，并在集成终端中运行 `pnpm install` 安装依赖包。之后，你可以用 `pnpm run lint:check` 检查代码问题。
 
 这两个方案都需要你准备 Node.js 环境。如果你没有安装 Node.js，请按照 [Node.js 安装指南](https://nodejs.org/zh-cn/download/) 安装。
@@ -60,7 +61,9 @@ JavaScript 是文本脚本，理论上你可以用任意文本编辑器编写脚
 
 参考文献格式规范除了规定参考文献的内容之外，还规定了文本的格式。Banyan 用 `Unit` 这个概念来表示带有字符格式的文本，`Unit` 可以是简单的字符串或者纯数字，或者 [Unit 工具](#unit工具)提到的类型。
 
-脚本输出对象里的字段名叫 `units`，但它接收的是单个 `Unit`。这个复数字段名来自宿主标准化后的结果：渲染前会被编译成 `TextUnit[]`。
+脚本输出对象里的字段名叫 `content`，它接收的是单个 `Unit`。宿主在渲染前会把 `content` 编译成 `RichText`，即 `{ text, marks }` 结构，其中 `text` 是完整纯文本，`marks` 是加粗、斜体、链接等作用区间。
+
+`marks` 中的区间使用 JavaScript 字符串偏移：`start` 为起始位置，`end` 为排他结束位置，单位是 UTF-16 code unit。样式作者通常不需要手写 `RichText`；请继续返回 `Unit`，由宿主统一编译。
 
 ### citations
 
@@ -69,12 +72,12 @@ JavaScript 是文本脚本，理论上你可以用任意文本编辑器编写脚
 `intext-citation` 类型的引注是具有如下属性的对象：
 
 - `id`：引注的 ID，用于标识引注，一般你只需要沿用 `contexts` 中的 ID，这样你的引注就会取代旧的引注。
-- `units`：引注内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
+- `content`：引注内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
 
 `note-citation` 类型有正文标记和脚注区内容两部分，它包括以下属性：
 
 - `id`：引注的 ID，用于标识引注，一般你只需要沿用 `contexts` 中的 ID，这样你的引注就会取代旧的引注。
-- `units`：脚注内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
+- `content`：脚注内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
 - `reference`：正文中的标记，是单个 `Unit`。这个属性可以留空，此时脚注标记由字处理器自动分配。
 
 ### bibliography
@@ -85,12 +88,12 @@ JavaScript 是文本脚本，理论上你可以用任意文本编辑器编写脚
 
 - `id`：参考文献列表项目的 ID，用于标识项目，可作为超链接的跳转靶点。
 - `type`：必须是 `bibliography-entry`，用以自明身份。
-- `units`：参考文献列表项目的内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
+- `content`：参考文献列表项目的内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
 
 `BibliographyTitle` 类型表示参考文献列表的标题，有如下属性：
 
 - `type`：必须是 `bibliography-title`，用以自明身份。
-- `units`：参考文献列表的标题内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
+- `content`：参考文献列表的标题内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
 
 ## 样式结构
 
@@ -194,8 +197,8 @@ type text = (value: string, style?: RenderStyle) => TextUnit;
 - `italic`：是否斜体。
 - `bold`：是否加粗。
 - `script`：可选值为 `subscript`（下标）、`superscript`（上标）。
-- `link`：链接目标。详细用法见[进阶效果](#进阶效果)。
 - `color`：使用 HEX 格式表示的颜色，你可以使用类似 [HTML Color Picker](https://htmlcolorcodes.com/color-picker/) 这样的在线工具来获取特定颜色的 HEX 代码。
+- `backgroundColor`：背景颜色，同样使用 HEX 格式。
 
 ### group
 
@@ -278,6 +281,17 @@ type withStyle = (unit: Unit, style: RenderStyle) => WithStyleUnit;
 - `unit`：目标 `Unit` 对象。
 - `style`：要设置的渲染样式。
 
+### link
+
+`link` 函数用于为整个 `Unit` 指定超链接。即使这个 `Unit` 内部包含多个不同视觉样式的片段，标准化输出也会生成一个连续的链接区间。
+
+```typescript
+type link = (unit: Unit, link: string) => LinkUnit;
+```
+
+- `unit`：目标 `Unit` 对象。
+- `link`：链接目标，支持 `https://`、`http://`、`doi:` 和 `banyan://entry/...`。
+
 ### plainText
 
 `plainText` 函数用于把一个 `Unit` 对象转换成纯文本，这在用作排序键时特别有用。
@@ -310,7 +324,7 @@ Bnayan 还提供了其他实用的工具：
 
 可以为引注添加超链接实现更丰富的交互体验。
 
-如果添加指向互联网的超链接，只需直接为引注的 `Unit` 对象指定 `link` 属性即可。例如：
+如果添加指向互联网的超链接，只需用 `link(unit, href)` 包裹目标 `Unit`。例如：
 
 ```javascript
 function generate() {
@@ -321,14 +335,14 @@ function generate() {
     const url = getURL(ctx);
     return {
       id: ctx.id,
-      units: withStyle(content, { link: url }),
+      content: link(content, url),
     };
   });
   return { citations, bibliography };
 }
 ```
 
-如果想让引注的超链接指向参考文献列表项目，则需要对应设置引注的 `link` 属性和参考文献列表项目的 `id` 属性。例如：
+如果想让引注的超链接指向参考文献列表项目，则需要对应设置引注的 `link(...)` 目标和参考文献列表项目的 `id` 属性。例如：
 
 ```javascript
 function generate() {
@@ -340,8 +354,8 @@ function generate() {
     return {
       // 这是 Citation 自身的 id，沿用自 Context
       id: ctx.id,
-      // 这里的 tartget.id 对应目标 BibliographyEntry 的 id
-      units: withStyle(content, { link: `bayan://entry/${target.id}` }),
+      // 这里的 target.id 对应目标 BibliographyEntry 的 id
+      content: link(content, `banyan://entry/${target.id}`),
     };
   });
   const items = getItems(contexts);
@@ -351,13 +365,13 @@ function generate() {
       // 这是 BibliographyEntry 的 id
       id: item.id,
       type: "bibliography-entry",
-      units: content,
+      content,
     };
   });
 }
 ```
 
-上面的例子中，使用 `target.id` 构造 `link` 的引注，将会指向 `id` 属性和 `target.id` 相同的 `bibliography-entry`。
+上面的例子中，使用 `target.id` 构造 `banyan://entry/...` 的引注，将会指向 `id` 属性和 `target.id` 相同的 `bibliography-entry`。
 
 ### 多语言条目
 
@@ -382,7 +396,7 @@ function generate() {
     return {
       id: item.id,
       type: "bibliography-entry",
-      units: content,
+      content,
     };
   });
   return { citations, bibliography };

@@ -13,7 +13,7 @@
 - 脚本必须实现 `INFO` 和 `generate()`。
 - 如果需求包含可配置参数，才实现 `UI`。
 - `generate()` 必须读取全局只读变量 `contexts`，并返回 `{ citations, bibliography }`。
-- 生成结果中的 citation 与 bibliography 均使用 `units` 字段；脚本侧类型是单个 `Unit`，多片段请用 `group([...])` 或 `fallback([...])` 组合。
+- 生成结果中的 citation 与 bibliography 均使用 `content` 字段；脚本侧类型是单个 `Unit`，多片段请用 `group([...])` 或 `fallback([...])` 组合。
 
 ## 2. 运行环境约束（硬性）
 
@@ -49,7 +49,7 @@
 
 ## 3. 输入数据模型（最小认知）
 
-- `contexts`：只读安全视图，类型可按 `StyleScriptContexts` 理解，每个元素代表一条引注上下文。
+- `contexts`：只读安全视图，类型可按 `ScriptContexts` 理解，每个元素代表一条引注上下文。
 - 读取对象上不存在的属性时，运行时会返回空字符串 `""`；数组索引和数组方法保持原生行为。
 - `context.cites`：当前引注中的被引条目数组。
 - `context.params`：整条引用级参数（来自 `UI.citation`）。
@@ -101,12 +101,14 @@ return {
 
 - 推荐在主流程使用 `try/catch`，异常时返回空结果，避免未捕获异常。
 
-## 7. 单元（units）构建规范
+## 7. 内容（content）构建规范
 
-- 每个 citation/bibliography entry 使用 `units: Unit`。字段名是复数 `units`，但脚本侧值不是数组；运行时会把它标准化为前端渲染使用的 `TextUnit[]`。
+- 每个 citation/bibliography entry 使用 `content: Unit`。脚本侧值不是数组；运行时会把它标准化为前端渲染使用的 `RichText { text, marks }`。
+- `RichText.marks` 的区间由运行时生成，使用 JavaScript UTF-16 字符串偏移，`end` 为排他边界；不要让样式作者或 AI 代码手写索引。
 - 简单文本优先使用 `text("...")`。
-- 复杂拼接可使用：`group(...)`、`affix(...)`、`fallback(...)`、`when(...)`、`textCase(...)`。需要返回多个片段时，把片段放进 `group([...])`，不要把数组直接赋给 `units`。
+- 复杂拼接可使用：`group(...)`、`affix(...)`、`fallback(...)`、`when(...)`、`textCase(...)`。需要返回多个片段时，把片段放进 `group([...])`，不要把数组直接赋给 `content`。
 - 允许直接写叶子对象：`{ value: "..." }`。
+- 超链接使用 `link(unit, href)` 包裹目标 `Unit`；不要在 `text(..., style)` 或 `withStyle(..., style)` 里写 `link` 属性。
 - 组装 Unit 片段时优先使用 `group([...], delimiter)`，不要对可能含 Unit 的数组使用 `.join(...)`。
   - `.join(...)` 只适合纯字符串数组；如果元素是 Unit 对象（例如 `affix(...)` 的返回值），会被隐式串化成 `"[object Object]"`，导致错误文本泄漏到结果中。
   - 错误示例：`nameParts.map(part => affix(part, "", ".")).join(" ")`
@@ -136,7 +138,7 @@ return {
 - 未污染全局对象，未依赖 `this`。
 - `generate()` 读取了 `contexts`。
 - 返回值是 `{ citations, bibliography }`。
-- 所有输出项使用 `units`。
+- 所有输出项使用 `content`。
 - citation 的 `id` 正确映射 `context.id`。
 - bibliography 已按被引条目去重（除非需求明确不要去重）。
 - 对空数据有兜底处理（如 `contexts` 为空、作者缺失、标题缺失）。
@@ -165,7 +167,7 @@ return {
 - 只输出 JS 代码，不要解释。
 - 必须包含 INFO、generate（和需要时的 UI）。
 - generate 返回 { citations, bibliography }。
-- 输出统一使用 units。
+- 输出统一使用 content。
 ```
 
 ## 12. 最小可用脚手架（供 Agent 参考）
@@ -196,7 +198,7 @@ function generate() {
   try {
     const citations = contexts.map((ctx) => ({
       id: ctx.id,
-      units: text(
+      content: text(
         ctx.cites
           .map((c) => safeText(c.item.firstCreator || c.item.title))
           .filter(Boolean)
@@ -214,7 +216,7 @@ function generate() {
     const bibliography = Array.from(unique.values()).map((item) => ({
       id: String(item.id),
       type: "bibliography-entry",
-      units: text(
+      content: text(
         [safeText(item.firstCreator), safeText(item.title)]
           .filter(Boolean)
           .join(". "),

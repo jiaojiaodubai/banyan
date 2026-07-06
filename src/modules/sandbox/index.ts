@@ -646,8 +646,7 @@ export function cloneValueWithMaintainedAPI<T>(value: T): T {
       ? globalThis.structuredClone
       : undefined) ||
     (ztoolkit.getGlobal("structuredClone") as
-      | ((input: unknown) => unknown)
-      | undefined);
+      ((input: unknown) => unknown) | undefined);
 
   if (typeof hostStructuredClone !== "function") {
     throw new Error("structuredClone is unavailable in host environment.");

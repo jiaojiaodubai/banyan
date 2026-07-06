@@ -1,11 +1,12 @@
 // Runtime utilities exposed to user style scripts and helper functions shared
 // by the sandbox host bridge.
-import type { Item } from "../../typings/item";
+import type { ScriptItem } from "../../typings/style";
 import type { StyleUtils } from "../../typings/styleUtils";
 import type {
   AffixUnit,
   FallbackUnit,
   GroupUnit,
+  LinkUnit,
   PrintableValue,
   RenderStyle,
   WithStyleUnit,
@@ -514,6 +515,14 @@ function hostWithStyle(input: Unit, style: RenderStyle): WithStyleUnit {
   };
 }
 
+function hostLink(input: Unit, link: string): LinkUnit {
+  return {
+    type: "link",
+    unit: input,
+    link: sanitizeLink(link) ?? "",
+  };
+}
+
 function toHostUnit(input?: Unit): Unit | undefined {
   if (input == null) {
     return undefined;
@@ -586,6 +595,14 @@ function toHostUnit(input?: Unit): Unit | undefined {
           unit,
           style: normalizeRenderStyle(raw.style),
         };
+      }
+      case "link": {
+        const unit = normalizeUnitInput(raw.unit);
+        const link = sanitizeLink(raw.link);
+        if (!unit) {
+          return undefined;
+        }
+        return link ? { type: "link", unit, link } : unit;
       }
       default:
         break;
@@ -672,6 +689,14 @@ export function normalizeUnitInput(input: unknown): Unit | null {
         style: normalizeRenderStyle(raw.style),
       };
     }
+    case "link": {
+      const unit = normalizeUnitInput(raw.unit);
+      const link = sanitizeLink(raw.link);
+      if (!unit) {
+        return unit;
+      }
+      return link ? { type: "link", unit, link } : unit;
+    }
     default:
       return normalizeTextUnit(raw);
   }
@@ -730,8 +755,6 @@ export function normalizeRenderStyle(input: unknown): RenderStyle {
   if (raw.script === "superscript" || raw.script === "subscript") {
     out.script = raw.script;
   }
-  const link = sanitizeLink(raw.link);
-  if (link) out.link = link;
   if (typeof raw.color === "string") out.color = raw.color;
   if (typeof raw.backgroundColor === "string") {
     out.backgroundColor = raw.backgroundColor;
@@ -747,8 +770,6 @@ export function normalizeTextUnit(input: Record<string, unknown>): TextUnit {
   if (input.script === "superscript" || input.script === "subscript") {
     out.script = input.script;
   }
-  const link = sanitizeLink(input.link);
-  if (link) out.link = link;
   if (typeof input.color === "string") out.color = input.color;
   if (typeof input.backgroundColor === "string") {
     out.backgroundColor = input.backgroundColor;
@@ -969,6 +990,7 @@ const UTILITY_DEFINITION_FACTORIES = {
   fallback: defineCloningHostSyncUtility(hostFallback),
   when: defineCloningHostSyncUtility(hostChoose),
   withStyle: defineCloningHostSyncUtility(hostWithStyle),
+  link: defineCloningHostSyncUtility(hostLink),
 } as const satisfies UtilityFactoryMap;
 
 const UTILITY_DEFINITIONS = materializeUtilityDefinitions(
@@ -1201,8 +1223,7 @@ function cloneValueWithMaintainedAPI<T>(value: T): T {
       ? globalThis.structuredClone
       : undefined) ||
     (ztoolkit.getGlobal("structuredClone") as
-      | ((input: unknown) => unknown)
-      | undefined);
+      ((input: unknown) => unknown) | undefined);
 
   if (typeof hostStructuredClone !== "function") {
     throw new Error("structuredClone is unavailable in host environment.");
@@ -1266,7 +1287,7 @@ async function readJSON<T = unknown>(
   return IOUtils.readJSON(resolvePath(relPath), options);
 }
 
-async function resolveStyleItem<T extends Item>(
+async function resolveStyleItem<T extends ScriptItem>(
   item: T,
 ): Promise<{
   sourceItem: T;
@@ -1280,12 +1301,12 @@ async function resolveStyleItem<T extends Item>(
 
   const zoteroItem = await Zotero.Items.getAsync(item.id);
   return {
-    sourceItem: zoteroItem ? (toBanyanItem(zoteroItem) as T) : item,
+    sourceItem: zoteroItem ? (toBanyanItem(zoteroItem) as unknown as T) : item,
     zoteroItem: zoteroItem ?? undefined,
   };
 }
 
-async function readMultilingualItemsForStyle<T extends Item>(
+async function readMultilingualItemsForStyle<T extends ScriptItem>(
   item: T,
 ): Promise<T[]> {
   const { zoteroItem } = await resolveStyleItem(item);
@@ -1294,10 +1315,12 @@ async function readMultilingualItemsForStyle<T extends Item>(
   }
 
   const relatedItems = await getRelatedMultilingualItems(zoteroItem);
-  return relatedItems.map((relatedItem) => toBanyanItem(relatedItem) as T);
+  return relatedItems.map(
+    (relatedItem) => toBanyanItem(relatedItem) as unknown as T,
+  );
 }
 
-async function readMultilingualItemForStyle<T extends Item>(
+async function readMultilingualItemForStyle<T extends ScriptItem>(
   item: T,
   language: LanguagePreference,
 ): Promise<T> {

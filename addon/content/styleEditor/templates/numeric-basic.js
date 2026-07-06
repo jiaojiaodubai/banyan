@@ -32,7 +32,7 @@ function generate() {
 
   const citations = contexts.map((ctx) => ({
     id: ctx.id,
-    units: text(
+    content: text(
       "[" +
         ctx.cites.map((_, i) => i + 1).join(",") +
         "] " +
@@ -51,7 +51,7 @@ function generate() {
   const bibliography = Array.from(unique.values()).map((item, index) => ({
     id: String(item.id),
     type: "bibliography-entry",
-    units: text(
+    content: text(
       "[" +
         (index + 1) +
         "] " +

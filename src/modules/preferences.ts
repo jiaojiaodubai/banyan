@@ -31,7 +31,13 @@ const t = useL10n(["preferences.ftl"]);
 const CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF =
   "citationDialogInitialCollectionMode" as const;
 type CitationDialogInitialCollectionMode =
-  _ZoteroTypes.Prefs["PluginPrefsMap"][typeof CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF];
+  "mainLibrary" | "followAppSelection" | "lastSelected";
+
+function isCitationDialogInitialCollectionMode(
+  value: string,
+): value is CitationDialogInitialCollectionMode {
+  return ["mainLibrary", "followAppSelection", "lastSelected"].includes(value);
+}
 
 function bindCitationDialogInitialCollectionMode(): void {
   const win = addon.data.prefs!.window;
@@ -41,7 +47,11 @@ function bindCitationDialogInitialCollectionMode(): void {
   if (!radioGroup) return;
 
   const current = getPref(CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF);
-  radioGroup.value = current || "mainLibrary";
+  radioGroup.value =
+    typeof current === "string" &&
+    isCitationDialogInitialCollectionMode(current)
+      ? current
+      : "mainLibrary";
   radioGroup.addEventListener("command", () => {
     const value = radioGroup.value as CitationDialogInitialCollectionMode;
     setPref(CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF, value);

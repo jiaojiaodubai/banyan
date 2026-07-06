@@ -292,7 +292,7 @@ function getRuntimeErrorHint(info: RuntimeErrorInfo): string | null {
   }
 
   if (
-    /^citations\[\d+\]\.units$/.test(info.sourcePath) &&
+    /^citations\[\d+\]\.content$/.test(info.sourcePath) &&
     / is required\.$/.test(info.message)
   ) {
     return [
@@ -304,7 +304,7 @@ function getRuntimeErrorHint(info: RuntimeErrorInfo): string | null {
   }
 
   if (
-    /^bibliography\[\d+\]\.units$/.test(info.sourcePath) &&
+    /^bibliography\[\d+\]\.content$/.test(info.sourcePath) &&
     / is required\.$/.test(info.message)
   ) {
     return [

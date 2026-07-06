@@ -13,6 +13,7 @@ import { renderStyleComponentOptions } from "../components/styleComponentOptions
 import { toBanyanItem } from "../utils/item";
 import { useL10n } from "../utils/locale";
 import { getPref, setPref } from "../utils/prefs";
+import { loadCollectionViewItemTreeCompat } from "../utils/compat/itemTree";
 
 export type IO = {
   data: CitationRequestData;
@@ -48,6 +49,8 @@ const CITATION_DIALOG_LAST_SELECTED_COLLECTION_PREF =
   "integration.citationDialogCollectionLastSelected";
 const CITATION_DIALOG_COLLECTION_TREE_WIDTH_PREF =
   "citationDialogCollectionTreeWidth" as const;
+type CitationDialogInitialCollectionMode =
+  "mainLibrary" | "followAppSelection" | "lastSelected";
 
 let io: IO | null = null;
 let resolved = false;
@@ -285,7 +288,7 @@ async function initLibrary(): Promise<void> {
   try {
     const loader = window.require;
     const CollectionTree = loader("zotero/collectionTree");
-    const CollectionViewItemTree = loader("zotero/collectionViewItemTree");
+    const CollectionViewItemTree = loadCollectionViewItemTreeCompat(loader);
     const { COLUMNS } = loader("zotero/itemTreeColumns") as {
       COLUMNS: ItemTreeColumn[];
     };
@@ -334,7 +337,14 @@ async function initLibrary(): Promise<void> {
 async function selectInitialCollection(): Promise<void> {
   if (!collectionsView) return;
 
-  const mode = getPref(CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF);
+  const mode = getPref(
+    CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF,
+  ) as CitationDialogInitialCollectionMode;
+  if (mode === "followAppSelection") {
+    const restored = await restoreAppSelectedCollection();
+    if (restored) return;
+  }
+
   if (mode === "lastSelected") {
     const restored = await restoreLastSelectedCollection();
     if (restored) return;
@@ -370,6 +380,33 @@ async function restoreLastSelectedCollection(): Promise<boolean> {
     return restored !== false;
   } catch (e) {
     ztoolkit.log("恢复上次选中的分类失败");
+    ztoolkit.logError(e);
+    return false;
+  }
+}
+
+async function restoreAppSelectedCollection(): Promise<boolean> {
+  if (!collectionsView) return false;
+
+  const mainWindow = Zotero.getMainWindow();
+  const activeCollectionsView = mainWindow?.ZoteroPane?.collectionsView;
+  if (!activeCollectionsView) return false;
+
+  const selectedTreeRow = activeCollectionsView.selectedTreeRow;
+  if (!selectedTreeRow) return false;
+
+  const supportsRestoreTarget =
+    selectedTreeRow.isLibrary?.() || selectedTreeRow.isCollection?.();
+  if (!supportsRestoreTarget) return false;
+
+  const targetID = selectedTreeRow.id;
+  if (typeof targetID !== "string") return false;
+
+  try {
+    const restored = await collectionsView.selectByID?.(targetID);
+    return restored !== false;
+  } catch (e) {
+    ztoolkit.log("恢复客户端当前选中的分类失败");
     ztoolkit.logError(e);
     return false;
   }

@@ -10,7 +10,7 @@
 
 ## 全局变量
 
-- `contexts`：只读全局变量，在 `generate()` 调用前由沙箱自动注入。脚本侧可视为 `StyleScriptContexts`，样式作者可在任意函数中读取。
+- `contexts`：只读全局变量，在 `generate()` 调用前由沙箱自动注入。脚本侧可视为 `ScriptContexts`，样式作者可在任意函数中读取。
 - 读取对象上不存在的属性时，运行时会返回空字符串 `""`，而不是 `undefined`；数组索引和数组方法保持原生行为。
 
 ## 推荐风格与注意事项
@@ -66,7 +66,8 @@
 
 - 推荐将主逻辑拆分为小函数，主入口只做调度。
 - 辅助函数/常量建议用 `const` 定义。
-- citations 和 bibliography 在同一个 `generate()` 函数内生成，天然共享作用域，方便实现相互引用（如 citation 链接到 bibliography entry）。`r`n- 在提交样式前，至少用样式编辑器的渲染预览检查一次；如果只想快速确认已安装样式，可在 Zotero 文库中选中样例条目后，到首选项的样式管理器中预览。
+- citations 和 bibliography 在同一个 `generate()` 函数内生成，天然共享作用域，方便实现相互引用（如 citation 链接到 bibliography entry）。
+- 在提交样式前，至少用样式编辑器的渲染预览检查一次；如果只想快速确认已安装样式，可在 Zotero 文库中选中样例条目后，到首选项的样式管理器中预览。
 
 ### 9. 错误处理
 
@@ -77,11 +78,13 @@
 - 重要逻辑、参数、边界条件请用英文或中英文注释。
 - 建议在文件头部写明作者、版本、更新时间。
 
-### 11. 渲染单元
+### 11. 渲染内容
 
-- `generate()` 返回的 `citations` 和 `bibliography` 现在统一使用 `units` 字段。
-- `units` 接收单个声明式 `Unit`；字段名沿用复数是因为宿主标准化后会得到 `TextUnit[]`。最简单的叶子文本可以写成 `text("...")`，也可以手写 `{ value: "..." }`。
-- 复杂拼接建议优先使用 `group(...)`、`affix(...)`、`fallback(...)`、`when(...)`、`textCase(...)` 这些声明式 helper，最终由宿主统一编译。多个片段应包装成 `group([...])` 或 `fallback([...])`，不要直接把 `Unit[]` 放到 `units`。
+- `generate()` 返回的 `citations` 和 `bibliography` 统一使用 `content` 字段。
+- `content` 接收单个声明式 `Unit`；宿主标准化后会得到 `RichText { text, marks }`。最简单的叶子文本可以写成 `text("...")`，也可以手写 `{ value: "..." }`。
+- `RichText.marks` 的 `start`/`end` 使用 JavaScript UTF-16 字符串偏移，`end` 为排他边界；这是渲染层契约，样式作者不应手工维护这些索引。
+- 复杂拼接建议优先使用 `group(...)`、`affix(...)`、`fallback(...)`、`when(...)`、`textCase(...)` 这些声明式 helper，最终由宿主统一编译。多个片段应包装成 `group([...])` 或 `fallback([...])`，不要直接把 `Unit[]` 放到 `content`。
+- 超链接应使用 `link(unit, href)` 包裹目标 `Unit`，不要把链接写进 `RenderStyle`。
 - 尽量使用 `group([...], delimiter)` 拼接部件，谨慎使用 `Array.prototype.join`（最好不要用于 Unit 相关拼接）。
   - 原因：`join` 只能安全处理纯字符串数组；如果数组中混入 `group/affix/textCase` 等 helper 返回的 Unit 对象，会被 JavaScript 强制转成 `"[object Object]"` 并直接进入最终输出。
   - 错误示例：`firstName.split(" ").map(word => affix(word, "", ".")).join(" ")`
@@ -121,7 +124,7 @@ function generate() {
   // 生成 citations
   const citations = contexts.map((ctx) => ({
     id: ctx.id,
-    units: text(
+    content: text(
       ctx.cites.map((c) => c.item.firstCreator || c.item.title).join("; "),
     ),
   }));
@@ -130,7 +133,7 @@ function generate() {
   const bibliography = Array.from(unique.values()).map((item) => ({
     id: String(item.id),
     type: "bibliography-entry",
-    units: text((item.firstCreator || "Unknown") + ". " + item.title),
+    content: text((item.firstCreator || "Unknown") + ". " + item.title),
   }));
 
   return { citations, bibliography };

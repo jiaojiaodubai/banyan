@@ -4,13 +4,14 @@ import type {
   ConvertResponseData,
 } from "../../typings/server";
 import type { Creator, Item } from "../../typings/item";
-import type { TextUnit } from "../../typings/unit";
+import type { RichText } from "../../typings/unit";
 import type {
   CitationParams,
   CitationSource,
   IntextCitation,
   NoteCitation,
 } from "../../typings/style";
+import { textToRichText } from "../utils/richText";
 import { toBanyanItem } from "../utils/item";
 
 type ConvertStatus = "ok" | "fallback" | "error";
@@ -32,13 +33,12 @@ type NormalizedCitationPayload = {
 };
 
 type ParsedFieldCode =
-  | { ok: true; value: unknown }
-  | { ok: false; message: string };
+  { ok: true; value: unknown } | { ok: false; message: string };
 
 type ConvertedFieldBase = {
   status: ConvertStatus;
   source: CitationSource;
-  units: TextUnit[];
+  content: RichText;
   message?: string;
 };
 
@@ -64,7 +64,7 @@ export async function convertCitationFields(
         id: generateCitationId(),
         type: "intext-citation",
         source: converted.source,
-        units: converted.units,
+        content: converted.content,
       };
       logConvertedFieldStatus(field.fieldId, converted);
     }
@@ -80,8 +80,8 @@ export async function convertCitationFields(
       id: generateCitationId(),
       type: "note-citation",
       source: converted.source,
-      units: converted.units,
-      reference: [],
+      content: converted.content,
+      reference: textToRichText(""),
     };
     logConvertedFieldStatus(field.fieldId, converted);
   }
@@ -137,14 +137,14 @@ async function convertSingleField(
   };
 
   const renderedText = extractRenderedText(citation.properties);
-  const units = renderedText
-    ? [{ value: renderedText }]
-    : [{ value: "Converted citation has no stored display text" }];
+  const content = textToRichText(
+    renderedText || "Converted citation has no stored display text",
+  );
 
   return {
     status: usedFallback ? "fallback" : "ok",
     source,
-    units,
+    content,
     message: usedFallback
       ? "Used embedded CSL itemData for at least one citation item"
       : undefined,
@@ -419,9 +419,9 @@ function buildErrorResult(message: string): ConvertedFieldBase {
       cites: [],
       params: { ...EMPTY_SOURCE.params },
     },
-    units: [
-      { value: `Converted citation has no stored display text: ${message}` },
-    ],
+    content: textToRichText(
+      `Converted citation has no stored display text: ${message}`,
+    ),
     message,
   };
 }

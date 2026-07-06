@@ -1,12 +1,18 @@
 {
+  // Banyan style scripts run inside Zotero's Firefox ESR-based sandbox.
+  // Keep `target`/`lib` aligned to the Firefox ESR baseline shipped by Zotero.
+  // Do not switch this to "ESNext"/"latest" just to silence editor warnings:
+  // that would track the TypeScript toolchain rather than Banyan's real runtime.
+
+  // Revisit this whenever Zotero upgrades its Firefox ESR base.
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,
     "noEmit": true,
-    "target": "ES2022",
+    "target": "ES2023",
     "module": "ESNext",
     "moduleDetection": "force",
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2023", "DOM"]
   },
   "include": ["./*.js", "./*.d.ts"],
   "exclude": ["./node_modules", "./**/node_modules"]

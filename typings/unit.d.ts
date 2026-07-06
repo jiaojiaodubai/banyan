@@ -2,7 +2,6 @@ export type RenderStyle = {
   italic?: boolean;
   bold?: boolean;
   script?: "superscript" | "subscript";
-  link?: string;
   color?: string;
   backgroundColor?: string;
 };
@@ -44,13 +43,14 @@ export type WithStyleUnit = {
   unit: Unit;
 };
 
+export type LinkUnit = {
+  type: "link";
+  link: string;
+  unit: Unit;
+};
+
 export type TextCaseForm =
-  | "lower"
-  | "upper"
-  | "small-caps"
-  | "title"
-  | "sentence"
-  | "name";
+  "lower" | "upper" | "small-caps" | "title" | "sentence" | "name";
 
 export type TextCaseUnit = {
   type: "text-case";
@@ -67,7 +67,30 @@ export type Unit =
   | WhenUnit
   | TextCaseUnit
   | WithStyleUnit
+  | LinkUnit
   | PrintableValue;
+
+export type TextRange = {
+  /** Inclusive JS string offset in UTF-16 code units. */
+  start: number;
+  /** Exclusive JS string offset in UTF-16 code units. */
+  end: number;
+};
+
+export type InlineMark =
+  | (TextRange & { type: "bold"; value: boolean })
+  | (TextRange & { type: "italic"; value: boolean })
+  | (TextRange & { type: "script"; value: "superscript" | "subscript" })
+  | (TextRange & { type: "color"; value: string })
+  | (TextRange & { type: "backgroundColor"; value: string })
+  | (TextRange & { type: "link"; value: string });
+
+export type RichText = {
+  /** Plain text content for the full rendered unit. */
+  text: string;
+  /** Visual and interactive ranges over `text`. */
+  marks: InlineMark[];
+};
 
 export type UnitUtils = {
   text: (value: PrintableValue, style?: RenderStyle) => TextUnit;
@@ -82,4 +105,5 @@ export type UnitUtils = {
     ignoreWords?: string[],
   ) => TextCaseUnit;
   withStyle: (unit: Unit, style: RenderStyle) => WithStyleUnit;
+  link: (unit: Unit, link: string) => LinkUnit;
 };

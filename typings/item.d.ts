@@ -61,8 +61,7 @@ type CreatorSingleName<T extends CreatorType = CreatorType> = {
 };
 
 export type Creator<T extends CreatorType = CreatorType> =
-  | CreatorPersonalName<T>
-  | CreatorSingleName<T>;
+  CreatorPersonalName<T> | CreatorSingleName<T>;
 
 export type ItemType =
   | "artwork"

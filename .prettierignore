@@ -5,3 +5,4 @@ node_modules
 scripts
 addon/content/integration
 addon/content/styleEditor/presets/**/*.js
+addon/content/styleEditor/presets/**/*.json

@@ -56,6 +56,7 @@ export type FluentMessageId =
   | 'menuitem-style-editor'
   | 'prefs-addon-title'
   | 'prefs-citation-dialog-initial-collection-mode'
+  | 'prefs-citation-dialog-initial-collection-mode-follow-app-selection'
   | 'prefs-citation-dialog-initial-collection-mode-help'
   | 'prefs-citation-dialog-initial-collection-mode-last-selected'
   | 'prefs-citation-dialog-initial-collection-mode-main-library'

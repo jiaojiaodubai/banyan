@@ -1,6 +1,6 @@
 import type { CitationContext } from "../../../typings/style";
 import type { CitationSource, Cite } from "../../../typings/style";
-import type { TextUnit } from "../../../typings/unit";
+import type { RichText } from "../../../typings/unit";
 import type {
   CitationRequestData,
   CitationResponseData,
@@ -13,7 +13,8 @@ import {
   parseStyleEditorJSCompilerOptions,
   type StyleEditorAssets,
 } from "../../modules/styleEditor";
-import { renderUnitsToFragment } from "../../components/richTextEditor";
+import { renderRichTextToFragment } from "../../components/richTextEditor";
+import { emptyRichText, normalizeRichText } from "../../utils/richText";
 import { useL10n } from "../../utils/locale";
 import { parseBanyanEntryLink } from "../../utils/html";
 import { updateStyleCodeUpdatedTimestamp } from "../../utils/styleUpdated";
@@ -63,6 +64,7 @@ type MonacoAPI = {
     typescript: {
       ScriptTarget?: {
         ES2022?: number;
+        ES2023?: number;
         ESNext?: number;
         Latest?: number;
         [target: string]: number | undefined;
@@ -1290,8 +1292,7 @@ function parseItemTypeAliases(source: string): Array<{
 
 function getLocalizedItemTypeLabel(itemType: string): string {
   const zoteroItemTypes = Zotero.ItemTypes as
-    | { getLocalizedString?: (typeName: string) => string }
-    | undefined;
+    { getLocalizedString?: (typeName: string) => string } | undefined;
 
   try {
     const localized = zoteroItemTypes?.getLocalizedString?.(itemType);
@@ -2836,16 +2837,8 @@ async function createPreviewContexts(): Promise<CitationContext[]> {
   return contexts;
 }
 
-function toPreviewTextUnits(input: unknown): TextUnit[] {
-  if (!Array.isArray(input)) {
-    return [];
-  }
-  return input.filter((unit): unit is TextUnit => {
-    if (!unit || typeof unit !== "object") {
-      return false;
-    }
-    return typeof (unit as Record<string, unknown>).value === "string";
-  });
+function toPreviewRichText(input: unknown): RichText {
+  return normalizeRichText(input) ?? emptyRichText();
 }
 
 function getStringRecordValue(
@@ -2888,8 +2881,10 @@ function handlePreviewLinkClick(link: string): boolean {
   return true;
 }
 
-function renderPreviewUnits(units: TextUnit[]): DocumentFragment {
-  return renderUnitsToFragment(units, { onLinkClick: handlePreviewLinkClick });
+function renderPreviewRichText(richText: RichText): DocumentFragment {
+  return renderRichTextToFragment(richText, {
+    onLinkClick: handlePreviewLinkClick,
+  });
 }
 
 function renderPreview(citations: unknown[], bibliography: unknown[]): void {
@@ -2924,14 +2919,14 @@ function renderPreview(citations: unknown[], bibliography: unknown[]): void {
         const referenceRow = document.createElement("div");
         referenceRow.className = "preview-line preview-note-reference";
         referenceRow.appendChild(
-          renderPreviewUnits(toPreviewTextUnits(citationRecord.reference)),
+          renderPreviewRichText(toPreviewRichText(citationRecord.reference)),
         );
         container.appendChild(referenceRow);
 
         const textRow = document.createElement("div");
         textRow.className = "preview-line preview-note-text";
         textRow.appendChild(
-          renderPreviewUnits(toPreviewTextUnits(citationRecord.units)),
+          renderPreviewRichText(toPreviewRichText(citationRecord.content)),
         );
         container.appendChild(textRow);
         continue;
@@ -2940,7 +2935,7 @@ function renderPreview(citations: unknown[], bibliography: unknown[]): void {
       const row = document.createElement("div");
       row.className = "preview-line";
       row.appendChild(
-        renderPreviewUnits(toPreviewTextUnits(citationRecord.units)),
+        renderPreviewRichText(toPreviewRichText(citationRecord.content)),
       );
       container.appendChild(row);
     }
@@ -2968,7 +2963,9 @@ function renderPreview(citations: unknown[], bibliography: unknown[]): void {
     if (entryId) {
       row.dataset.banyanEntryId = entryId;
     }
-    row.appendChild(renderPreviewUnits(toPreviewTextUnits(lineRecord.units)));
+    row.appendChild(
+      renderPreviewRichText(toPreviewRichText(lineRecord.content)),
+    );
     container.appendChild(row);
   }
 

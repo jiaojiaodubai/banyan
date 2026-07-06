@@ -118,11 +118,74 @@ const STYLE_EDITOR_RUNTIME_ASSETS: readonly RuntimeAssetDefinition[] = [
 
 let cachedAssets: StyleEditorAssets | null = null;
 
+function stripJSONCComments(source: string): string {
+  let result = "";
+  let inString = false;
+  let stringQuote = "";
+  let escaping = false;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+
+    if (inString) {
+      result += char;
+      if (escaping) {
+        escaping = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaping = true;
+        continue;
+      }
+      if (char === stringQuote) {
+        inString = false;
+        stringQuote = "";
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      inString = true;
+      stringQuote = char;
+      result += char;
+      continue;
+    }
+
+    if (char === "/" && next === "/") {
+      index += 2;
+      while (index < source.length && source[index] !== "\n") {
+        index += 1;
+      }
+      if (index < source.length) {
+        result += source[index];
+      }
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      index += 2;
+      while (
+        index < source.length - 1 &&
+        !(source[index] === "*" && source[index + 1] === "/")
+      ) {
+        index += 1;
+      }
+      index += 1;
+      continue;
+    }
+
+    result += char;
+  }
+
+  return result;
+}
+
 export function parseStyleEditorJSCompilerOptions(
   jsConfigText: string,
 ): Record<string, unknown> {
   try {
-    const parsed = JSON.parse(jsConfigText) as {
+    const parsed = JSON.parse(stripJSONCComments(jsConfigText)) as {
       compilerOptions?: unknown;
     };
     if (!parsed.compilerOptions || typeof parsed.compilerOptions !== "object") {

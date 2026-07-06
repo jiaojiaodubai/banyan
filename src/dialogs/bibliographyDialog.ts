@@ -11,6 +11,8 @@ import type {
 } from "../../typings/style";
 import type { IO as CitationDialogIO } from "./citationDialog";
 import { RichTextEditor } from "../components/richTextEditor";
+import { emptyRichText } from "../utils/richText";
+import { loadCollectionViewItemTreeCompat } from "../utils/compat/itemTree";
 
 export type IO = {
   data: BibliographyRequestData;
@@ -63,12 +65,12 @@ function bindButtons(): void {
 
 function renderLineEditor(): void {
   if (!workingLine || !editor) return;
-  editor.setUnits(workingLine.units ?? []);
+  editor.setRichText(workingLine.content ?? emptyRichText());
 }
 
 function onAccept(): void {
   if (!io || !workingLine) return;
-  if (editor) workingLine.units = editor.getUnits();
+  if (editor) workingLine.content = editor.getRichText();
   const output: BibliographyResponseData = {
     line: workingLine,
     extraSource: extraCitation,
@@ -122,7 +124,7 @@ async function initUncitedItemsTree(): Promise<void> {
   if (!container) return;
   try {
     const loader = window.require;
-    const CollectionViewItemTree = loader("zotero/collectionViewItemTree");
+    const CollectionViewItemTree = loadCollectionViewItemTreeCompat(loader);
     const { COLUMNS } = loader("zotero/itemTreeColumns") as {
       COLUMNS: Array<{ dataKey: string; hidden?: boolean }>;
     };
