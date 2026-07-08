@@ -43,7 +43,7 @@ collapsible-section[data-pane$="-multilingual"] > .head .title::before {
 #banyan-multilingual-body > .row > .box > .label {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 10;
+  line-clamp: 10;
   width: 0;
   flex: 1;
   overflow: hidden;
@@ -63,4 +63,29 @@ collapsible-section[data-pane$="-multilingual"] > .head .title::before {
   > toolbarbutton
   > image {
   visibility: visible;
+}
+
+.banyan-document-citation-cell {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  line-clamp: 3;
+  overflow: hidden;
+  white-space: normal;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.banyan-document-citation-cell .banyan-document-citation-part {
+  display: inline;
+}
+
+.banyan-document-citation-cell
+  .banyan-document-citation-part
+  + .banyan-document-citation-part {
+  margin-inline-start: 0.5em;
+}
+
+.banyan-document-citation-cell sup,
+.banyan-document-citation-cell sub {
+  line-height: 0;
 }

@@ -1,18 +1,14 @@
 import type { RichText } from "../../typings/unit";
+import { richTextFromRuns, RichTextRun } from "../utils/richText";
 import {
-  getRichTextSegments,
-  richTextFromRuns,
-  RichTextRun,
-  RichTextSegment,
-} from "../utils/richText";
+  renderRichTextToFragment as renderRichTextPreviewToFragment,
+  type RenderRichTextFragmentOptions,
+} from "../utils/richTextHtml";
 import { sanitizeLink } from "../utils/html";
 import { useL10n } from "../utils/locale";
 
 type UnitStyle = Omit<RichTextRun, "value">;
-type UnitLinkHandler = (link: string, event: Event) => boolean | void;
-type RenderRichTextOptions = {
-  onLinkClick?: UnitLinkHandler;
-};
+type RenderRichTextOptions = RenderRichTextFragmentOptions;
 
 const NAV_KEYS = new Set([
   "ArrowLeft",
@@ -209,80 +205,7 @@ export function renderRichTextToFragment(
   richText: RichText,
   options: RenderRichTextOptions = {},
 ): DocumentFragment {
-  const fragment = document.createDocumentFragment();
-  let currentLink = "";
-  let currentAnchor: HTMLAnchorElement | null = null;
-
-  for (const unit of getRichTextSegments(richText)) {
-    const node = createNodeFromUnit(unit);
-    const link = sanitizeLink(unit.link);
-    if (!link) {
-      currentLink = "";
-      currentAnchor = null;
-      fragment.appendChild(node);
-      continue;
-    }
-
-    if (!currentAnchor || currentLink !== link) {
-      currentLink = link;
-      currentAnchor = createLinkElement(link, options);
-      fragment.appendChild(currentAnchor);
-    }
-    currentAnchor.appendChild(node);
-  }
-  return fragment;
-}
-
-function createNodeFromUnit(unit: RichTextSegment): Node {
-  let current: Node = document.createTextNode(unit.value ?? "");
-
-  if (unit.bold) {
-    const strong = document.createElement("strong");
-    strong.appendChild(current);
-    current = strong;
-  }
-  if (unit.italic) {
-    const em = document.createElement("em");
-    em.appendChild(current);
-    current = em;
-  }
-  if (unit.script === "superscript") {
-    const sup = document.createElement("sup");
-    sup.appendChild(current);
-    current = sup;
-  } else if (unit.script === "subscript") {
-    const sub = document.createElement("sub");
-    sub.appendChild(current);
-    current = sub;
-  }
-
-  if (unit.color || unit.backgroundColor) {
-    const span = document.createElement("span");
-    if (unit.color) span.style.color = unit.color;
-    if (unit.backgroundColor) span.style.backgroundColor = unit.backgroundColor;
-    span.appendChild(current);
-    current = span;
-  }
-
-  return current;
-}
-
-function createLinkElement(
-  link: string,
-  options: RenderRichTextOptions,
-): HTMLAnchorElement {
-  const a = document.createElement("a");
-  a.href = link;
-  a.target = "_blank";
-  a.rel = "noreferrer";
-  a.addEventListener("click", (event) => {
-    event.preventDefault();
-    const handled = options.onLinkClick?.(link, event);
-    if (handled !== true) {
-      Zotero.launchURL(link);
-    }
-  });
-  return a;
+  return renderRichTextPreviewToFragment(richText, document, options);
 }
 
 function richTextFromEditor(editor: HTMLElement): RichText {

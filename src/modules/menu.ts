@@ -4,7 +4,11 @@ import { openStyleEditorWindow } from "./styleEditor";
 import { openDialogWindow } from "./server";
 import { toBanyanItem } from "../utils/item";
 import { getStyle } from "./styles";
-import { escapeAttribute, escapeHtml, sanitizeLink } from "../utils/html";
+import {
+  renderBibliographyLineToHtml,
+  renderRichTextToHtml,
+  renderRichTextToText,
+} from "../utils/richTextHtml";
 import type { Item } from "../../typings/item";
 import type {
   CitationContext,
@@ -12,8 +16,6 @@ import type {
   NoteCitation,
   BibliographyLine,
 } from "../../typings/style";
-import type { RichText } from "../../typings/unit";
-import { getRichTextSegments, RichTextSegment } from "../utils/richText";
 
 const t = useL10n(["mainWindow.ftl"]);
 type LegacySupportsString = {
@@ -221,75 +223,6 @@ async function generateAndOutputResult(
   const fileContent =
     outputFormat === "html" ? wrapHtmlOutput(outputFragment) : outputFragment;
   await saveToFile(fileContent, outputFormat, outputType);
-}
-
-function renderBibliographyLineToHtml(line: BibliographyLine): string {
-  const inner = renderRichTextToHtml(line.content);
-  if (line.type === "bibliography-title") {
-    return `<h1>${inner}</h1>`;
-  }
-  return `<p>${inner}</p>`;
-}
-
-/**
- * Render RichText to HTML
- */
-function renderRichTextToHtml(richText: RichText): string {
-  const out: string[] = [];
-  let currentLink = "";
-  let currentLinkParts: string[] = [];
-
-  const flushLink = () => {
-    if (!currentLink) {
-      return;
-    }
-    out.push(
-      `<a href="${escapeAttribute(currentLink)}">${currentLinkParts.join("")}</a>`,
-    );
-    currentLink = "";
-    currentLinkParts = [];
-  };
-
-  for (const unit of getRichTextSegments(richText)) {
-    const html = renderUnitVisualToHtml(unit);
-    const link = sanitizeLink(unit.link);
-    if (!link) {
-      flushLink();
-      out.push(html);
-      continue;
-    }
-
-    if (currentLink && currentLink !== link) {
-      flushLink();
-    }
-    currentLink = link;
-    currentLinkParts.push(html);
-  }
-
-  flushLink();
-  return out.join("");
-}
-
-function renderUnitVisualToHtml(unit: RichTextSegment): string {
-  let text = escapeHtml(unit.value);
-  if (unit.bold) text = `<strong>${text}</strong>`;
-  if (unit.italic) text = `<em>${text}</em>`;
-  if (unit.script === "superscript") text = `<sup>${text}</sup>`;
-  if (unit.script === "subscript") text = `<sub>${text}</sub>`;
-  const style: string[] = [];
-  if (unit.color) style.push(`color:${escapeAttribute(unit.color)}`);
-  if (unit.backgroundColor) {
-    style.push(`background-color:${escapeAttribute(unit.backgroundColor)}`);
-  }
-  if (style.length) text = `<span style="${style.join(";")}">${text}</span>`;
-  return text;
-}
-
-/**
- * Render RichText to plain text
- */
-function renderRichTextToText(richText: RichText): string {
-  return richText.text;
 }
 
 /**

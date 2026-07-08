@@ -50,6 +50,7 @@ export type FluentMessageId =
   | 'item-section-multilingual-loading'
   | 'item-section-multilingual-sidenav-tooltip'
   | 'item-section-multilingual-summary'
+  | 'item-tree-citation-column'
   | 'link-multilingual-item-error-different-library'
   | 'menuitem-create-output'
   | 'menuitem-relate-items'

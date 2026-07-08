@@ -13,7 +13,7 @@ import {
   parseStyleEditorJSCompilerOptions,
   type StyleEditorAssets,
 } from "../../modules/styleEditor";
-import { renderRichTextToFragment } from "../../components/richTextEditor";
+import { renderRichTextToFragment } from "../../utils/richTextHtml";
 import { emptyRichText, normalizeRichText } from "../../utils/richText";
 import { useL10n } from "../../utils/locale";
 import { parseBanyanEntryLink } from "../../utils/html";
@@ -2882,7 +2882,7 @@ function handlePreviewLinkClick(link: string): boolean {
 }
 
 function renderPreviewRichText(richText: RichText): DocumentFragment {
-  return renderRichTextToFragment(richText, {
+  return renderRichTextToFragment(richText, document, {
     onLinkClick: handlePreviewLinkClick,
   });
 }

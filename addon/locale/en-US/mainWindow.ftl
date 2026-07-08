@@ -3,6 +3,7 @@ addon-name = Banyan
 menuitem-relate-items = Relate Multilingual Items
 menuitem-style-editor = Banyan Style Editor
 menuitem-create-output = Create Citation/Bibliography
+item-tree-citation-column = Citation
 
 item-section-multilingual-head-text =
     .label = Banyan: Multilingual Relations

@@ -12,7 +12,9 @@ Banyan is a Zotero plugin that enables users to fully customize citation styles 
 
 - Use `IOUtils` for file I/O, `PathUtils` for paths
 - Use `ztoolkit.log()` / `ztoolkit.logError()` instead of `console.log` / `console.error`
-- If a Zotero client API or Gecko platform API is missing types, add or extend the declaration under `typings/` instead of using local `as` assertions. Organize the file to mirror `zotero-types` so the declaration can be contributed upstream later.
+- Resolve Zotero/Gecko host API types in this order: check `zotero-types` first, then confirm the latest behavior in `dev/Zotero-Source` if the types are missing or incomplete. After that, add or extend the declaration under `typings/` instead of using local `as` assertions. Organize the file to mirror `zotero-types` so the declaration can be contributed upstream later.
+- Keep plugin-wide shared base types under `typings/` as well, including cross-module domain types such as `item`, `style`, `unit`, and `server`. Types used only inside one module should stay in that module, placed after imports and before file-level constants.
+- Compatibility helpers in `src/utils/compat` are only for confirmed API gaps between the latest stable Zotero release and the current beta target. Do not add compatibility branches for older releases, and do not introduce speculative compat code without source-level evidence.
 - Two separate lint contexts:
   1. Main plugin code: [eslint.config.mjs](eslint.config.mjs)
   2. Style editor: [addon/content/styleEditor/eslint.config.mjs](addon/content/styleEditor/eslint.config.mjs)

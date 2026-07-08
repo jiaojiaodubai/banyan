@@ -3,6 +3,7 @@ addon-name = 榕树
 menuitem-relate-items = 关联多语条目
 menuitem-style-editor = Banyan 样式编辑器
 menuitem-create-output = 创建引注/参考文献表
+item-tree-citation-column = 引注
 
 item-section-multilingual-head-text =
     .label = 榕树：多语关联

@@ -25,6 +25,22 @@ type ItemNotifier = {
   notify: (event: string, type: string, ids: Array<number | string>) => void;
 };
 
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+  reject: (reason?: unknown) => void;
+};
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: Deferred<T>["resolve"];
+  let reject!: Deferred<T>["reject"];
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 export function registerItemPaneSection() {
   // Cached item to pass to notifier
   let currentItem: Zotero.Item | null = null;
@@ -64,8 +80,7 @@ export function registerItemPaneSection() {
           const io = {
             dataIn: null as unknown as string[] | null,
             dataOut: null as unknown as string[] | null,
-            // TODO: Zotero.Promise.defer is deprecated, but wait for `selectItemsDialog` to be updated
-            deferred: Zotero.Promise.defer(),
+            deferred: createDeferred<void>(),
             itemTreeID: "banyan-multilingual-select-item-dialog",
             filterLibraryIDs: [item.libraryID],
             onlyRegularItems: true,

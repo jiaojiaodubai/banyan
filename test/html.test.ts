@@ -5,6 +5,9 @@ import {
   parseBanyanEntryLink,
   sanitizeLink,
 } from "../src/utils/html";
+import type { RichText } from "../typings/unit";
+
+import { renderRichTextToHtml as renderRichTextVisualToHtml } from "../src/utils/richTextHtml";
 
 describe("html utilities", function () {
   it("escapes text and attribute-sensitive characters", function () {
@@ -45,5 +48,24 @@ describe("html utilities", function () {
     assert.equal(parseBanyanEntryLink("banyan://entry/item%201"), "item 1");
     assert.isUndefined(sanitizeLink("banyan://settings"));
     assert.isUndefined(sanitizeLink("banyan://entry/abc?open=true"));
+  });
+
+  it("renders non-interactive rich text previews without links while preserving superscript", function () {
+    const richText: RichText = {
+      text: "[3]",
+      marks: [
+        { type: "script", start: 0, end: 3, value: "superscript" },
+        { type: "link", start: 0, end: 3, value: "https://example.test" },
+      ],
+    };
+
+    assert.equal(
+      renderRichTextVisualToHtml(richText, { includeLinks: false }),
+      "<sup>[3]</sup>",
+    );
+    assert.equal(
+      renderRichTextVisualToHtml(richText),
+      '<a href="https://example.test"><sup>[3]</sup></a>',
+    );
   });
 });

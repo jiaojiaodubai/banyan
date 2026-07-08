@@ -7,6 +7,10 @@ import {
   registerStyleSheet,
   registerItemPaneSection,
 } from "./modules/mainWindow";
+import {
+  cleanupCitationColumn,
+  registerCitationColumn,
+} from "./modules/citedItemsSearch";
 import { registerToolsMenu, registerContextMenu } from "./modules/menu";
 import { ensureStyleEditorRuntimeAssets } from "./modules/styleEditor";
 import {
@@ -91,6 +95,10 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   registerToolsMenu();
   registerContextMenu();
 
+  void registerCitationColumn().catch((e: unknown) => {
+    ztoolkit.logError(e);
+  });
+
   await new Promise((resolve) => {
     setTimeout(resolve, 500);
   });
@@ -112,6 +120,7 @@ async function onMainWindowUnload(_win: Window): Promise<void> {
 }
 
 function onShutdown(): void {
+  cleanupCitationColumn();
   restoreBanyanCORS();
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();

@@ -40,6 +40,7 @@ import {
   acquireStyleLock,
   withDocumentLock,
 } from "./documentLock";
+import { updateCitationColumnFromRefresh } from "../citedItemsSearch";
 export { restoreBanyanCORSPatch as restoreBanyanCORS };
 
 type EndpointData<P extends HttpPath> = RouteTable[P]["req"] extends never
@@ -812,6 +813,15 @@ function handleRefreshRequest(
 
       generateWithCallbacks(contexts, {
         resolve: ({ citations, bibliography }) => {
+          void updateCitationColumnFromRefresh(
+            {
+              documentId,
+              contexts,
+            },
+            { citations, bibliography },
+          ).catch((error) => {
+            ztoolkit.logError(error);
+          });
           finish(json(200, responseOk<"refresh">({ citations, bibliography })));
         },
         reject: finishWithError,

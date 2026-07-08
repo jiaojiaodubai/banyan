@@ -25,8 +25,11 @@ declare namespace _ZoteroTypes {
 
   interface CollectionTreeRow {
     id: string | number;
+    type?: string;
     ref: CollectionTreeRowRef;
-    getItems: () => Promise<Array<Zotero.Item>>;
+    getItems: (options?: {
+      unfiltered?: boolean;
+    }) => Promise<Array<Zotero.Item>>;
     setSearch?: (searchText: string, mode?: string) => void;
     clearCache?: () => void;
     isSearch?: () => boolean;
@@ -70,4 +73,10 @@ declare module "zotero/collectionTree" {
     ) => Promise<_ZoteroTypes.CollectionTree>;
   };
   export = CollectionTree;
+}
+
+declare namespace Zotero {
+  const CollectionTreeRow: {
+    prototype: _ZoteroTypes.CollectionTreeRow;
+  };
 }
