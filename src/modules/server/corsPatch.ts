@@ -124,7 +124,7 @@ export function enableBanyanCORS(options: CORSOptions): void {
     }
     headers["Access-Control-Allow-Methods"] = "POST, OPTIONS";
     headers["Access-Control-Allow-Headers"] =
-      "Content-Type, Zotero-Allowed-Request, X-Banyan-Client, X-Banyan-Token";
+      "Content-Type, Zotero-Allowed-Request, X-Banyan-Client";
     headers["Access-Control-Max-Age"] = "600";
 
     return originalGenerateResponse.call(this, status, headers, body);

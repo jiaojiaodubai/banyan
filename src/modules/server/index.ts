@@ -41,6 +41,7 @@ import {
   withDocumentLock,
 } from "./documentLock";
 import { updateCitationColumnFromRefresh } from "../citedItemsSearch";
+import { initializeHttpsProxy, stopHttpsProxy } from "./httpsProxy";
 export { restoreBanyanCORSPatch as restoreBanyanCORS };
 
 type EndpointData<P extends HttpPath> = RouteTable[P]["req"] extends never
@@ -72,16 +73,17 @@ type JsonEndpointCallbackHandler<P extends HttpPath> = (
   send: JsonEndpointCallback<P>,
 ) => void;
 
-const WPS_CONFIG_FILE = "Banyan-for-WPS-Config.cfg";
-const WPS_CONFIG_PORT_KEY = "port";
-const WPS_CONFIG_TOKEN_KEY = "token";
 const ROOT_PATH = "banyan";
 const MAIN_WINDOW_READY_TIMEOUT_MS = 5000;
+const ZOTERO_ALLOWED_REQUEST_HEADER = "zotero-allowed-request";
 const BANYAN_CLIENT_HEADER = "x-banyan-client";
-const BANYAN_TOKEN_HEADER = "x-banyan-token";
+const NATIVE_CLIENTS = new Set([
+  "Banyan for Agent",
+  "Banyan for Word VBA",
+  "Banyan for WPS",
+]);
 const PAIRABLE_ORIGIN_PATTERN =
   /^https?:\/\/(?:localhost|(?:\[[0-9a-f:.]+\])|[a-z0-9.-]+)(?::\d{1,5})?$/i;
-const SERVER_AUTH_TOKEN_PREF = "serverAuthToken";
 const TRUSTED_ORIGINS_PREF = "serverTrustedOrigins";
 const MAX_JSON_BODY_BYTES = 20 * 1024 * 1024;
 const RATE_LIMIT_WINDOW_MS = 10_000;
@@ -131,23 +133,7 @@ function isPairableOrigin(origin: string): boolean {
 function getClientName(headers: Record<string, string>): string {
   const raw = getHeader(headers, BANYAN_CLIENT_HEADER);
   const cleaned = raw.replace(/[^\w .:@/-]/g, "").trim();
-  return cleaned.slice(0, 80) || "Unknown client";
-}
-
-function getServerAuthToken(): string {
-  const current = getPref(SERVER_AUTH_TOKEN_PREF).trim();
-  if (current) {
-    return current;
-  }
-
-  const next = crypto.randomUUID();
-  setPref(SERVER_AUTH_TOKEN_PREF, next);
-  return next;
-}
-
-function hasValidServerAuthToken(headers: Record<string, string>): boolean {
-  const provided = getHeader(headers, BANYAN_TOKEN_HEADER);
-  return Boolean(provided && provided === getServerAuthToken());
+  return cleaned.slice(0, 80);
 }
 
 function loadTrustedOrigins(): TrustedOriginEntry[] {
@@ -299,23 +285,35 @@ function authorizeJsonEndpointRequest<P extends HttpPath>(
     return responseAuthError<P>(429, "Too many Banyan requests");
   }
 
-  if (hasValidServerAuthToken(headers)) {
-    return null;
+  if (getHeader(headers, ZOTERO_ALLOWED_REQUEST_HEADER) !== "1") {
+    return responseAuthError<P>(
+      403,
+      "Banyan endpoints require Zotero-Allowed-Request: 1",
+    );
+  }
+
+  const clientName = getClientName(headers);
+  if (!clientName) {
+    return responseAuthError<P>(
+      403,
+      "Banyan endpoints require X-Banyan-Client",
+    );
   }
 
   const origin = getRequestOrigin(headers);
-  if (!origin || origin === "null") {
-    return responseAuthError<P>(
-      403,
-      "Banyan endpoints require a trusted Origin or valid token",
-    );
+  if (!origin) {
+    if (NATIVE_CLIENTS.has(clientName)) {
+      return null;
+    }
+    return responseAuthError<P>(403, "Banyan native client is not allowed");
+  }
+
+  if (origin.toLowerCase() === "null") {
+    return responseAuthError<P>(403, "Banyan endpoints reject Origin: null");
   }
 
   if (!isPairableOrigin(origin)) {
-    return responseAuthError<P>(
-      403,
-      "Banyan endpoints require a valid token for this Origin",
-    );
+    return responseAuthError<P>(403, "Banyan Origin is not pairable");
   }
 
   const trusted = findTrustedOrigin(origin);
@@ -324,7 +322,6 @@ function authorizeJsonEndpointRequest<P extends HttpPath>(
     return null;
   }
 
-  const clientName = getClientName(headers);
   if (confirmUnknownOriginAccess(origin, clientName)) {
     return null;
   }
@@ -1087,21 +1084,20 @@ export function registerEndpoints(): void {
   });
 }
 
-/**
- * Saves the port configuration to WPS config file for external integrations
- */
-export async function savePortToConfigFile(port: number): Promise<void> {
+export async function initializeServer(): Promise<void> {
+  registerEndpoints();
+
   try {
-    const filePath = PathUtils.join(PathUtils.tempDir, WPS_CONFIG_FILE);
-    const token = getServerAuthToken();
-    const content = [
-      `${WPS_CONFIG_PORT_KEY}=${port}`,
-      `${WPS_CONFIG_TOKEN_KEY}=${token}`,
-    ].join("\n");
-    await IOUtils.writeUTF8(filePath, content);
-  } catch (e) {
-    ztoolkit.logError(e);
+    const httpPort = Number(Zotero.Prefs.get("httpServer.port"));
+    await initializeHttpsProxy(httpPort);
+  } catch (error) {
+    ztoolkit.logError(error);
   }
+}
+
+export function shutdownServer(): void {
+  stopHttpsProxy();
+  restoreBanyanCORSPatch();
 }
 
 /**

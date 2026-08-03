@@ -13,11 +13,7 @@ import {
 } from "./modules/citedItemsSearch";
 import { registerToolsMenu, registerContextMenu } from "./modules/menu";
 import { ensureStyleEditorRuntimeAssets } from "./modules/styleEditor";
-import {
-  registerEndpoints,
-  restoreBanyanCORS,
-  savePortToConfigFile,
-} from "./modules/server";
+import { initializeServer, shutdownServer } from "./modules/server";
 
 function registerAPIs(): void {
   addon.api.getStyleUI = async (style) => {
@@ -33,13 +29,11 @@ async function onStartup() {
     Zotero.uiReadyPromise,
   ]);
 
+  addon.data.ztoolkit = createZToolkit();
   registerAPIs();
   registerPrefs();
   registerItemPaneSection();
-  registerEndpoints();
-
-  // Save Zotero's HTTP server port to config file for external integrations
-  await saveZoteroServerPort();
+  await initializeServer();
 
   await ensureStyleEditorRuntimeAssets();
 
@@ -50,17 +44,6 @@ async function onStartup() {
   // Mark initialized as true to confirm plugin loading status
   // outside of the plugin (e.g. scaffold testing process)
   addon.data.initialized = true;
-}
-
-async function saveZoteroServerPort(): Promise<void> {
-  try {
-    const port = Number(Zotero.Prefs.get("httpServer.port"));
-    if (Number.isFinite(port) && port > 0) {
-      await savePortToConfigFile(port);
-    }
-  } catch (e) {
-    ztoolkit.logError(e);
-  }
 }
 
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
@@ -121,7 +104,7 @@ async function onMainWindowUnload(_win: Window): Promise<void> {
 
 function onShutdown(): void {
   cleanupCitationColumn();
-  restoreBanyanCORS();
+  shutdownServer();
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();
   // Remove addon object

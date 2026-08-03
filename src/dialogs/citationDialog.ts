@@ -298,17 +298,8 @@ async function initLibrary(): Promise<void> {
       return clone;
     });
 
-    collectionsView = await CollectionTree.init(
-      document.getElementById("zotero-collections-tree"),
-      {
-        onSelectionChange: () => {
-          void handleLibraryCollectionSelection();
-        },
-        hideSources: ["duplicates", "trash", "feeds"],
-        multiSelect: true,
-      },
-    );
-
+    // CollectionTree selects its initial row while loading, so ItemTree must
+    // already exist when the resulting selection callback runs.
     itemsView = await CollectionViewItemTree.init(
       document.getElementById("zotero-items-tree"),
       {
@@ -326,6 +317,20 @@ async function initLibrary(): Promise<void> {
         columns: itemColumns,
       },
     );
+
+    const initializedCollectionsView = await CollectionTree.init(
+      document.getElementById("zotero-collections-tree"),
+      {
+        onSelectionChange: handleLibraryCollectionSelection,
+        hideSources: ["duplicates", "trash", "feeds"],
+        multiSelect: true,
+      },
+    );
+    collectionsView = initializedCollectionsView;
+    initializedCollectionsView.itemTreeView = itemsView;
+    await new Promise<void>((resolve) => {
+      initializedCollectionsView.onLoad.addListener(resolve);
+    });
 
     bindItemsTreeSpaceToggle();
   } catch (e) {

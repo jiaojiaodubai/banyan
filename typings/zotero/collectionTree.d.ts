@@ -47,7 +47,7 @@ declare namespace _ZoteroTypes {
   }
 
   interface CollectionTreeInitOptions {
-    onSelectionChange: () => void;
+    onSelectionChange: () => void | Promise<void>;
     initialFolder?: string;
     dragAndDrop?: boolean;
     filterLibraryIDs?: number[];
@@ -56,9 +56,16 @@ declare namespace _ZoteroTypes {
     onContextMenu?: (...args: unknown[]) => void;
   }
 
+  interface CollectionTreeLoadEvent {
+    addListener: (listener: () => void, once?: boolean) => void;
+    removeListener: (listener: () => void) => void;
+  }
+
   interface CollectionTree {
     selection: TreeSelection;
     selectedTreeRow?: CollectionTreeRow;
+    itemTreeView: CollectionViewItemTree | null;
+    onLoad: CollectionTreeLoadEvent;
     getRow: (index: number) => CollectionTreeRow;
     selectByID?: (id: string, ensureRowVisible?: boolean) => Promise<boolean>;
     selectLibrary: (libraryID?: number) => Promise<void>;

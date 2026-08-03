@@ -11,8 +11,9 @@ declare namespace _ZoteroTypes {
       "styleEditorAssetsVersion": string;
       "citationDialogInitialCollectionMode": string;
       "citationDialogCollectionTreeWidth": number;
-      "serverAuthToken": string;
       "serverTrustedOrigins": string;
+      "httpsProxyEnabled": boolean;
+      "httpsProxyState": string;
       "debugLoggingEnabled": boolean;
       "debugLoggingModules": string;
       "debugLoggingDesktopAutoExport": boolean;

@@ -1,4 +1,5 @@
 import wpsAddinManifest from "../../addon/content/integration/WPS/addin-manifest.json";
+import { disableHttpsProxy, enableHttpsProxy } from "./server/httpsProxy";
 import { useL10n } from "../utils/locale";
 
 const { Subprocess } = ChromeUtils.importESModule(
@@ -1601,6 +1602,7 @@ export async function installWordAddin(): Promise<WordAddinInstallResult> {
         break;
       case "Darwin":
         manifestPath = await installWordAddinOnMac(addinId, manifestContent);
+        await enableHttpsProxy(Number(Zotero.Prefs.get("httpServer.port")));
         break;
       default:
         throw new Error(
@@ -1639,6 +1641,7 @@ export async function uninstallWordAddin(): Promise<WordAddinUninstallResult> {
         break;
       case "Darwin":
         removedPath = await removeWordAddinFromMac();
+        await disableHttpsProxy({ removeCertificate: true });
         target = "mac-wef";
         break;
       default:

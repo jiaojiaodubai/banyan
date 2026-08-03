@@ -15,11 +15,11 @@
 
 所有请求均需携带以下 HTTP 头：
 
-| 头名称            | 必须              | 说明                                                                                                                        |
-| ----------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `Content-Type`    | 是                | 固定为 `application/json`。                                                                                                 |
-| `X-Banyan-Client` | 是（除 `/hello`） | 客户端标识名，用于鉴权提示与速率限制。仅允许字母、数字、空格、`.`、`:`、`@`、`/`、`-`，截断至 80 字符。                     |
-| `X-Banyan-Token`  | 否                | 服务端鉴权令牌。提供有效令牌可跳过 Origin 信任检查。令牌存储于 `%TEMP%/Banyan-for-WPS-Config.cfg`（格式：`token=<uuid>`）。 |
+| 头名称                   | 必须              | 说明                                                                                                      |
+| ------------------------ | ----------------- | --------------------------------------------------------------------------------------------------------- |
+| `Content-Type`           | 是                | 固定为 `application/json`。                                                                               |
+| `Zotero-Allowed-Request` | 是（除 `/hello`） | 固定为 `1`。确保浏览器请求必须经过 CORS 预检，也是原生客户端协议标记。                                    |
+| `X-Banyan-Client`        | 是（除 `/hello`） | 客户端标识名，用于鉴权、提示与速率限制。仅允许字母、数字、空格、`.`、`:`、`@`、`/`、`-`，截断至 80 字符。 |
 
 ### CORS 与预检（Preflight）
 
@@ -27,7 +27,7 @@ Banyan 已为所有端点启用 CORS 支持。服务端响应会自动附加以�
 
 - `Access-Control-Allow-Origin`：回显请求的 `Origin`。
 - `Access-Control-Allow-Methods`：`POST, OPTIONS`。
-- `Access-Control-Allow-Headers`：`Content-Type, Zotero-Allowed-Request, X-Banyan-Client, X-Banyan-Token`。
+- `Access-Control-Allow-Headers`：`Content-Type, Zotero-Allowed-Request, X-Banyan-Client`。
 - `Access-Control-Max-Age`：`600`（10 分钟）。
 - `Vary`：`Origin`。
 
@@ -38,29 +38,22 @@ Banyan 已为所有端点启用 CORS 支持。服务端响应会自动附加以�
 除 `/banyan/hello` 为公开端点外，所有端点均需鉴权。鉴权按以下优先级进行：
 
 1. **速率限制**：按 `Origin + Path` 或 `X-Banyan-Client + Path` 计数，每 10 秒窗口最多 80 次请求。超限返回 `429`。
-2. **令牌鉴权**：若 `X-Banyan-Token` 与服务端令牌匹配，直接放行。
-3. **Origin 信任检查**：
-   - 无 `Origin` 或 `Origin: null` → 返回 `403`。
+2. **公共 Header 检查**：必须同时提供 `Zotero-Allowed-Request: 1` 和非空 `X-Banyan-Client`，否则返回 `403`。
+3. **无 Origin 的原生客户端**：仅允许内置白名单中的 `Banyan for Agent`、`Banyan for Word VBA`、`Banyan for WPS`，无需 Token 或用户配对。
+4. **有 Origin 的浏览器客户端**：
+   - `Origin: null` → 返回 `403`。
    - Origin 不可配对（非 `localhost`/IP/域名格式）→ 返回 `403`。
    - Origin 已在信任列表 → 放行，并更新最后访问时间。
    - Origin 可配对但未信任 → Zotero 弹出确认对话框，用户同意后加入信任列表并放行；拒绝则返回 `403`，且同一 Origin 60 秒内不再弹窗。
-4. 同一 Origin 被信任后，后续请求无需令牌即可直接访问。
 
-### WPS 集成配置
-
-Banyan 启动时会将端口与令牌写入 `%TEMP%/Banyan-for-WPS-Config.cfg`：
-
-```
-port=<端口号>
-token=<UUID 令牌>
-```
-
-外部集成（如 WPS 插件）读取该文件即可获取端口与鉴权令牌。
+集成应优先连接 Zotero HTTP Server 的标准端口 `23119`；仅在连接层失败时，回退到调试构建端口 `23124`。收到 HTTP 响应后不得因状态码或业务错误重放请求。需要使用其他端口时，应由客户端自身提供显式设置，不再通过共享临时文件发现端口或令牌。
 
 ### 快速示例
 
+以下示例用于具有正常 HTTP(S) Origin 的浏览器集成。首次请求会触发 Zotero 的 Origin 授权提示。无 Origin 的原生集成必须使用前述内置客户端名。
+
 ```ts
-async function addOrEditCitation(base: string, token?: string) {
+async function addOrEditCitation(base: string) {
   const payload = {
     style: { id: "your-style-id", title: "Your Style" },
     source: {
@@ -72,12 +65,9 @@ async function addOrEditCitation(base: string, token?: string) {
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "Zotero-Allowed-Request": "1",
     "X-Banyan-Client": "YourIntegrationName/1.0",
   };
-  // 若持有令牌（从 %TEMP%/Banyan-for-WPS-Config.cfg 读取），可跳过 Origin 信任弹窗
-  if (token) {
-    headers["X-Banyan-Token"] = token;
-  }
 
   const res = await fetch(`${base}/banyan/citation`, {
     method: "POST",
