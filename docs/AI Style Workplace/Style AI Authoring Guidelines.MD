@@ -30,7 +30,7 @@
 - `readBytes(relPath)`
 - `readJSON(relPath)`
 - `uuid()`
-- `getExtraValue(item, key)` 默认返回 `string`；显式调用 `getExtraValue(item, key, "array")` 时返回 `string[]`
+- `getExtraValue(item, key)` 默认返回 `string`；显式调用 `getExtraValue(item, key, "array")` 时返回 `string[]`；`item.extra` 的键已归一化为 kebab-case，`key` 需使用归一化后的形式
 - `getMultilingualItems(item)`
 - `getMultilingualItem(item, language)`
 

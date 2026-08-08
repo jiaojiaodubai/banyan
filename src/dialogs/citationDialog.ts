@@ -228,6 +228,9 @@ async function initCitationDialog(): Promise<void> {
             updateAcceptButton();
             refreshItemsHighlight();
           },
+          onDropItemIDs: (itemIDs, insertIndex) => {
+            addDraggedItemsToCitation(itemIDs, insertIndex);
+          },
         },
       );
     }
@@ -311,8 +314,8 @@ async function initLibrary(): Promise<void> {
         onContextMenu: (event: MouseEvent, x: number, y: number) => {
           showItemsTreeContextMenu(event, x, y);
         },
-        onActivate: () => {
-          void onItemsActivated();
+        onActivate: (_event: Event, items?: Zotero.Item[]) => {
+          void onItemsActivated(items);
         },
         columns: itemColumns,
       },
@@ -478,16 +481,25 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
-async function onItemsActivated() {
-  toggleSelectedItemsCommitState({ fallbackToFocusedItem: false });
+async function onItemsActivated(activatedItems?: Zotero.Item[]) {
+  toggleSelectedItemsCommitState({
+    explicitItems: activatedItems,
+    fallbackToFocusedItem: true,
+  });
   window.setTimeout(() => {
     bubbleInput?.focus();
   }, 5);
 }
 
 function getItemsTreeSelection(options?: {
+  explicitItems?: Zotero.Item[];
   fallbackToFocusedItem?: boolean;
 }): Zotero.Item[] {
+  const explicitItems = options?.explicitItems?.filter(Boolean) ?? [];
+  if (explicitItems.length) {
+    return explicitItems;
+  }
+
   if (!itemsView) return [];
   const selectedItems = itemsView.getSelectedItems?.() ?? [];
   if (selectedItems.length > 0 || !options?.fallbackToFocusedItem) {
@@ -504,7 +516,45 @@ function getItemsTreeSelection(options?: {
   return focusedItem ? [focusedItem] : [];
 }
 
+function addDraggedItemsToCitation(
+  itemIDs: number[],
+  insertIndex: number,
+): void {
+  if (!bubbleInput || !itemIDs.length) return;
+
+  const items = itemIDs
+    .map((itemID) => Zotero.Items.get(itemID))
+    .filter((item): item is Zotero.Item => Boolean(item));
+  if (!items.length) return;
+
+  const existingByID = new Set<number>();
+  for (const cite of bubbleInput.Cites) {
+    const id = getCiteItemID(cite);
+    if (id != null) {
+      existingByID.add(id);
+    }
+  }
+
+  let offset = 0;
+  for (const item of items) {
+    const cite = makeCiteFromZoteroItem(item);
+    const id = getCiteItemID(cite);
+    if (id == null || existingByID.has(id)) {
+      continue;
+    }
+
+    bubbleInput.addCite(cite, {
+      index: insertIndex + offset,
+      preserveSearch: true,
+      focusAfter: false,
+    });
+    existingByID.add(id);
+    offset++;
+  }
+}
+
 function toggleSelectedItemsCommitState(options?: {
+  explicitItems?: Zotero.Item[];
   fallbackToFocusedItem?: boolean;
 }): void {
   if (!itemsView || !bubbleInput) return;

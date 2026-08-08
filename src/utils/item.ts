@@ -1,6 +1,38 @@
 import type { ExtraMap, Item } from "../../typings/item";
 import type { ScriptItem } from "../../typings/style";
 
+type ItemFieldsBaseMapper = Pick<
+  _ZoteroTypes.ItemFields,
+  "getID" | "getBaseIDFromTypeAndField" | "getName"
+>;
+
+/**
+ * Normalize an extra-field key to canonical kebab-case.
+ *
+ * Digits are intentionally kept attached to letters (e.g. "date2" stays
+ * "date2") so numeric-suffixed keys like `date2` / `issue2` remain stable.
+ */
+export function normalizeExtraKey(value: unknown): string {
+  let text: string;
+  switch (typeof value) {
+    case "string":
+      text = value;
+      break;
+    case "number":
+    case "boolean":
+      text = String(value);
+      break;
+    default:
+      text = "";
+  }
+  return text
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)(?=[A-Z][a-z])/g, "$1 ")
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function parseExtra(extraText: string): ExtraMap {
   const out: ExtraMap = {};
   const text = typeof extraText === "string" ? extraText : "";
@@ -12,12 +44,7 @@ function parseExtra(extraText: string): ExtraMap {
     const idx = line.indexOf(":");
     if (idx <= 0) continue;
 
-    // normalize key to kebab-case (e.g., "My Key" -> "my-key")
-    const key = line
-      .slice(0, idx)
-      .replace(/[A-Z]/g, (c) => ` ${c.toLowerCase()}`)
-      .replace(/[\s_]/g, "-")
-      .trim();
+    const key = normalizeExtraKey(line.slice(0, idx));
     const value = line.slice(idx + 1).trim();
     if (!key) continue;
 
@@ -53,11 +80,55 @@ function stripExcludedFields(json: unknown): void {
   }
 }
 
+export function assignBaseFieldAliases(
+  itemType: string,
+  record: Record<string, unknown>,
+  itemFields: ItemFieldsBaseMapper = Zotero.ItemFields,
+): void {
+  for (const [field, value] of Object.entries(record)) {
+    if (typeof value !== "string" || !value) continue;
+
+    if (!itemFields.getID(field)) continue;
+
+    let baseFieldID: number | string | false;
+    try {
+      baseFieldID = itemFields.getBaseIDFromTypeAndField(itemType, field);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        /^Invalid field '.+'$/.test(error.message)
+      ) {
+        continue;
+      }
+      throw error;
+    }
+
+    if (!baseFieldID) continue;
+
+    const baseFieldName = itemFields.getName(baseFieldID);
+    if (
+      typeof baseFieldName !== "string" ||
+      !baseFieldName ||
+      baseFieldName === field
+    ) {
+      continue;
+    }
+
+    const existing = record[baseFieldName];
+    if (typeof existing === "string" && existing) {
+      continue;
+    }
+
+    record[baseFieldName] = value;
+  }
+}
+
 export function toBanyanItem(zoteroItem: Zotero.Item): Item {
   const json = (zoteroItem.toJSON?.() ?? {}) as Record<string, unknown>;
 
   // Keep Banyan item payload minimal for citation generation.
   stripExcludedFields(json);
+  assignBaseFieldAliases(String(json.itemType ?? ""), json);
 
   json.id = zoteroItem.id;
   json.uri = Zotero.URI.getItemURI(zoteroItem);

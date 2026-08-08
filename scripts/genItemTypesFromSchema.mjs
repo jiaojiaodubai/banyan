@@ -33,6 +33,11 @@ const EXCLUDED_FIELDS = new Set([
   "notes",
 ]);
 
+// Banyan normalizes canonical title/date aliases onto every regular item,
+// and styles commonly rely on them as shared fields. Other schema base fields
+// remain type-specific and should stay off ItemBase.
+const COMMON_ITEM_BASE_FIELDS = ["title", "date"];
+
 function uniq(arr) {
   return Array.from(new Set(arr));
 }
@@ -71,11 +76,10 @@ function extractFieldNames(typeDef) {
   const names = [];
   for (const f of rawFields) {
     if (!f || typeof f !== "object") continue;
-    // Prefer concrete field, but keep baseField if field absent
     const field = typeof f.field === "string" ? f.field : null;
     const baseField = typeof f.baseField === "string" ? f.baseField : null;
     if (field) names.push(field);
-    else if (baseField) names.push(baseField);
+    if (baseField) names.push(baseField);
   }
 
   // These are commonly present in toJSON but not guaranteed in schema fields.
@@ -162,8 +166,7 @@ export type ItemBase<T extends ItemType = ItemType> = {
   year?: string;
   firstCreator?: string;
 
-  title?: string;
-  date?: string;
+${formatStringProps(COMMON_ITEM_BASE_FIELDS)}
 
   /** Tags (list of tag names). */
   tags?: string[];
@@ -193,7 +196,16 @@ export type ItemBase<T extends ItemType = ItemType> = {
 
     const fields = extractFieldNames(def)
       // Common base fields already present on ItemBase
-      .filter((f) => !["id", "key", "uri", "title", "date", "extra", "tags", "relations", "creators"].includes(f))
+      .filter((f) => ![
+        "id",
+        "key",
+        "uri",
+        "extra",
+        "tags",
+        "relations",
+        "creators",
+        ...COMMON_ITEM_BASE_FIELDS,
+      ].includes(f))
       // Fields intentionally excluded from Banyan item typings
       .filter((f) => !EXCLUDED_FIELDS.has(f));
 

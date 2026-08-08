@@ -3,9 +3,18 @@ import type { UnitUtils } from "./unit";
 
 export type MultilingualLanguage = string | readonly string[];
 export type ExtraValueMode = "string" | "array";
+/**
+ * Extra-field key/value map. Keys are normalized to kebab-case at item
+ * conversion time (e.g. "My Key" / "AuthorID" become "my-key" / "author-id").
+ */
 export type ExtraValueItem = {
   readonly extra?: Readonly<Record<string, string | readonly string[]>>;
 };
+/**
+ * Read a value from `item.extra`. The `key` must be the normalized
+ * kebab-case form produced at item conversion time; query-time normalization
+ * is not performed.
+ */
 export type GetExtraValue = {
   (item: ExtraValueItem, key: string): string;
   (item: ExtraValueItem, key: string, mode: "string"): string;

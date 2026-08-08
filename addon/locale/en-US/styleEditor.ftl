@@ -15,6 +15,14 @@ style-editor-status-template = Template applied
 style-editor-open-invalid-file = Invalid or unreadable style file: { $path }
 style-editor-save-overwrite-indexed = A style index already exists with the same ID ({ $id }) ({ $title }). Overwrite it?
 style-editor-save-overwrite-file = Target file already exists: { $path }. Overwrite it?
+style-editor-external-change-detected = The style file changed outside the editor: { $path }
+  Keep local content, or reload external changes?
+style-editor-external-change-conflict = The style file changed outside the editor and local edits are unsaved: { $path }
+  Keep local content, or reload external changes and discard unsaved local edits?
+style-editor-btn-keep-local = Keep Local
+style-editor-btn-reload-external = Reload External
+style-editor-status-external-changed-keep-local = External change detected, local content kept: { $path }
+style-editor-status-external-changed-reloaded = External change reloaded from disk: { $path }
 style-editor-status-style-required-for-citation = Load or write valid style/template code before adding or editing citations
 style-editor-editor-hint =
   1. Use the "File" menu to load a template or style.

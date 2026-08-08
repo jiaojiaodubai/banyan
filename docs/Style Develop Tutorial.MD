@@ -313,7 +313,7 @@ Bnayan 还提供了其他实用的工具：
 
 文件读取不设置大小硬限制；建议只读取来源明确、格式固定、已经预清洗的小型数据文件，避免把过大的文本、JSON 或二进制内容一次性读入。
 
-- `getExtraValue(item, key, mode)`：读取条目的 `item.extra` 字段中的值，返回字符串。可选参数 `mode` 指定为 `"array"` 时返回字符串数组。
+- `getExtraValue(item, key, mode)`：读取条目的 `item.extra` 字段中的值，返回字符串。可选参数 `mode` 指定为 `"array"` 时返回字符串数组。`item.extra` 的键在条目转换时统一归一化为 kebab-case（如 `My Key`/`AuthorID` → `my-key`/`author-id`），`key` 需使用归一化后的形式。
 - `debug(...values)`：脚本被执行的时候在 Zotero 控制台中打印调试信息。
 - `safeRecord(object)`：返回一个只读对象，取不存在的属性时返回空字符串 `""`，而不是 `undefined`。
 - `safeString(value)`：返回一个字符串，字符串和数字返回字面值，其他返回空字符串 `""`。

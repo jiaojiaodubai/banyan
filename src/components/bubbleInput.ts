@@ -11,6 +11,7 @@ export interface BubbleInputDelegate {
   onSearch: (query: string) => void;
   onCitesChanged: (cites: Cite[]) => void;
   onConfirm?: () => void;
+  onDropItemIDs?: (itemIDs: number[], insertIndex: number) => void;
 }
 
 export class BubbleInput {
@@ -124,7 +125,8 @@ export class BubbleInput {
     // Drop-to-end support: if user drops on empty space inside the bubble input,
     // move the dragged bubble to the end.
     this.body.addEventListener("dragover", (e: DragEvent) => {
-      if (this.draggingBubbleIndex == null) return;
+      const draggedItemIDs = this.getDraggedItemIDs(e.dataTransfer);
+      if (this.draggingBubbleIndex == null && !draggedItemIDs.length) return;
       e.preventDefault();
 
       // If dragging over empty area (not directly over a bubble), show the
@@ -144,14 +146,18 @@ export class BubbleInput {
       }
 
       try {
-        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect =
+            this.draggingBubbleIndex == null ? "copy" : "move";
+        }
       } catch {
         // ignore
       }
     });
 
     this.body.addEventListener("drop", (e: DragEvent) => {
-      if (this.draggingBubbleIndex == null) return;
+      const draggedItemIDs = this.getDraggedItemIDs(e.dataTransfer);
+      if (this.draggingBubbleIndex == null && !draggedItemIDs.length) return;
       // If dropping directly on a bubble, that bubble handler will run.
       const path = (e.composedPath?.() ?? []) as unknown[];
       const droppedOnBubble = path.some(
@@ -162,7 +168,15 @@ export class BubbleInput {
       e.preventDefault();
       e.stopPropagation();
 
+      if (draggedItemIDs.length) {
+        const insertIndex = this.getDropInsertIndex(e.clientX, e.clientY);
+        this.delegate.onDropItemIDs?.(draggedItemIDs, insertIndex);
+        this.hideGapIndicator("drop");
+        return;
+      }
+
       const from = this.draggingBubbleIndex;
+      if (from == null) return;
       const to = this.cites.length - 1;
       this.moveCite(from, to);
       this.clearDragState();
@@ -735,6 +749,42 @@ export class BubbleInput {
     return last;
   }
 
+  private getDropInsertIndex(x: number, y: number): number {
+    for (let index = 0; index < this.bubbleElements.length; index++) {
+      const bubble = this.bubbleElements[index];
+      const rect = bubble.getBoundingClientRect();
+      const isWithinY = y >= rect.top && y <= rect.bottom;
+      if (!isWithinY) {
+        continue;
+      }
+      return x <= rect.left + rect.width / 2 ? index : index + 1;
+    }
+
+    const lastBubble = this.getLastBubbleBeforePoint(x, y);
+    if (!lastBubble) {
+      return 0;
+    }
+
+    const bubbleIndex = this.getBubbleElements().indexOf(lastBubble);
+    return bubbleIndex < 0 ? this.cites.length : bubbleIndex + 1;
+  }
+
+  private getDraggedItemIDs(dataTransfer: DataTransfer | null): number[] {
+    if (!dataTransfer) {
+      return [];
+    }
+
+    const raw = dataTransfer.getData("zotero/item");
+    if (!raw) {
+      return [];
+    }
+
+    return raw
+      .split(",")
+      .map((value) => Number.parseInt(value, 10))
+      .filter((value) => Number.isFinite(value));
+  }
+
   private getFirstCreator(item: Item): string {
     const creator = item.creators?.[0];
     if (!creator) return "";
@@ -811,6 +861,11 @@ export class BubbleInput {
     });
 
     bubble.addEventListener("dragover", (e: DragEvent) => {
+      const draggedItemIDs = this.getDraggedItemIDs(e.dataTransfer);
+      if (this.draggingBubbleIndex == null && !draggedItemIDs.length) {
+        return;
+      }
+
       // Must preventDefault to allow dropping.
       e.preventDefault();
       e.stopPropagation();
@@ -826,17 +881,33 @@ export class BubbleInput {
       this.showDropIndicatorFor(index, this.dragOverInsertAfter);
 
       try {
-        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect =
+            this.draggingBubbleIndex == null ? "copy" : "move";
+        }
       } catch {
         // ignore
       }
     });
 
     bubble.addEventListener("drop", (e: DragEvent) => {
+      const draggedItemIDs = this.getDraggedItemIDs(e.dataTransfer);
+      if (this.draggingBubbleIndex == null && !draggedItemIDs.length) {
+        return;
+      }
+
       e.preventDefault();
       e.stopPropagation();
       const idx = this.dragOverBubbleIndex;
       if (idx == null) return;
+
+      if (draggedItemIDs.length) {
+        const insertIndex = this.dragOverInsertAfter ? idx + 1 : idx;
+        this.delegate.onDropItemIDs?.(draggedItemIDs, insertIndex);
+        this.hideGapIndicator("drop");
+        return;
+      }
+
       this.handleBubbleDrop(idx, this.dragOverInsertAfter);
       this.clearDragState();
     });

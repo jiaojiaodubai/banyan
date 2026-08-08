@@ -15,6 +15,14 @@ style-editor-status-template = 已应用模板
 style-editor-open-invalid-file = 文件不合法或无法读取：{ $path }
 style-editor-save-overwrite-indexed = 已存在相同 ID（{ $id }）的样式索引（{ $title }）。是否覆盖？
 style-editor-save-overwrite-file = 目标文件已存在：{ $path }。是否覆盖？
+style-editor-external-change-detected = 样式文件已在编辑器外部更改：{ $path }
+  保留本地内容，还是重新载入外部更改？
+style-editor-external-change-conflict = 样式文件已在编辑器外部更改，且本地有未保存修改：{ $path }
+  保留本地内容，还是重新载入外部更改并丢弃未保存本地修改？
+style-editor-btn-keep-local = 保留本地
+style-editor-btn-reload-external = 重新载入外部更改
+style-editor-status-external-changed-keep-local = 已检测到外部更改，保留本地内容：{ $path }
+style-editor-status-external-changed-reloaded = 已从磁盘重新载入外部更改：{ $path }
 style-editor-status-style-required-for-citation = 请先载入或编写有效的样式/模板代码，再添加或编辑引注
 style-editor-editor-hint =
   1. 使用顶部菜单中的“文件”载入模板或样式。

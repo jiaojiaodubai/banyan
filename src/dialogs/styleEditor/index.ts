@@ -152,6 +152,11 @@ let citationRows: CitationRow[] = [];
 let selectedCitationRowId: string | null = null;
 let outputViewMode: OutputViewMode = "help";
 let citationRowsTableHelper: VirtualizedTableHelper | null = null;
+let openedStylePath: string | null = null;
+let editorPersistedCode = "";
+let ignoredExternalDiskCode: string | null = null;
+let suppressEditorModelChangeHook = false;
+let externalChangeCheckInFlight = false;
 
 type DataStyleMenuItem = {
   title: string;
@@ -280,6 +285,7 @@ async function initStyleEditor(): Promise<void> {
   await initMenuPlaceholders();
   bindActions();
   bindShortcuts();
+  bindExternalStyleChangeWatcher();
   initCitationRowsInput();
   bindViewMenuStateSync();
   bindPaneResizer();
@@ -358,6 +364,9 @@ async function initMonaco(): Promise<void> {
 
   const model = editor.getModel();
   model?.onDidChangeContent?.(() => {
+    if (!suppressEditorModelChangeHook) {
+      ignoredExternalDiskCode = null;
+    }
     updateEditorEmptyState();
     if (lintTimer !== null) {
       window.clearTimeout(lintTimer);
@@ -1537,7 +1546,7 @@ async function handleMenuAction(action: string): Promise<void> {
     return;
   }
 
-  ztoolkit.log(`[style-editor menu] ${action}`);
+  ztoolkit.log(`[style-editor:menu] unhandled action: ${action}`);
 }
 
 async function runRuntimeAction(action: string): Promise<void> {
@@ -1720,7 +1729,7 @@ function runEditMenuAction(action: string): void {
     }
   }
 
-  ztoolkit.log(`[style-editor menu] unsupported edit action: ${action}`);
+  ztoolkit.log(`[style-editor:menu] unsupported edit action: ${action}`);
 }
 
 function triggerEditorAction(commandId: string): boolean {
@@ -1898,7 +1907,8 @@ function bindPaneResizer(): void {
 function onNewStyle(): void {
   if (!editor) return;
   lintStdinFilename = DEFAULT_LINT_STDIN_FILENAME;
-  editor.setValue("");
+  applyEditorValue("");
+  markEditorPersistedState("", undefined);
   citationRows = [createCitationRow()];
   selectedCitationRowId = citationRows[0].id;
   void renderCitationRowsTable();
@@ -1928,9 +1938,108 @@ async function openStyleFromPath(fullPath: string): Promise<void> {
 function applyLoadedCode(code: string, sourcePath?: string): void {
   if (!editor) return;
   lintStdinFilename = normalizeLintStdinFilename(sourcePath);
-  editor.setValue(code);
+  applyEditorValue(code);
+  markEditorPersistedState(code, sourcePath);
   setOutputMode("preview");
   renderPreviewPlaceholder();
+}
+
+function applyEditorValue(code: string): void {
+  if (!editor) return;
+  suppressEditorModelChangeHook = true;
+  editor.setValue(code);
+  suppressEditorModelChangeHook = false;
+}
+
+function markEditorPersistedState(code: string, sourcePath?: string): void {
+  editorPersistedCode = code;
+  openedStylePath = sourcePath ? String(sourcePath) : null;
+  ignoredExternalDiskCode = null;
+}
+
+function hasUnsavedEditorChanges(): boolean {
+  if (!editor) return false;
+  return editor.getValue() !== editorPersistedCode;
+}
+
+function bindExternalStyleChangeWatcher(): void {
+  window.addEventListener("focus", () => {
+    void checkExternalStyleChanges();
+  });
+}
+
+async function checkExternalStyleChanges(): Promise<void> {
+  if (!editor || !openedStylePath || externalChangeCheckInFlight) {
+    return;
+  }
+
+  externalChangeCheckInFlight = true;
+  try {
+    const diskCode = await IOUtils.readUTF8(openedStylePath).catch(
+      () => null as string | null,
+    );
+    if (diskCode === null || diskCode === editorPersistedCode) {
+      return;
+    }
+
+    if (ignoredExternalDiskCode && ignoredExternalDiskCode === diskCode) {
+      return;
+    }
+
+    const keepLocal = promptExternalStyleChangeDecision(
+      openedStylePath,
+      hasUnsavedEditorChanges(),
+    );
+    if (keepLocal) {
+      ignoredExternalDiskCode = diskCode;
+      setStatus(
+        t("style-editor-status-external-changed-keep-local", {
+          args: { path: openedStylePath },
+        }),
+      );
+      return;
+    }
+
+    applyLoadedCode(diskCode, openedStylePath);
+    setStatus(
+      t("style-editor-status-external-changed-reloaded", {
+        args: { path: openedStylePath },
+      }),
+    );
+  } finally {
+    externalChangeCheckInFlight = false;
+  }
+}
+
+function promptExternalStyleChangeDecision(
+  path: string,
+  hasUnsavedLocalChanges: boolean,
+): boolean {
+  const promptSvc = Services.prompt;
+  const title = addon.data.config.addonName;
+  const message = hasUnsavedLocalChanges
+    ? t("style-editor-external-change-conflict", { args: { path } })
+    : t("style-editor-external-change-detected", { args: { path } });
+
+  const buttonPos0 = promptSvc.BUTTON_POS_0 ?? 0;
+  const buttonPos1 = promptSvc.BUTTON_POS_1 ?? 0;
+  const buttonTitleIsString = promptSvc.BUTTON_TITLE_IS_STRING ?? 0;
+  const flags =
+    buttonPos0 * buttonTitleIsString + buttonPos1 * buttonTitleIsString;
+
+  const idx = promptSvc.confirmEx(
+    window as unknown as mozIDOMWindowProxy,
+    title,
+    message,
+    flags,
+    t("style-editor-btn-keep-local"),
+    t("style-editor-btn-reload-external"),
+    "",
+    "",
+    { value: false },
+  );
+
+  return idx === 0;
 }
 
 function normalizeLintStdinFilename(sourcePath?: string): string {
@@ -2067,7 +2176,7 @@ async function runLint(): Promise<void> {
   const output = await runESLint(code);
   if (currentRunId !== lintRunId) {
     ztoolkit.log(
-      `[style-editor lint] stale lint result ignored: runId=${currentRunId}, latest=${lintRunId}`,
+      `[style-editor:lint] stale lint result ignored (run=${currentRunId}, latest=${lintRunId})`,
     );
     return;
   }
@@ -2111,7 +2220,7 @@ async function runESLint(code: string): Promise<ESLintResult[] | null> {
 
     lastFailureMessage = attempt.errorMessage;
     ztoolkit.log(
-      `[style-editor lint] strategy failed (${strategy.reason}): ${attempt.errorMessage}`,
+      `[style-editor:lint] strategy failed (${strategy.reason}): ${attempt.errorMessage}`,
     );
   }
   return buildESLintExecutionErrorResult(lastFailureMessage);
@@ -2158,10 +2267,6 @@ async function runESLintWithStrategy(options: {
     lintStdinFilename,
   ];
 
-  ztoolkit.log(
-    `[style-editor lint] trying strategy=${strategy.reason}, command=${strategy.commandPath}, --stdin-filename=${lintStdinFilename}`,
-  );
-
   let proc: SubprocessProcess | undefined;
   try {
     proc = await Subprocess.call({
@@ -2185,11 +2290,11 @@ async function runESLintWithStrategy(options: {
         : getSubprocessExitCode(proc);
 
     ztoolkit.log(
-      `[style-editor lint] strategy=${strategy.reason} finished: exitCode=${String(exitCode)}, stdoutLength=${stdout.length}, stderrLength=${stderr.length}`,
+      `[style-editor:lint] strategy=${strategy.reason} command=${strategy.commandPath} finished: exitCode=${String(exitCode)}, stdoutLength=${stdout.length}, stderrLength=${stderr.length}`,
     );
 
     if (stderr.trim()) {
-      ztoolkit.log(`[style-editor lint] subprocess stderr: ${stderr}`);
+      ztoolkit.log(`[style-editor:lint] subprocess stderr: ${stderr}`);
     }
 
     if (!stdout.trim()) {
@@ -2206,7 +2311,7 @@ async function runESLintWithStrategy(options: {
       };
     } catch (parseError) {
       const parseErrorText = getErrorDebugString(parseError);
-      ztoolkit.log(`[style-editor lint] JSON parse error: ${parseErrorText}`);
+      ztoolkit.log(`[style-editor:lint] JSON parse error: ${parseErrorText}`);
       return {
         ok: false,
         errorMessage: `Failed to parse ESLint JSON output: ${parseErrorText}.${stderr.trim() ? ` stderr: ${stderr.trim()}` : ""}`,
@@ -2275,9 +2380,6 @@ function buildESLintExecutionErrorResult(message: string): ESLintResult[] {
 
 async function getESLintConfigPath(): Promise<string | null> {
   if (eslintConfigPathCache !== undefined) {
-    ztoolkit.log(
-      `[style-editor lint] using cached ESLint config path: ${eslintConfigPathCache}`,
-    );
     return eslintConfigPathCache;
   }
 
@@ -2296,10 +2398,6 @@ async function getESLintConfigPath(): Promise<string | null> {
     const hasConfig = await IOUtils.exists(configPath);
     const hasPlugin = await IOUtils.exists(pluginPath);
     const hasGlobals = await IOUtils.exists(globalsPath);
-
-    ztoolkit.log(
-      `[style-editor lint] enforcing data-dir ESLint assets only: configPath=${configPath}, pluginPath=${pluginPath}, globalsPath=${globalsPath}`,
-    );
 
     if ((!hasConfig || !hasPlugin || !hasGlobals) && styleEditorAssets) {
       await IOUtils.makeDirectory(banyanDir, {
@@ -2321,13 +2419,7 @@ async function getESLintConfigPath(): Promise<string | null> {
       }
     }
 
-    ztoolkit.log(
-      `[style-editor lint] data-dir ESLint assets: configExists=${await IOUtils.exists(configPath)}, pluginExists=${await IOUtils.exists(pluginPath)}, globalsExists=${await IOUtils.exists(globalsPath)}`,
-    );
-
-    ztoolkit.log(
-      `[style-editor lint] using data-dir ESLint config: ${configPath}`,
-    );
+    ztoolkit.log(`[style-editor:lint] using ESLint config: ${configPath}`);
     eslintConfigPathCache = configPath;
     return configPath;
   } catch (e) {
@@ -2377,9 +2469,6 @@ function lintItemsToModelMarkers(items: LintItem[]): MonacoMarker[] {
 
 async function getESLintCommandCandidates(): Promise<string[] | null> {
   if (eslintCommandCandidatesCache !== undefined) {
-    ztoolkit.log(
-      `[style-editor lint] using cached ESLint command candidates: ${JSON.stringify(eslintCommandCandidatesCache)}`,
-    );
     return eslintCommandCandidatesCache;
   }
 
@@ -2392,12 +2481,6 @@ async function getESLintCommandCandidates(): Promise<string[] | null> {
       Zotero.isWin ? IOUtils.exists(windowsCmdPath) : Promise.resolve(false),
     ]);
 
-    if (Zotero.isWin) {
-      ztoolkit.log(
-        `[style-editor lint] windows ESLint shim probe: scaffoldPath=${scaffoldDefaultPath} exists=${String(scaffoldExists)}, cmdPath=${windowsCmdPath} exists=${String(cmdExists)}`,
-      );
-    }
-
     const candidates: string[] = [];
     if (Zotero.isWin && cmdExists) {
       candidates.push(windowsCmdPath);
@@ -2409,7 +2492,7 @@ async function getESLintCommandCandidates(): Promise<string[] | null> {
     if (candidates.length > 0) {
       eslintCommandCandidatesCache = candidates;
       ztoolkit.log(
-        `[style-editor lint] using ESLint command candidates: ${JSON.stringify(candidates)}`,
+        `[style-editor:lint] using ESLint command: ${JSON.stringify(candidates)}`,
       );
       return candidates;
     }
@@ -2706,38 +2789,20 @@ async function refreshPreview(): Promise<void> {
   clearPreviewDebugLogs();
 
   try {
-    ztoolkit.log("[style-editor preview] refreshPreview start");
     const style = await createStyle(editorRef.getValue(), {
       debugSink: recordPreviewDebugLog,
     });
 
     const contexts = await createPreviewContexts();
-    logPreviewContextsDebug(contexts);
 
-    let citations: unknown;
-    let bibliography: unknown;
-    try {
-      const result = await style.generate(contexts);
-      citations = result.citations;
-      bibliography = result.bibliography;
-    } catch (e) {
-      ztoolkit.log("[style-editor preview] generate failed", {
-        error: String(e),
-      });
-      throw e;
-    }
+    const result = await style.generate(contexts);
 
-    ztoolkit.log("[style-editor preview] refreshPreview success", {
-      citationsIsArray: Array.isArray(citations),
-      citationsLength: Array.isArray(citations) ? citations.length : -1,
-      bibliographyIsArray: Array.isArray(bibliography),
-      bibliographyLength: Array.isArray(bibliography)
-        ? bibliography.length
-        : -1,
-    });
-
-    const safeCitations = Array.isArray(citations) ? citations : [];
-    const safeBibliography = Array.isArray(bibliography) ? bibliography : [];
+    const safeCitations = Array.isArray(result.citations)
+      ? result.citations
+      : [];
+    const safeBibliography = Array.isArray(result.bibliography)
+      ? result.bibliography
+      : [];
     renderPreview(safeCitations, safeBibliography);
     setStatus(t("style-editor-status-ready"));
   } catch (e) {
@@ -2745,9 +2810,9 @@ async function refreshPreview(): Promise<void> {
       errorPrefix: t("style-editor-error-prefix"),
     });
     ztoolkit.logError(e);
-    ztoolkit.log("[style-editor preview] refreshPreview failed", {
-      error: formattedError.summary,
-    });
+    ztoolkit.log(
+      `[style-editor:preview] refresh failed: ${formattedError.summary}`,
+    );
     renderPreviewError(formattedError);
     setStatus(`${t("style-editor-error-prefix")}: ${formattedError.summary}`);
   }
@@ -2785,37 +2850,6 @@ function renderPreviewDebugSection(container: HTMLElement): void {
   }
 }
 
-function logPreviewContextsDebug(contexts: CitationContext[]): void {
-  try {
-    const summary = contexts.map((ctx) => {
-      const rawCites = ctx.cites;
-      const firstCite =
-        Array.isArray(rawCites) && rawCites.length > 0 ? rawCites[0] : null;
-      const firstItem = firstCite?.item;
-      return {
-        id: ctx.id,
-        page: ctx.page,
-        citesIsArray: Array.isArray(rawCites),
-        citesTag: Object.prototype.toString.call(rawCites),
-        citesLength: Array.isArray(rawCites) ? rawCites.length : -1,
-        citesMapType: typeof rawCites?.map,
-        firstItemTag: firstItem
-          ? Object.prototype.toString.call(firstItem)
-          : "(none)",
-        firstItemKeys: firstItem
-          ? Object.keys(firstItem as Record<string, unknown>).slice(0, 8)
-          : [],
-      };
-    });
-
-    ztoolkit.log("[style-editor preview] contexts summary", summary);
-  } catch (e) {
-    ztoolkit.log("[style-editor preview] contexts summary failed", {
-      error: String(e),
-    });
-  }
-}
-
 async function createPreviewContexts(): Promise<CitationContext[]> {
   const contexts: CitationContext[] = [];
   for (const row of citationRows) {
@@ -2839,6 +2873,37 @@ async function createPreviewContexts(): Promise<CitationContext[]> {
 
 function toPreviewRichText(input: unknown): RichText {
   return normalizeRichText(input) ?? emptyRichText();
+}
+
+/**
+ * Resolve a note citation's inline reference for the preview.
+ *
+ * Convention: when a note citation omits `reference` (empty text), the host
+ * (e.g. Word) maintains the marker itself — footnotes default to Arabic
+ * numerals starting from 1. Mirror that behavior in the preview by
+ * auto-assigning the next number as a superscript marker.
+ */
+function toNoteReferenceRichText(
+  input: unknown,
+  autoNumber: { value: number },
+): RichText {
+  const reference = toPreviewRichText(input);
+  if (reference.text.length > 0) {
+    return reference;
+  }
+  const marker = String(autoNumber.value);
+  autoNumber.value += 1;
+  return {
+    text: marker,
+    marks: [
+      {
+        type: "script",
+        start: 0,
+        end: marker.length,
+        value: "superscript",
+      },
+    ],
+  };
 }
 
 function getStringRecordValue(
@@ -2905,6 +2970,7 @@ function renderPreview(citations: unknown[], bibliography: unknown[]): void {
     empty.textContent = t("style-editor-empty-citations");
     container.appendChild(empty);
   } else {
+    const autoNoteReference = { value: 1 };
     for (const citation of citations) {
       const citationRecord =
         citation && typeof citation === "object"
@@ -2919,7 +2985,12 @@ function renderPreview(citations: unknown[], bibliography: unknown[]): void {
         const referenceRow = document.createElement("div");
         referenceRow.className = "preview-line preview-note-reference";
         referenceRow.appendChild(
-          renderPreviewRichText(toPreviewRichText(citationRecord.reference)),
+          renderPreviewRichText(
+            toNoteReferenceRichText(
+              citationRecord.reference,
+              autoNoteReference,
+            ),
+          ),
         );
         container.appendChild(referenceRow);
 
@@ -3053,8 +3124,9 @@ async function saveStyle(): Promise<void> {
     const updatedCode = updateStyleCodeUpdatedTimestamp(code);
     await saveStyleCodeById(id, updatedCode);
     if (updatedCode !== code) {
-      editor.setValue(updatedCode);
+      applyEditorValue(updatedCode);
     }
+    markEditorPersistedState(updatedCode, fullPath);
 
     await loadStyles(true);
     setStatus(t("style-editor-status-saved", { args: { path: fullPath } }));

@@ -319,12 +319,6 @@ function runtimeGetExtraValue(
         return "";
     }
   };
-  const normalizeKey = (value: unknown): string =>
-    safeString(value)
-      .replace(/[A-Z]/g, (char) => ` ${char.toLowerCase()}`)
-      .replace(/[\s_]/g, "-")
-      .trim();
-
   const source =
     item && typeof item === "object"
       ? (item as Record<string, unknown>).extra
@@ -333,13 +327,7 @@ function runtimeGetExtraValue(
     source && typeof source === "object"
       ? (source as Record<string, unknown>)
       : {};
-  const rawKey = safeString(key);
-  const normalizedKey = normalizeKey(rawKey);
-  const value =
-    extra[rawKey] ??
-    (normalizedKey && normalizedKey !== rawKey
-      ? extra[normalizedKey]
-      : undefined);
+  const value = extra[safeString(key)];
 
   if (mode === "array") {
     if (value === undefined) {
