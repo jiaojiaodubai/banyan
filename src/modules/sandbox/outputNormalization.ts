@@ -385,7 +385,7 @@ function compileOutputGroup(unit: GroupUnit): InternalTextUnit[] {
 
 function compileOutputAffix(unit: AffixUnit): InternalTextUnit[] {
   const blocks = compileOutputUnit(unit.unit);
-  if (blocks.length === 0) {
+  if (!hasVisualText(blocks)) {
     return [];
   }
 

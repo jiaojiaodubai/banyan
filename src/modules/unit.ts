@@ -127,7 +127,7 @@ function compileGroup(unit: GroupUnit): RichTextRun[] {
 function compileAffix(unit: AffixUnit): RichTextRun[] {
   const { unit: mainUnit, prefix, suffix } = unit;
   const blocks = compileTextRuns(mainUnit);
-  if (blocks.length === 0) {
+  if (!hasVisualText(blocks)) {
     return [];
   }
   const result: RichTextRun[] = [];

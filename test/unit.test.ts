@@ -21,6 +21,10 @@ describe("unit helpers", function () {
       marks: [],
     });
     assert.deepEqual(compile(affix("", "(", ")")), { text: "", marks: [] });
+    assert.deepEqual(compile(affix(text(""), "(", ")")), {
+      text: "",
+      marks: [],
+    });
   });
 
   it("uses fallback and when to choose the first visible branch", function () {

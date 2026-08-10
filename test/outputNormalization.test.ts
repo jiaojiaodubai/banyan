@@ -81,6 +81,38 @@ describe("generate output normalization", function () {
     ]);
   });
 
+  it("drops affixes when the main unit has no visible text", function () {
+    const bibliography = [
+      {
+        id: "empty-string",
+        type: "bibliography-entry",
+        content: { type: "affix", unit: "", prefix: "(", suffix: ")" },
+      },
+      {
+        id: "empty-text-unit",
+        type: "bibliography-entry",
+        content: {
+          type: "affix",
+          unit: { value: "" },
+          prefix: "(",
+          suffix: ")",
+        },
+      },
+    ] as unknown[];
+
+    const result = normalizeGenerateResult(
+      { citations: [], bibliography },
+      contexts,
+      "Test Style",
+      "intext-citation",
+    );
+
+    assert.deepEqual(result.bibliography, [
+      { id: "empty-string", type: "bibliography-entry", content: rich("") },
+      { id: "empty-text-unit", type: "bibliography-entry", content: rich("") },
+    ]);
+  });
+
   it("rejects top-level Unit arrays to keep the script contract explicit", function () {
     assert.throws(
       () =>
