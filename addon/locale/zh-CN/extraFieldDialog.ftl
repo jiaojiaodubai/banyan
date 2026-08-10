@@ -1,0 +1,15 @@
+extra-field-dialog-title = 写入其他字段
+extra-field-form-label = 字段与取值
+extra-field-key-preset-custom = 自定义
+extra-field-key-preset-type = 类型（Type）
+extra-field-key-preset-genre = 体裁（Genre）
+extra-field-key-preset-status = 状态（Status）
+extra-field-key-placeholder = 字段名（key）
+extra-field-value-placeholder = 字段值（value）
+extra-field-item-count-single = 将写入到当前选中的 1 个条目。
+extra-field-item-count-multiple = 将写入到当前选中的 { $count } 个条目。
+extra-field-accept = 确定
+extra-field-cancel = 取消
+extra-field-error-key-required = 请输入字段名。
+extra-field-error-value-required = 请输入字段值。
+extra-field-error-title = 无法写入其他字段

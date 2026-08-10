@@ -1,0 +1,15 @@
+extra-field-dialog-title = Write Extra Field
+extra-field-form-label = Field and Value
+extra-field-key-preset-custom = Custom
+extra-field-key-preset-type = Type
+extra-field-key-preset-genre = Genre
+extra-field-key-preset-status = Status
+extra-field-key-placeholder = Field key
+extra-field-value-placeholder = Field value
+extra-field-item-count-single = This will be written to the 1 selected item.
+extra-field-item-count-multiple = This will be written to the { $count } selected items.
+extra-field-accept = OK
+extra-field-cancel = Cancel
+extra-field-error-key-required = Please enter a field key.
+extra-field-error-value-required = Please enter a field value.
+extra-field-error-title = Cannot Write Extra Field

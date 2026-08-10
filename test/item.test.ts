@@ -1,5 +1,11 @@
 import { assert } from "chai";
-import { assignBaseFieldAliases, normalizeExtraKey } from "../src/utils/item";
+import type { Item } from "../typings/item";
+import {
+  assignBaseFieldAliases,
+  getItemDisplayLabel,
+  normalizeExtraKey,
+  toTitleCaseExtraKey,
+} from "../src/utils/item";
 
 describe("item utils", function () {
   describe("normalizeExtraKey", function () {
@@ -59,6 +65,89 @@ describe("item utils", function () {
       assert.equal(normalizeExtraKey(null), "");
       assert.equal(normalizeExtraKey(undefined), "");
       assert.equal(normalizeExtraKey({}), "");
+    });
+  });
+
+  describe("toTitleCaseExtraKey", function () {
+    it("capitalizes simple keys", function () {
+      assert.equal(toTitleCaseExtraKey("type"), "Type");
+      assert.equal(toTitleCaseExtraKey("genre"), "Genre");
+      assert.equal(toTitleCaseExtraKey("status"), "Status");
+      assert.equal(toTitleCaseExtraKey("date2"), "Date2");
+    });
+
+    it("converts kebab / snake / space forms to title case", function () {
+      assert.equal(toTitleCaseExtraKey("citation-key"), "Citation Key");
+      assert.equal(toTitleCaseExtraKey("my_key"), "My Key");
+      assert.equal(
+        toTitleCaseExtraKey("  leading  trailing  "),
+        "Leading Trailing",
+      );
+    });
+
+    it("splits camelCase / PascalCase", function () {
+      assert.equal(toTitleCaseExtraKey("authorID"), "Author ID");
+      assert.equal(toTitleCaseExtraKey("AuthorID"), "Author ID");
+      assert.equal(toTitleCaseExtraKey("getHTTPResponse"), "Get HTTP Response");
+    });
+
+    it("preserves existing acronyms", function () {
+      assert.equal(toTitleCaseExtraKey("DOI"), "DOI");
+      // "arXiv": the internal "rX" boundary must not be split into "Ar Xiv"
+      assert.equal(toTitleCaseExtraKey("arXiv"), "ArXiv");
+      assert.equal(toTitleCaseExtraKey("CNKICite"), "CNKI Cite");
+    });
+
+    it("is idempotent", function () {
+      const sample = "authorID_2";
+      assert.equal(
+        toTitleCaseExtraKey(toTitleCaseExtraKey(sample)),
+        toTitleCaseExtraKey(sample),
+      );
+    });
+  });
+
+  describe("getItemDisplayLabel", function () {
+    it("prefers first creator last name with date", function () {
+      const item = {
+        creators: [
+          { creatorType: "author", firstName: "Jane", lastName: "Doe" },
+        ],
+        date: "2024",
+        title: "Example Title",
+      } as unknown as Item;
+
+      assert.equal(getItemDisplayLabel(item), "Doe, 2024");
+    });
+
+    it("uses single-name creator with date", function () {
+      const item = {
+        creators: [{ creatorType: "author", name: "ACME Corp" }],
+        date: "2023",
+      } as unknown as Item;
+
+      assert.equal(getItemDisplayLabel(item), "ACME Corp, 2023");
+    });
+
+    it("falls back to title when no creator or date", function () {
+      const item = { title: "Example Title" } as unknown as Item;
+
+      assert.equal(getItemDisplayLabel(item), "Example Title");
+    });
+
+    it("shows creator when date is missing", function () {
+      const item = {
+        creators: [
+          { creatorType: "author", firstName: "Jane", lastName: "Doe" },
+        ],
+        title: "Example Title",
+      } as unknown as Item;
+
+      assert.equal(getItemDisplayLabel(item), "Doe");
+    });
+
+    it("falls back to Untitled for empty item", function () {
+      assert.equal(getItemDisplayLabel({} as unknown as Item), "Untitled");
     });
   });
 

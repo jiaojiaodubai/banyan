@@ -33,6 +33,42 @@ export function normalizeExtraKey(value: unknown): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/**
+ * Convert an extra-field key to Zotero's preferred title-case form for
+ * writing into the `extra` field (e.g. `Type`, `Genre`, `Status`,
+ * `Citation Key`). Matching/comparison should still go through
+ * `normalizeExtraKey()` (lowercase kebab-case).
+ *
+ * Existing capitals (e.g. acronyms like `DOI`, `arXiv`) are preserved.
+ */
+export function toTitleCaseExtraKey(value: unknown): string {
+  let text: string;
+  switch (typeof value) {
+    case "string":
+      text = value;
+      break;
+    case "number":
+    case "boolean":
+      text = String(value);
+      break;
+    default:
+      text = "";
+  }
+  return (
+    text
+      // Split camelCase / PascalCase boundaries: "authorID" -> "author ID".
+      // Only split when the uppercase letter starts an acronym (not followed
+      // by lowercase), so words like "arXiv" are left intact.
+      .replace(/([a-z0-9])([A-Z])(?=[^a-z]|$)/g, "$1 $2")
+      .replace(/([A-Z]+)(?=[A-Z][a-z])/g, "$1 ")
+      // Normalize separators (spaces, hyphens, underscores) to single spaces
+      .replace(/[\s_-]+/g, " ")
+      .trim()
+      // Capitalize the first letter of each word, preserving the rest
+      .replace(/\b[a-z]/g, (ch) => ch.toUpperCase())
+  );
+}
+
 function parseExtra(extraText: string): ExtraMap {
   const out: ExtraMap = {};
   const text = typeof extraText === "string" ? extraText : "";
@@ -181,4 +217,33 @@ export function isBanyanItem(value: unknown): value is Item | ScriptItem {
 export function getItemFieldText(item: Item, field: string): string {
   const v = item[field];
   return typeof v === "string" ? v : "";
+}
+
+export function getItemFirstCreatorName(item: Item): string {
+  const creator = item.creators?.[0];
+  if (!creator) {
+    return "";
+  }
+  if ("lastName" in creator && creator.lastName) {
+    return creator.lastName;
+  }
+  if ("name" in creator && creator.name) {
+    return creator.name;
+  }
+  return "";
+}
+
+/**
+ * User-friendly display label for an item, matching the citation dialog
+ * bubble: first creator's name plus date when available, falling back to
+ * the item title (or "Untitled").
+ */
+export function getItemDisplayLabel(item: Item): string {
+  const creator = getItemFirstCreatorName(item);
+  const date = typeof item.date === "string" && item.date ? item.date : "";
+  const label = [creator, date].filter(Boolean).join(", ");
+  if (label) {
+    return label;
+  }
+  return typeof item.title === "string" && item.title ? item.title : "Untitled";
 }

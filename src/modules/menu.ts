@@ -2,7 +2,11 @@ import { relateItems } from "./relations";
 import { useL10n } from "../utils/locale";
 import { openStyleEditorWindow } from "./styleEditor";
 import { openDialogWindow } from "./server";
-import { toBanyanItem } from "../utils/item";
+import {
+  normalizeExtraKey,
+  toBanyanItem,
+  toTitleCaseExtraKey,
+} from "../utils/item";
 import { getStyle } from "./styles";
 import {
   renderBibliographyLineToHtml,
@@ -48,6 +52,36 @@ type LegacyFilePicker = {
   file: { path: string };
 };
 
+type ExtraFieldDialogResult = {
+  key: string;
+  value: string;
+};
+
+type ConflictAction = "skip" | "overwrite" | "cancel";
+
+type ConflictDecision = {
+  action: ConflictAction;
+  applyToRemaining: boolean;
+};
+
+type ParsedExtraLine = {
+  raw: string;
+  normalizedKey: string | null;
+  value: string;
+};
+
+function showSimpleMessage(message: string): void {
+  new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+    closeOnClick: true,
+    closeTime: 4500,
+  })
+    .createLine({
+      text: message,
+      type: "default",
+    })
+    .show();
+}
+
 /**
  * Register menu items in Tools menu
  */
@@ -89,6 +123,20 @@ export function registerContextMenu() {
       },
       {
         tag: "menuitem",
+        label: t("menuitem-write-extra-field"),
+        isHidden: () => {
+          const pane = Zotero.getActiveZoteroPane();
+          const items = pane
+            .getSelectedItems()
+            .filter((item) => item.isRegularItem());
+          return !pane.canEdit() || items.length === 0;
+        },
+        commandListener: () => {
+          void openWriteExtraFieldDialog();
+        },
+      },
+      {
+        tag: "menuitem",
         label: t("menuitem-relate-items"),
         isHidden: () => {
           const pane = Zotero.getActiveZoteroPane();
@@ -107,6 +155,232 @@ export function registerContextMenu() {
       },
     ],
   });
+}
+
+async function openWriteExtraFieldDialog(): Promise<void> {
+  const pane = Zotero.getActiveZoteroPane();
+  const selectedItems = pane
+    .getSelectedItems()
+    .filter((item) => item.isRegularItem());
+
+  if (selectedItems.length === 0) {
+    return;
+  }
+
+  return new Promise((resolve) => {
+    const io = {
+      itemCount: selectedItems.length,
+      result: null as ExtraFieldDialogResult | null,
+      deferred: {
+        promise: Promise.resolve(),
+        resolve: async () => {
+          if (io.result) {
+            try {
+              await batchWriteExtraField(selectedItems, io.result);
+            } catch (e) {
+              ztoolkit.logError(e);
+              showSimpleMessage(
+                t("extra-field-write-failed", {
+                  args: {
+                    message: e instanceof Error ? e.message : String(e),
+                  },
+                }),
+              );
+            }
+          }
+          resolve();
+        },
+      },
+    };
+
+    openDialogWindow(
+      `chrome://${addon.data.config.addonRef}/content/extraFieldDialog.xhtml`,
+      "modal,resizable=no",
+      io,
+    );
+  });
+}
+
+async function batchWriteExtraField(
+  items: Zotero.Item[],
+  payload: ExtraFieldDialogResult,
+): Promise<void> {
+  // Write keys in Zotero's preferred title-case form (e.g. "Type",
+  // "Citation Key"); matching still uses the lowercase kebab normalization.
+  const writeKey = toTitleCaseExtraKey(payload.key);
+  const value = payload.value;
+  const normalizedKey = normalizeExtraKey(writeKey);
+  if (!normalizedKey) {
+    showSimpleMessage(t("extra-field-error-invalid-key"));
+    return;
+  }
+
+  let autoAction: Exclude<ConflictAction, "cancel"> | null = null;
+  let updatedCount = 0;
+  let skippedCount = 0;
+  let aborted = false;
+
+  for (const item of items) {
+    const originalExtra = String(item.getField("extra") || "");
+    const analysis = analyzeExtraField(originalExtra, normalizedKey);
+
+    if (analysis.values.length > 0) {
+      let action: ConflictAction;
+      if (autoAction) {
+        action = autoAction;
+      } else {
+        const decision = promptExtraConflict(item, writeKey, analysis.values);
+        if (decision.action === "cancel") {
+          aborted = true;
+          break;
+        }
+        if (decision.applyToRemaining) {
+          autoAction = decision.action;
+        }
+        action = decision.action;
+      }
+
+      if (action === "skip") {
+        skippedCount++;
+        continue;
+      }
+    }
+
+    const nextExtra = mergeExtraField(
+      originalExtra,
+      writeKey,
+      normalizedKey,
+      value,
+    );
+
+    if (nextExtra === originalExtra) {
+      skippedCount++;
+      continue;
+    }
+
+    item.setField("extra", nextExtra);
+    await item.saveTx();
+    updatedCount++;
+  }
+
+  showSimpleMessage(
+    t("extra-field-write-summary", {
+      args: {
+        updated: updatedCount,
+        skipped: skippedCount,
+        aborted: aborted ? 1 : 0,
+      },
+    }),
+  );
+}
+
+function analyzeExtraField(
+  extraText: string,
+  normalizedKey: string,
+): {
+  values: string[];
+} {
+  const parsed = parseExtraLines(extraText);
+  const values = parsed
+    .filter((line) => line.normalizedKey === normalizedKey)
+    .map((line) => line.value);
+  return { values };
+}
+
+function parseExtraLines(extraText: string): ParsedExtraLine[] {
+  return extraText.split(/\r?\n/).map((raw) => {
+    const index = raw.indexOf(":");
+    if (index <= 0) {
+      return {
+        raw,
+        normalizedKey: null,
+        value: "",
+      };
+    }
+
+    const key = raw.slice(0, index).trim();
+    return {
+      raw,
+      normalizedKey: normalizeExtraKey(key),
+      value: raw.slice(index + 1).trim(),
+    };
+  });
+}
+
+function mergeExtraField(
+  extraText: string,
+  writeKey: string,
+  normalizedKey: string,
+  value: string,
+): string {
+  const newline = extraText.includes("\r\n") ? "\r\n" : "\n";
+  const lines = extraText ? extraText.split(/\r?\n/) : [];
+  const parsed = parseExtraLines(extraText);
+  const newLine = `${writeKey}: ${value}`;
+
+  const firstMatchIndex = parsed.findIndex(
+    (line) => line.normalizedKey === normalizedKey,
+  );
+
+  if (firstMatchIndex === -1) {
+    if (lines.length === 0) {
+      return newLine;
+    }
+    return [...lines, newLine].join(newline);
+  }
+
+  let replaced = false;
+  const out: string[] = [];
+  for (let i = 0; i < parsed.length; i++) {
+    if (parsed[i].normalizedKey !== normalizedKey) {
+      out.push(parsed[i].raw);
+      continue;
+    }
+
+    if (!replaced) {
+      out.push(newLine);
+      replaced = true;
+    }
+  }
+  return out.join(newline);
+}
+
+function promptExtraConflict(
+  item: Zotero.Item,
+  writeKey: string,
+  existingValues: string[],
+): ConflictDecision {
+  const checkState = { value: false };
+  const itemLabel =
+    String(item.getField("title") || "").trim() ||
+    String(item.getDisplayTitle?.() || "").trim() ||
+    item.key;
+  const existingText = existingValues.join("; ");
+
+  const selected = Zotero.Prompt.confirm({
+    window: Zotero.getMainWindow(),
+    title: t("extra-field-conflict-title"),
+    text: t("extra-field-conflict-message", {
+      args: {
+        item: itemLabel,
+        key: writeKey,
+        existing: existingText,
+      },
+    }),
+    button0: t("extra-field-conflict-skip"),
+    button1: t("extra-field-conflict-overwrite"),
+    button2: Zotero.Prompt.BUTTON_TITLE_CANCEL,
+    checkLabel: t("extra-field-conflict-apply-to-remaining"),
+    checkbox: checkState,
+  });
+
+  if (selected === 0) {
+    return { action: "skip", applyToRemaining: checkState.value };
+  }
+  if (selected === 1) {
+    return { action: "overwrite", applyToRemaining: checkState.value };
+  }
+  return { action: "cancel", applyToRemaining: false };
 }
 
 /**
@@ -142,7 +416,7 @@ async function openCreateOutputDialog(): Promise<void> {
               await generateAndOutputResult(items, io.result);
             } catch (e) {
               ztoolkit.logError(e);
-              ztoolkit.getGlobal("alert")(
+              showSimpleMessage(
                 `Failed to generate output: ${e instanceof Error ? e.message : String(e)}`,
               );
             }

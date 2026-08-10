@@ -1,5 +1,6 @@
 import type { Cite, CiteStyleComponent } from "../../typings/style";
 import type { Item } from "../../typings/item";
+import { getItemDisplayLabel } from "../utils/item";
 import { useL10n } from "../utils/locale";
 
 type XULCheckboxElement = Element & { checked: boolean };
@@ -785,17 +786,6 @@ export class BubbleInput {
       .filter((value) => Number.isFinite(value));
   }
 
-  private getFirstCreator(item: Item): string {
-    const creator = item.creators?.[0];
-    if (!creator) return "";
-    if ("lastName" in creator && creator.lastName) {
-      return creator.lastName;
-    } else if ("name" in creator && creator.name) {
-      return creator.name;
-    }
-    return "";
-  }
-
   private createBubble(cite: Cite, bubbleIndex: number): HTMLElement {
     const bubble = document.createElement("div");
     bubble.classList.add("bubble");
@@ -803,18 +793,14 @@ export class BubbleInput {
     bubble.tabIndex = 0;
     bubble.draggable = true;
     bubble.dataset.bubbleIndex = String(bubbleIndex);
-    const title = cite.item.title || "Untitled";
-    const creator = this.getFirstCreator(cite.item);
-    const date = cite.item.date;
-
-    const label = [creator, date].filter(Boolean).join(", ");
-    // If we have no author/year label, fall back to title. Long titles get middle-ellipsized.
-    const displayTitle = this.elideMiddle(String(title), 60);
+    // Author/date label with title fallback (same as style editor input).
+    const label = getItemDisplayLabel(cite.item);
+    const displayLabel = this.elideMiddle(label, 60);
     const text = document.createElement("span");
     text.classList.add("bubble-text");
-    text.textContent = label ? `${label}` : displayTitle;
+    text.textContent = displayLabel;
     bubble.replaceChildren(text);
-    bubble.title = title;
+    bubble.title = cite.item.title || "Untitled";
 
     bubble.addEventListener("click", (e) => {
       e.stopPropagation();

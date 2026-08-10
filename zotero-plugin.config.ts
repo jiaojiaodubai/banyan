@@ -55,6 +55,10 @@ export default defineConfig({
             in: "src/dialogs/createOutputDialog.ts",
             out: "createOutputDialog",
           },
+          {
+            in: "src/dialogs/extraFieldDialog.ts",
+            out: "extraFieldDialog",
+          },
         ],
         define: {
           __env__: `"${process.env.NODE_ENV}"`,

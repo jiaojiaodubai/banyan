@@ -17,6 +17,7 @@ import { renderRichTextToFragment } from "../../utils/richTextHtml";
 import { emptyRichText, normalizeRichText } from "../../utils/richText";
 import { useL10n } from "../../utils/locale";
 import { parseBanyanEntryLink } from "../../utils/html";
+import { getItemDisplayLabel } from "../../utils/item";
 import { updateStyleCodeUpdatedTimestamp } from "../../utils/styleUpdated";
 import {
   ensureDataDir,
@@ -960,14 +961,9 @@ function getCitationCitesSummaryText(cites: Cite[]): string {
   if (!cites.length) {
     return "";
   }
-  return cites
-    .map((cite) => {
-      const item = cite.item;
-      const creator = String(item?.firstCreator || "Unknown");
-      const year = String(item?.year || "n.d.");
-      return `${creator}-${year}`;
-    })
-    .join("; ");
+  // Same user-friendly label as the citation dialog bubble:
+  // author-date with title fallback.
+  return cites.map((cite) => getItemDisplayLabel(cite.item)).join("; ");
 }
 
 function renderCitationCitesCell(

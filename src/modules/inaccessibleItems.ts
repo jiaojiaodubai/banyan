@@ -118,8 +118,7 @@ export async function showInaccessibleItemsDialog(
     ztoolkit.logError(e);
   }
   const result = Zotero.Prompt.confirm({
-    // @ts-expect-error parentWindow is a Window from Zotero.getMainWindow() but Prompt expects mozIDOMWindowProxy
-    window: parentWindow ?? undefined,
+    window: parentWindow,
     title: "Inaccessible Items Detected",
     text: message,
     button0: "Import Items",

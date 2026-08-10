@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<html
+  id="banyan-extra-field-dialog"
+  persist="screenX screenY width height sizemode"
+  xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+  resizable="true"
+>
+  <head>
+    <title data-l10n-id="extra-field-dialog-title"></title>
+    <link rel="localization" href="zotero.ftl" />
+    <link rel="localization" href="__addonRef__-extraFieldDialog.ftl" />
+
+    <link rel="stylesheet" href="chrome://global/skin/global.css" />
+    <link rel="stylesheet" href="chrome://zotero/skin/zotero.css" />
+    <link rel="stylesheet" href="chrome://zotero/skin/overlay.css" />
+    <link rel="stylesheet" href="chrome://zotero-platform/content/zotero.css" />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/extraFieldDialog.css"
+    />
+
+    <script src="chrome://zotero/content/include.js"></script>
+    <script src="chrome://zotero/content/customElements.js"></script>
+    <script src="chrome://zotero/content/titlebar.js"></script>
+    <script>
+      const addon = Zotero.__addonInstance__;
+      const ztoolkit = addon.data.ztoolkit;
+    </script>
+    <script src="chrome://__addonRef__/content/scripts/extraFieldDialog.js"></script>
+  </head>
+  <body>
+    <div class="dialog-container">
+      <div id="item-count-info" class="info-row"></div>
+
+      <div class="form-row form-row-stack">
+        <label
+          for="key-preset-select"
+          data-l10n-id="extra-field-form-label"
+        ></label>
+        <select id="key-preset-select">
+          <option
+            value="custom"
+            data-l10n-id="extra-field-key-preset-custom"
+          ></option>
+          <option
+            value="type"
+            data-l10n-id="extra-field-key-preset-type"
+          ></option>
+          <option
+            value="genre"
+            data-l10n-id="extra-field-key-preset-genre"
+          ></option>
+          <option
+            value="status"
+            data-l10n-id="extra-field-key-preset-status"
+          ></option>
+        </select>
+        <input
+          id="key-input"
+          type="text"
+          data-l10n-id="extra-field-key-placeholder"
+          data-l10n-attrs="placeholder"
+        />
+        <input
+          id="value-input"
+          type="text"
+          data-l10n-id="extra-field-value-placeholder"
+          data-l10n-attrs="placeholder"
+        />
+      </div>
+    </div>
+    <footer>
+      <button
+        id="cancel-button"
+        type="button"
+        data-l10n-id="extra-field-cancel"
+      ></button>
+      <button
+        id="accept-button"
+        type="button"
+        data-l10n-id="extra-field-accept"
+        default="true"
+      ></button>
+    </footer>
+  </body>
+</html>

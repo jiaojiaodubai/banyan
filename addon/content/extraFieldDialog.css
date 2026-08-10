@@ -1,0 +1,81 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--zotero-font-family, system-ui, sans-serif);
+  font-size: var(--zotero-font-size, 13px);
+  background-color: var(--material-background, Field);
+  color: var(--fill-primary, FieldText);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-width: 420px;
+}
+
+.dialog-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+/* Top descriptive text, matching native Zotero dialog <description> */
+.info-row {
+  margin: 0;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-row-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+/* Field label, styled like a native Zotero dialog label (not a heading) */
+.form-row-stack > label {
+  margin: 0;
+}
+
+#key-preset-select,
+#key-input,
+#value-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  background-color: var(--material-background, Field);
+  color: var(--fill-primary, FieldText);
+  border: 1px solid var(--fill-quinary, ButtonBorder);
+  border-radius: 4px;
+}
+
+#key-input:disabled {
+  opacity: 0.75;
+}
+
+footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--fill-quinary, ButtonBorder);
+  background-color: var(--material-sidepane, Field);
+}
+
+footer button {
+  min-width: 80px;
+  padding: 4px 14px;
+  cursor: pointer;
+}
+
+footer button[default="true"] {
+  font-weight: 600;
+}

@@ -2,7 +2,7 @@ declare namespace Zotero {
   type PromptButtonTitle = string | number;
 
   type PromptConfirmOptions = {
-    window?: mozIDOMWindowProxy | null;
+    window?: Window | null;
     title: string;
     text: string;
     button0?: PromptButtonTitle;
