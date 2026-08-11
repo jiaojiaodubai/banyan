@@ -86,6 +86,10 @@ type CitationComponentBase = ComponentBase;
 type CiteComponentBase = ComponentBase & {
   // If provided, this control is only shown for matched item types.
   itemType?: ItemType[];
+  // If provided, this control is only shown for matched CSL `type` in item.extra.
+  // Empty string is a valid matcher and means `item.extra.type` is missing/blank.
+  // A single string (e.g. "book" or "") is treated the same as ["book"] or [""].
+  cslType?: string | string[];
 };
 
 type CheckboxComponent = {

@@ -1177,10 +1177,39 @@ export class BubbleInput {
     item: Item,
   ): boolean {
     const allowedTypes = component.itemType;
-    if (!allowedTypes?.length) {
+    if (allowedTypes?.length && !allowedTypes.includes(item.itemType)) {
+      return false;
+    }
+
+    const allowedCslTypes = component.cslType;
+    if (!allowedCslTypes?.length) {
       return true;
     }
-    return allowedTypes.includes(item.itemType);
+
+    const itemCslTypes = this.getItemCslTypes(item);
+    if (!itemCslTypes.length) {
+      return false;
+    }
+    return allowedCslTypes.some((type) => itemCslTypes.includes(type));
+  }
+
+  private getItemCslTypes(item: Item): string[] {
+    const raw = item.extra?.type;
+    if (typeof raw === "string") {
+      const value = raw.trim().toLowerCase();
+      return value ? [value] : [""];
+    }
+    if (Array.isArray(raw)) {
+      const normalized = raw
+        .map((value) =>
+          String(value ?? "")
+            .trim()
+            .toLowerCase(),
+        )
+        .filter((value, index, array) => array.indexOf(value) === index);
+      return normalized.length ? normalized : [""];
+    }
+    return [""];
   }
 
   private closePopup() {

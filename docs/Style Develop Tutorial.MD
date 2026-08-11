@@ -171,6 +171,10 @@ const UI = {
 
 对于 `cite` 属性中定义的控件，还可以携带 `itemType` 属性，它的值是一个 [Zotero 条目类型](https://www.zotero.org/support/kb/item_types_and_fields)组成的数组，使控件仅在指定的条目类型下可见。
 
+也可以携带 `cslType` 属性，它的值是一个字符串数组，会与条目 `extra` 中的 `type` 字段进行匹配（不区分大小写），只有命中时控件才可见。数组中的空字符串 `""` 是有效值，表示匹配“`type` 未填写或为空”。
+
+`itemType` 和 `cslType` 同时存在时需要同时满足（AND 关系）。
+
 `type` 属性取不同的值时，相应可取的组件属性不同：
 
 - `checkbox`：`value` 属性表示控件的默认值，默认为 `false`。`r`n- `select`：`options` 属性是一个对象，对象中的键是选项的 ID，值是选项的标签。`value` 属性取其中一个键表示默认选中的选项。- `input`：`value` 属性表示控件的默认值，默认为空字符串。

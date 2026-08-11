@@ -42,10 +42,26 @@ export function normalizeComponents(
             .filter(Boolean)
         : undefined;
 
+    const cslTypeSource =
+      scope !== "cite"
+        ? undefined
+        : Array.isArray(itemRecord.cslType)
+          ? itemRecord.cslType
+          : typeof itemRecord.cslType === "string"
+            ? [itemRecord.cslType]
+            : undefined;
+
+    const cslType = cslTypeSource?.map((v: unknown) =>
+      String(v ?? "")
+        .trim()
+        .toLowerCase(),
+    );
+
     const componentBase = {
       id,
       label,
       ...(scope === "cite" && itemType?.length ? { itemType } : {}),
+      ...(scope === "cite" && cslType?.length ? { cslType } : {}),
     };
 
     let cloned: CiteStyleComponent | CitationStyleComponent;

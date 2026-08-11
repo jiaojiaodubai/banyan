@@ -112,6 +112,7 @@
       "  value: ${3:false},",
       "  disabled: ${4:false},",
       "  itemType: [\"${5:book}\"],",
+      "  cslType: [\"${6:book}\"],",
       "},",
       "$0"
     ]
@@ -131,6 +132,7 @@
       "  },",
       "  disabled: ${8:false},",
       "  itemType: [\"${9:manuscript}\"],",
+      "  cslType: [\"${10:manuscript}\"],",
       "},",
       "$0"
     ]
@@ -146,6 +148,7 @@
       "  value: \"${3:}\",",
       "  disabled: ${4:false},",
       "  itemType: [\"${5:book}\"],",
+      "  cslType: [\"${6:book}\"],",
       "},",
       "$0"
     ]

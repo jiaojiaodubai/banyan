@@ -79,7 +79,7 @@ describe("style UI component normalization", function () {
     ]);
   });
 
-  it("keeps itemType constraints only for cite-scoped controls", function () {
+  it("keeps itemType/cslType constraints only for cite-scoped controls", function () {
     const citeResult = normalizeComponents(
       [
         {
@@ -88,6 +88,7 @@ describe("style UI component normalization", function () {
           label: "Locator",
           value: "",
           itemType: ["book", "", "journalArticle"],
+          cslType: ["BOOK", "", "manuscript"],
         },
       ],
       {},
@@ -101,6 +102,7 @@ describe("style UI component normalization", function () {
           label: "Sort By",
           value: "cite",
           itemType: ["book"],
+          cslType: ["book"],
         },
       ],
       {},
@@ -112,12 +114,90 @@ describe("style UI component normalization", function () {
         id: "locator",
         label: "Locator",
         itemType: ["book", "journalArticle"],
+        cslType: ["book", "", "manuscript"],
         type: "input",
         value: "",
       },
     ]);
     assert.deepEqual(citationResult, [
       { id: "sortBy", label: "Sort By", type: "input", value: "cite" },
+    ]);
+  });
+
+  it("keeps explicit empty string in cslType constraints", function () {
+    const result = normalizeComponents(
+      [
+        {
+          id: "locatorType",
+          type: "select",
+          label: "Locator Type",
+          value: "",
+          options: { none: "None", page: "Page" },
+          cslType: ["", "book"],
+        },
+      ],
+      {},
+      "cite",
+    );
+
+    assert.deepEqual(result, [
+      {
+        id: "locatorType",
+        label: "Locator Type",
+        cslType: ["", "book"],
+        type: "select",
+        value: "none",
+        options: { none: "None", page: "Page" },
+      },
+    ]);
+  });
+
+  it("treats string cslType as shorthand for single-item array", function () {
+    const emptyResult = normalizeComponents(
+      [
+        {
+          id: "emptyOnly",
+          type: "input",
+          label: "Empty Only",
+          value: "",
+          cslType: "",
+        },
+      ],
+      {},
+      "cite",
+    );
+
+    const textResult = normalizeComponents(
+      [
+        {
+          id: "bookOnly",
+          type: "input",
+          label: "Book Only",
+          value: "",
+          cslType: "Book",
+        },
+      ],
+      {},
+      "cite",
+    );
+
+    assert.deepEqual(emptyResult, [
+      {
+        id: "emptyOnly",
+        label: "Empty Only",
+        cslType: [""],
+        type: "input",
+        value: "",
+      },
+    ]);
+    assert.deepEqual(textResult, [
+      {
+        id: "bookOnly",
+        label: "Book Only",
+        cslType: ["book"],
+        type: "input",
+        value: "",
+      },
     ]);
   });
 });
