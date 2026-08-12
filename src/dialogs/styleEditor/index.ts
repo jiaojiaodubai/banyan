@@ -17,7 +17,7 @@ import { renderRichTextToFragment } from "../../utils/richTextHtml";
 import { emptyRichText, normalizeRichText } from "../../utils/richText";
 import { useL10n } from "../../utils/locale";
 import { parseBanyanEntryLink } from "../../utils/html";
-import { getItemDisplayLabel } from "../../utils/item";
+import { getItemDisplayLabel, syncCitesWithLiveItems } from "../../utils/item";
 import { updateStyleCodeUpdatedTimestamp } from "../../utils/styleUpdated";
 import {
   ensureDataDir,
@@ -822,12 +822,17 @@ function addCitationRow(options?: { render?: boolean }): string {
 
 async function addCitationRowAndOpenDialog(): Promise<void> {
   const rowId = addCitationRow({ render: false });
-  await openCitationDialogForRow(rowId);
+  const committed = await openCitationDialogForRow(rowId);
+  if (!committed) {
+    // The dialog did not produce valid citation data (e.g. it was closed
+    // early or left empty), so do not keep the placeholder row.
+    removeCitationRow(rowId);
+  }
+  void renderCitationRowsTable();
 }
 
-function removeSelectedCitationRow(): void {
-  if (!selectedCitationRowId) return;
-  const index = citationRows.findIndex((r) => r.id === selectedCitationRowId);
+function removeCitationRow(rowId: string): void {
+  const index = citationRows.findIndex((r) => r.id === rowId);
   if (index < 0) return;
 
   citationRows.splice(index, 1);
@@ -836,6 +841,11 @@ function removeSelectedCitationRow(): void {
   } else {
     selectedCitationRowId = citationRows[Math.max(0, index - 1)]?.id ?? null;
   }
+}
+
+function removeSelectedCitationRow(): void {
+  if (!selectedCitationRowId) return;
+  removeCitationRow(selectedCitationRowId);
   void renderCitationRowsTable();
 }
 
@@ -983,12 +993,6 @@ function renderCitationCitesCell(
   return cell;
 }
 
-function hasPendingEmptyCitationRow(): boolean {
-  return citationRows.some(
-    (row) => getCitationSourceCites(row.source).length === 0,
-  );
-}
-
 function setToolbarButtonDisabled(
   button: HTMLButtonElement | null,
   disabled: boolean,
@@ -999,21 +1003,6 @@ function setToolbarButtonDisabled(
 
   button.disabled = disabled;
   button.toggleAttribute("disabled", disabled);
-}
-
-function setCitationRowButtonTooltip(
-  button: HTMLButtonElement | null,
-  defaultTooltipKey: string,
-  blockedByPendingEmptyRow: boolean,
-): void {
-  if (!button) {
-    return;
-  }
-
-  const tooltipKey = blockedByPendingEmptyRow
-    ? "style-editor-input-fill-empty-cites-tooltip"
-    : defaultTooltipKey;
-  button.setAttribute("title", t(tooltipKey));
 }
 
 function updateCitationRowButtons(): void {
@@ -1034,31 +1023,14 @@ function updateCitationRowButtons(): void {
     ? citationRows.findIndex((row) => row.id === selectedCitationRowId)
     : -1;
 
-  const hasPendingEmptyRow = hasPendingEmptyCitationRow();
-  const disableAdd = hasPendingEmptyRow;
-  const disableUp = hasPendingEmptyRow || index <= 0;
-  const disableDown =
-    hasPendingEmptyRow || index < 0 || index >= citationRows.length - 1;
-
-  setToolbarButtonDisabled(addBtn, disableAdd);
+  // The add action is always available: rows without committed citation data
+  // are never kept, so there is no pending-empty-row state to lock buttons.
+  setToolbarButtonDisabled(addBtn, false);
   setToolbarButtonDisabled(removeBtn, index < 0);
-  setToolbarButtonDisabled(upBtn, disableUp);
-  setToolbarButtonDisabled(downBtn, disableDown);
-
-  setCitationRowButtonTooltip(
-    addBtn,
-    "style-editor-input-add-tooltip",
-    hasPendingEmptyRow,
-  );
-  setCitationRowButtonTooltip(
-    upBtn,
-    "style-editor-input-move-up-tooltip",
-    hasPendingEmptyRow,
-  );
-  setCitationRowButtonTooltip(
+  setToolbarButtonDisabled(upBtn, index <= 0);
+  setToolbarButtonDisabled(
     downBtn,
-    "style-editor-input-move-down-tooltip",
-    hasPendingEmptyRow,
+    index < 0 || index >= citationRows.length - 1,
   );
 }
 
@@ -1088,15 +1060,15 @@ function isCitationRowsRemoveKey(event: KeyboardEvent): boolean {
   return event.key === "-" || event.code === "NumpadSubtract";
 }
 
-async function openCitationDialogForRow(rowId: string): Promise<void> {
+async function openCitationDialogForRow(rowId: string): Promise<boolean> {
   const row = citationRows.find((item) => item.id === rowId);
-  if (!row || !editor) return;
+  if (!row || !editor) return false;
 
   try {
     const code = editor.getValue();
     if (!code.trim()) {
       notifyCitationStyleRequired();
-      return;
+      return false;
     }
 
     const parsedStyle = await createStyle(code);
@@ -1107,16 +1079,21 @@ async function openCitationDialogForRow(rowId: string): Promise<void> {
       style: styleUI ?? { cite: [], citation: [] },
       source: row.source,
     });
-    if (result) {
-      row.source = normalizeCitationSource(result);
-      selectedCitationRowId = row.id;
-      setStatus(t("style-editor-status-ready"));
+    if (!result || getCitationSourceCites(result).length === 0) {
+      // No valid citation data was committed (window closed early or left
+      // empty); treat it as "no change" so no empty row is kept.
+      return false;
     }
+    row.source = normalizeCitationSource(result);
+    selectedCitationRowId = row.id;
+    setStatus(t("style-editor-status-ready"));
     updateCitationRowButtons();
     await renderCitationRowsTable();
+    return true;
   } catch (e) {
     setStatus(`${t("style-editor-error-prefix")}: ${String(e)}`);
     ztoolkit.logError(e);
+    return false;
   }
 }
 
@@ -1905,8 +1882,8 @@ function onNewStyle(): void {
   lintStdinFilename = DEFAULT_LINT_STDIN_FILENAME;
   applyEditorValue("");
   markEditorPersistedState("", undefined);
-  citationRows = [createCitationRow()];
-  selectedCitationRowId = citationRows[0].id;
+  citationRows = [];
+  selectedCitationRowId = null;
   void renderCitationRowsTable();
   setOutputMode("preview");
   renderPreviewPlaceholder();
@@ -2856,7 +2833,9 @@ async function createPreviewContexts(): Promise<CitationContext[]> {
     contexts.push({
       id: row.id,
       page: row.page,
-      cites,
+      // Re-fetch live item data from Zotero (the server `syncItems` effect)
+      // so the preview reflects current item state, including merged items.
+      cites: await syncCitesWithLiveItems(cites),
       params: row.source.params,
     });
   }

@@ -23,7 +23,7 @@ import { getPref, setPref } from "../../utils/prefs";
 import { getStyle, getStyleUI } from "../styles";
 import { ProgressBar } from "../../utils/progressBar";
 import type { CitationContext, Cite } from "../../../typings/style";
-import { toBanyanItem } from "../../utils/item";
+import { getItemWithMergeFallback, toBanyanItem } from "../../utils/item";
 import {
   scanInaccessibleItems,
   showInaccessibleItemsDialog,
@@ -448,62 +448,6 @@ function buildRefreshFailureResult(
       "Failed to refresh citations and bibliography",
     ),
   );
-}
-
-/**
- * Get Zotero item with fallback for merged items.
- * Implements the same logic as Zotero.Integration.URIMap.prototype.getZoteroItemForURIs
- * to support duplicate item merging.
- *
- * @param itemId - The item ID from citation
- * @param itemUri - The item URI from citation (optional)
- * @returns The Zotero item, or null if not found
- */
-async function getItemWithMergeFallback(
-  itemId: number,
-  itemUri?: string,
-): Promise<Zotero.Item | null> {
-  let item: Zotero.Item | null = null;
-
-  // First try: use URI if available
-  if (itemUri) {
-    try {
-      const itemFromUri = await Zotero.URI.getURIItem(itemUri);
-      if (itemFromUri && !itemFromUri.deleted) {
-        item = itemFromUri;
-        return item;
-      }
-    } catch {
-      // URI resolution failed, continue to fallback
-    }
-
-    // Second try: check if this item was replaced by another (merged items)
-    try {
-      const replacers = await Zotero.Relations.getByPredicateAndObject(
-        "item",
-        Zotero.Relations.replacedItemPredicate,
-        itemUri,
-      );
-      if (replacers.length && !replacers[0].deleted) {
-        item = replacers[0];
-        return item;
-      }
-    } catch (e) {
-      ztoolkit.logError(e);
-    }
-  }
-
-  // Final fallback: try to get by ID
-  try {
-    const itemById = await Zotero.Items.getAsync(itemId);
-    if (itemById && !itemById.deleted) {
-      item = itemById;
-    }
-  } catch {
-    // Item not found or error
-  }
-
-  return item;
 }
 
 function getDialogRaiseFeature(): string {

@@ -1,5 +1,5 @@
 import type { ExtraMap, Item } from "../../typings/item";
-import type { ScriptItem } from "../../typings/style";
+import type { Cite, ScriptItem } from "../../typings/style";
 
 type ItemFieldsBaseMapper = Pick<
   _ZoteroTypes.ItemFields,
@@ -204,6 +204,84 @@ export function toBanyanItem(zoteroItem: Zotero.Item): Item {
       : {};
 
   return json as Item;
+}
+
+/**
+ * Resolve a Zotero item from a citation identity with fallback for merged
+ * items. Implements the same lookup order as
+ * Zotero.Integration.URIMap.prototype.getZoteroItemForURIs so that
+ * duplicate-item merges resolve to the surviving item.
+ *
+ * @param itemId - The item ID from citation (optional)
+ * @param itemUri - The item URI from citation (optional)
+ * @returns The Zotero item, or null if not found
+ */
+export async function getItemWithMergeFallback(
+  itemId?: number,
+  itemUri?: string,
+): Promise<Zotero.Item | null> {
+  if (itemUri) {
+    try {
+      const itemFromUri = await Zotero.URI.getURIItem(itemUri);
+      if (itemFromUri && !itemFromUri.deleted) {
+        return itemFromUri;
+      }
+    } catch {
+      // URI resolution failed, continue to fallback checks.
+    }
+
+    try {
+      const replacers = await Zotero.Relations.getByPredicateAndObject(
+        "item",
+        Zotero.Relations.replacedItemPredicate,
+        itemUri,
+      );
+      if (replacers.length && !replacers[0].deleted) {
+        return replacers[0];
+      }
+    } catch {
+      // Relation lookup failed, continue to ID fallback.
+    }
+  }
+
+  if (itemId && Number.isFinite(itemId) && itemId > 0) {
+    try {
+      const item = await Zotero.Items.getAsync(itemId);
+      if (item && !item.deleted) {
+        return item;
+      }
+    } catch {
+      // Item not found or error.
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Re-fetch live item data for a list of cites — the `syncItems` effect used
+ * by the server refresh endpoint. Each resolved cite gets a fresh `item`
+ * snapshot from Zotero; cites that cannot be resolved keep their cached
+ * snapshot.
+ */
+export async function syncCitesWithLiveItems(cites: Cite[]): Promise<Cite[]> {
+  return Promise.all(
+    cites.map(async (cite) => {
+      try {
+        const item = await getItemWithMergeFallback(
+          cite.item.id,
+          cite.item.uri,
+        );
+        if (!item) {
+          return cite;
+        }
+        return { ...cite, item: toBanyanItem(item) };
+      } catch (e) {
+        ztoolkit.logError(e);
+        return cite;
+      }
+    }),
+  );
 }
 
 export function isBanyanItem(value: unknown): value is Item | ScriptItem {
