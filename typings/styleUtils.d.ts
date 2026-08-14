@@ -1,4 +1,3 @@
-import type { ScriptItem } from "./style";
 import type { UnitUtils } from "./unit";
 
 export type MultilingualLanguage = string | readonly string[];
@@ -20,6 +19,15 @@ export type GetExtraValue = {
   (item: ExtraValueItem, key: string, mode: "string"): string;
   (item: ExtraValueItem, key: string, mode: "array"): string[];
 };
+export type DateParts = {
+  year: string;
+  month: string;
+  day: string;
+};
+export type FormatDate = <T>(
+  value: string | number,
+  callback: (parts: DateParts) => T,
+) => T | string;
 
 export type StyleUtils = UnitUtils & {
   // async
@@ -40,6 +48,7 @@ export type StyleUtils = UnitUtils & {
   debug: (...values: unknown[]) => string;
   uuid: () => string;
   getExtraValue: GetExtraValue;
+  formatDate: FormatDate;
   safeRecord: (object: Record<string, unknown>) => Record<string, string>;
   safeString: (value: unknown) => string;
 };

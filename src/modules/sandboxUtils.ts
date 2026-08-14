@@ -341,6 +341,117 @@ function runtimeGetExtraValue(
   return safeString(value);
 }
 
+export function runtimeFormatDate<T>(
+  value: string | number,
+  callback: (parts: { year: string; month: string; day: string }) => T,
+): T | string {
+  if (typeof value === "number") {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return callback({
+      year: String(date.getUTCFullYear()),
+      month: String(date.getUTCMonth() + 1).padStart(2, "0"),
+      day: String(date.getUTCDate()).padStart(2, "0"),
+    });
+  }
+
+  const source = value.trim();
+  if (!source) return value;
+
+  type DateParts = { year: string; month: string; day: string };
+  const monthNames: Record<string, number> = {
+    jan: 1,
+    january: 1,
+    feb: 2,
+    february: 2,
+    mar: 3,
+    march: 3,
+    apr: 4,
+    april: 4,
+    may: 5,
+    jun: 6,
+    june: 6,
+    jul: 7,
+    july: 7,
+    aug: 8,
+    august: 8,
+    sep: 9,
+    sept: 9,
+    september: 9,
+    oct: 10,
+    october: 10,
+    nov: 11,
+    november: 11,
+    dec: 12,
+    december: 12,
+  };
+  const createParts = (
+    year: string,
+    month = "",
+    day = "",
+  ): DateParts | undefined => {
+    const yearNumber = Number(year);
+    const monthNumber = month ? Number(month) : 0;
+    const dayNumber = day ? Number(day) : 0;
+    if (!/^\d{1,4}$/.test(year) || yearNumber < 1) return undefined;
+    if (month && (monthNumber < 1 || monthNumber > 12)) return undefined;
+    if (day) {
+      const date = new Date(Date.UTC(yearNumber, monthNumber - 1, dayNumber));
+      if (
+        dayNumber < 1 ||
+        dayNumber > 31 ||
+        date.getUTCFullYear() !== yearNumber ||
+        date.getUTCMonth() !== monthNumber - 1 ||
+        date.getUTCDate() !== dayNumber
+      ) {
+        return undefined;
+      }
+    }
+    return {
+      year: year.padStart(4, "0"),
+      month: month ? String(monthNumber).padStart(2, "0") : "",
+      day: day ? String(dayNumber).padStart(2, "0") : "",
+    };
+  };
+  const numeric = /^(\d{4})[-/.]?(\d{2})[-/.]?(\d{2})$/.exec(source);
+  const yearMonth = /^(\d{1,4})[-/.](\d{1,2})(?:$|[T\s])/.exec(source);
+  const ymd = /^(\d{1,4})[-/.](\d{1,2})[-/.](\d{1,2})(?:$|[T\s])/.exec(source);
+  const slashDate = /^(\d{1,2})[/-](\d{1,2})[/-](\d{1,4})(?:$|\s)/.exec(source);
+  const named =
+    /^(?:(\d{1,2})\s+)?([A-Za-z]+)(?:\s+(\d{1,2}))?,?\s+(\d{1,4})$/.exec(
+      source,
+    );
+  const yearNamed = /^(\d{1,4})\s+([A-Za-z]+)(?:\s+(\d{1,2}))?$/.exec(source);
+  const chinese = /^(\d{1,4})年(?:\s*(\d{1,2})月)?(?:\s*(\d{1,2})日)?$/.exec(
+    source,
+  );
+  let parts: DateParts | undefined;
+
+  if (numeric) {
+    parts = createParts(numeric[1], numeric[2], numeric[3]);
+  } else if (ymd) {
+    parts = createParts(ymd[1], ymd[2], ymd[3]);
+  } else if (yearMonth) {
+    parts = createParts(yearMonth[1], yearMonth[2]);
+  } else if (slashDate) {
+    const first = Number(slashDate[1]);
+    const second = Number(slashDate[2]);
+    const month = first > 12 ? second : first;
+    const day = first > 12 ? first : second;
+    parts = createParts(slashDate[3], String(month), String(day));
+  } else if (named || yearNamed) {
+    const monthName = (named ? named[2] : yearNamed?.[2])?.toLowerCase();
+    const month = monthNames[monthName ?? ""];
+    const year = named ? named[4] : yearNamed?.[1];
+    const day = named ? named[1] || named[3] : yearNamed?.[3];
+    if (month && year) parts = createParts(year, String(month), day);
+  } else if (chinese) {
+    parts = createParts(chinese[1], chinese[2], chinese[3]);
+  }
+
+  return parts ? callback(parts) : value;
+}
+
 function runtimeIsArrayIndexKey(value: string): boolean {
   if (!/^(0|[1-9]\d*)$/.test(value)) {
     return false;
@@ -971,6 +1082,7 @@ const UTILITY_DEFINITION_FACTORIES = {
   },
   uuid: defineCloningHostSyncUtility(hostUuid),
   getExtraValue: defineLocalUtility(runtimeGetExtraValue),
+  formatDate: defineLocalUtility(runtimeFormatDate),
   safeString: defineLocalUtility(runtimeSafeString),
   safeRecord: defineLocalUtility(runtimeSafeRecord),
   affix: defineCloningHostSyncUtility(hostAffix),

@@ -20,6 +20,15 @@ type GetExtraValue = {
   (item: ExtraValueItem, key: string, mode: "string"): string;
   (item: ExtraValueItem, key: string, mode: "array"): string[];
 };
+type DateParts = {
+  year: string;
+  month: string;
+  day: string;
+};
+type FormatDate = <T>(
+  value: string | number,
+  callback: (parts: DateParts) => T,
+) => T | string;
 
 type StyleUtils = UnitUtils & {
   // async
@@ -40,6 +49,7 @@ type StyleUtils = UnitUtils & {
   debug: (...values: unknown[]) => string;
   uuid: () => string;
   getExtraValue: GetExtraValue;
+  formatDate: FormatDate;
   safeRecord: (object: Record<string, unknown>) => Record<string, string>;
   safeString: (value: unknown) => string;
 };
@@ -52,6 +62,7 @@ declare const getMultilingualItem: StyleUtils["getMultilingualItem"];
 declare const debug: StyleUtils["debug"];
 declare const uuid: StyleUtils["uuid"];
 declare const getExtraValue: StyleUtils["getExtraValue"];
+declare const formatDate: StyleUtils["formatDate"];
 declare const safeRecord: StyleUtils["safeRecord"];
 declare const safeString: StyleUtils["safeString"];
 declare const text: StyleUtils["text"];
