@@ -1181,7 +1181,11 @@ export class BubbleInput {
       return false;
     }
 
-    const allowedCslTypes = component.cslType;
+    const allowedCslTypes = Array.isArray(component.cslType)
+      ? component.cslType
+      : typeof component.cslType === "string"
+        ? [component.cslType]
+        : undefined;
     if (!allowedCslTypes?.length) {
       return true;
     }

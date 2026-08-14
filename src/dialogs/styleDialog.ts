@@ -29,6 +29,8 @@ window.addEventListener("unload", () => {
 
 async function initstyleDialog(): Promise<void> {
   io = window.arguments[0].wrappedJSObject as IO;
+  // Focus the search box as early as possible so the user can type immediately.
+  focusSearchBox();
   rowsAll = getAllRows();
   rows = rowsAll;
   // Select specified style if provided, or first style as default
@@ -68,17 +70,28 @@ async function initstyleDialog(): Promise<void> {
       // Suppress the toolkit default context-menu handler; this dialog has no row actions.
     });
   await updateTable();
+  // The virtualized table render may reset the active element; restore focus.
+  focusSearchBox();
   bindSearch();
   bindButtons();
   bindShortcut();
 }
 
 function focusSearchBox(): void {
-  const searchBox = document.getElementById(
-    "search",
-  ) as HTMLInputElement | null;
-  searchBox?.focus();
-  searchBox?.select?.();
+  const searchBox = document.getElementById("search") as
+    (HTMLElement & { inputField?: HTMLInputElement }) | null;
+  // XUL search-textbox exposes its inner <input> via `inputField`;
+  // falling back to the element itself keeps plain HTML inputs working too.
+  const input = searchBox?.inputField ?? searchBox;
+  if (!input) return;
+  input.focus();
+  if (input instanceof HTMLInputElement) {
+    try {
+      input.select();
+    } catch {
+      // ignore
+    }
+  }
 }
 
 function getAllRows(): StyleSummary[] {
@@ -112,7 +125,6 @@ function bindSearch(): void {
     "search",
   ) as HTMLInputElement | null;
   searchBox?.addEventListener("command", () => search(searchBox.value));
-  focusSearchBox();
 }
 
 async function search(query: string) {
