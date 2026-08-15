@@ -134,44 +134,6 @@ function getStyleFilenameSuffix(styleID: string): string {
   return toSafeStyleFilenameFragment(lastSegment).slice(0, 24) || "id";
 }
 
-function generateRandomStyleID(styleID: string): string {
-  return `${styleID}-${crypto.randomUUID()}`;
-}
-
-function resolveUniqueStyleID(styleID: string): string {
-  let nextID = generateRandomStyleID(styleID);
-  while (addon.data.styles.files.has(nextID)) {
-    nextID = generateRandomStyleID(styleID);
-  }
-  return nextID;
-}
-
-function updateStyleCodeID(code: string, id: string): string {
-  const literal = JSON.stringify(id);
-  const idPattern =
-    /(\bINFO\s*=\s*\{[\s\S]*?\bid\s*:\s*)(["'])(?:\\.|(?!\2)[\s\S])*\2/;
-
-  if (!idPattern.test(code)) {
-    throw new Error("Style code missing INFO.id literal");
-  }
-
-  return code.replace(
-    idPattern,
-    (_match, prefix: string) => `${prefix}${literal}`,
-  );
-}
-
-async function useRandomStyleID(
-  style: Style,
-  code: string,
-): Promise<{ style: Style; code: string }> {
-  const originalID = style.INFO.id;
-  const nextID = resolveUniqueStyleID(originalID);
-  const nextCode = updateStyleCodeID(code, nextID);
-  const nextStyle = await createStyle(nextCode);
-  return { style: nextStyle, code: nextCode };
-}
-
 async function resolveUniqueStyleFilename(
   styleID: string,
   dirPath: string,
@@ -226,25 +188,16 @@ export async function loadStyle(path: string): Promise<void> {
     // For calling only, INFO is unessisery, but for style created from file in data directory, we need it to make indexing
     throw new Error(`Style file ${path} missing INFO.id`);
   }
-  let styleToIndex = style;
   if (addon.data.styles.files.has(id)) {
     const existing = addon.data.styles.files.get(id);
-    const overwrite = Services.prompt.confirm(
-      // @ts-expect-error ignore
-      null,
-      t("styles-overwrite-title"),
-      t("styles-id-overwrite-confirm", {
-        args: { aTitle: style.INFO.title, bTitle: existing!.title },
-      }),
+    ztoolkit.logError(
+      new Error(
+        `Ignoring '${path}': style ID '${id}' is already used by '${existing!.filename}'`,
+      ),
     );
-    if (!overwrite) {
-      const randomized = await useRandomStyleID(style, code);
-      styleToIndex = randomized.style;
-      await IOUtils.writeUTF8(path, randomized.code);
-    }
+    return;
   }
-  // We set files index first; cache will be populated on first use.
-  indexLoadedStyle(styleToIndex, PathUtils.filename(path));
+  indexLoadedStyle(style, PathUtils.filename(path));
 }
 
 /**
@@ -256,7 +209,8 @@ export async function loadStyles(reset?: boolean): Promise<void> {
     addon.data.styles.files.clear();
     addon.data.styles.cache.clear();
   }
-  for (const path of await IOUtils.getChildren(dirPath)) {
+  const paths = await IOUtils.getChildren(dirPath);
+  for (const path of paths.toSorted()) {
     if (!path.endsWith(".js")) continue;
     try {
       await loadStyle(path);
@@ -283,10 +237,13 @@ export async function installPresetStyles(): Promise<void> {
         continue;
       }
 
-      const filename = await resolveUniqueStyleFilename(styleId, dirPath);
-      const destPath = PathUtils.join(dirPath, filename);
+      const destPath = PathUtils.join(dirPath, fileName);
+      if (await IOUtils.exists(destPath)) {
+        continue;
+      }
+
       await IOUtils.writeUTF8(destPath, code);
-      indexLoadedStyle(style, PathUtils.filename(destPath));
+      indexLoadedStyle(style, fileName);
     } catch (e) {
       ztoolkit.logError(e);
     }
@@ -315,8 +272,6 @@ export async function promptImportStyle(): Promise<boolean> {
       throw new Error(`Style file ${srcPath} missing INFO.id`);
     }
 
-    let codeToImport = code;
-    let styleToImport = style;
     if (addon.data.styles.files.has(styleId)) {
       const existing = addon.data.styles.files.get(styleId);
       const overwrite = Services.prompt.confirm(
@@ -328,16 +283,14 @@ export async function promptImportStyle(): Promise<boolean> {
         }),
       );
       if (!overwrite) {
-        const randomized = await useRandomStyleID(style, code);
-        styleToImport = randomized.style;
-        codeToImport = randomized.code;
+        return false;
       }
     }
 
-    const destPath = await getStyleFilePathById(styleToImport.INFO.id);
-    await IOUtils.writeUTF8(destPath, codeToImport);
+    const destPath = await getStyleFilePathById(style.INFO.id);
+    await IOUtils.writeUTF8(destPath, code);
 
-    indexLoadedStyle(styleToImport, PathUtils.filename(destPath));
+    indexLoadedStyle(style, PathUtils.filename(destPath));
     return true;
   } catch (e) {
     ztoolkit.logError(e);

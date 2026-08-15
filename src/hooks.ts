@@ -32,10 +32,10 @@ async function onStartup() {
   addon.data.ztoolkit = createZToolkit();
   registerAPIs();
   registerPrefs();
-  registerItemPaneSection();
   await initializeServer();
-
   await ensureStyleEditorRuntimeAssets();
+  await loadStyles();
+  await installPresetStyles();
 
   await Promise.all(
     Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
@@ -66,9 +66,6 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
     })
     .show();
 
-  await loadStyles();
-  await installPresetStyles();
-
   popupWin.changeLine({
     progress: 30,
     text: `[30%] ${t("startup-begin")}`,
@@ -77,6 +74,7 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   registerStyleSheet(win);
   registerToolsMenu();
   registerContextMenu();
+  registerItemPaneSection();
 
   void registerCitationColumn().catch((e: unknown) => {
     ztoolkit.logError(e);
