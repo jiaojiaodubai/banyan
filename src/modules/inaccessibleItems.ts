@@ -1,4 +1,5 @@
 import type { Cite, CitationContext } from "../../typings/style";
+import { useL10n } from "../utils/locale";
 import { checkURIAccessibility, type InaccessibleReason } from "../utils/uri";
 
 export type InaccessibleItemInfo = {
@@ -7,6 +8,8 @@ export type InaccessibleItemInfo = {
   reason: InaccessibleReason;
   uri: string;
 };
+
+const t = useL10n();
 
 /**
  * Scan all contexts for inaccessible items
@@ -72,37 +75,50 @@ export async function showInaccessibleItemsDialog(
   const unknownGroupCount = grouped.get("unknown-group")?.length || 0;
 
   // Build message
-  let message = "Some items in this document are not accessible:\n\n";
+  const lines: string[] = [t("inaccessible-items-intro")];
 
   if (crossLibraryCount > 0) {
-    message += `• ${crossLibraryCount} item(s) from another user's personal library\n`;
+    lines.push(
+      `• ${t("inaccessible-items-count-cross-library", {
+        args: { count: crossLibraryCount },
+      })}`,
+    );
   }
   if (deletedCount > 0) {
-    message += `• ${deletedCount} item(s) have been deleted\n`;
+    lines.push(
+      `• ${t("inaccessible-items-count-deleted", {
+        args: { count: deletedCount },
+      })}`,
+    );
   }
   if (unknownGroupCount > 0) {
-    message += `• ${unknownGroupCount} item(s) from inaccessible group libraries\n`;
+    lines.push(
+      `• ${t("inaccessible-items-count-unknown-group", {
+        args: { count: unknownGroupCount },
+      })}`,
+    );
   }
 
-  message += "\n";
-  message +=
-    "This typically happens when:\n" +
-    "1. A document was created using personal library items and shared with others\n" +
-    "2. Items were deleted after being cited\n" +
-    "3. Group library access was revoked\n\n";
+  lines.push(
+    "",
+    t("inaccessible-items-reason-heading"),
+    `1. ${t("inaccessible-items-reason-shared")}`,
+    `2. ${t("inaccessible-items-reason-deleted")}`,
+    `3. ${t("inaccessible-items-reason-group-access")}`,
+    "",
+    t("inaccessible-items-solution-heading"),
+    `• ${t("inaccessible-items-solution-group")}`,
+    `  (${t("inaccessible-items-solution-group-link")})`,
+    `• ${t("inaccessible-items-solution-import")}`,
+    `• ${t("inaccessible-items-solution-ignore")}`,
+    "",
+    t("inaccessible-items-action-heading"),
+    `- ${t("inaccessible-items-action-import")}`,
+    `- ${t("inaccessible-items-action-ignore")}`,
+    `- ${t("inaccessible-items-action-cancel")}`,
+  );
 
-  message +=
-    "Recommended solutions:\n" +
-    "• For collaboration: Create a shared Group library and use items from there\n" +
-    "  (See: https://www.zotero.org/support/groups)\n" +
-    "• For personal use: Import these items to your library (click 'Import Items')\n" +
-    "• Ignore: Continue without syncing these items (not recommended)\n\n";
-
-  message +=
-    "What would you like to do?\n" +
-    "- Import Items: Import inaccessible items to your library\n" +
-    "- Ignore: Continue without syncing (items will use cached data)\n" +
-    "- Cancel: Stop the refresh operation";
+  const message = lines.join("\n");
 
   // Activate the Zotero main window so the modal becomes visible to the user.
   // Without this, the dialog can be hidden behind other applications (e.g. WPS),
@@ -119,11 +135,11 @@ export async function showInaccessibleItemsDialog(
   }
   const result = Zotero.Prompt.confirm({
     window: parentWindow,
-    title: "Inaccessible Items Detected",
+    title: t("inaccessible-items-title"),
     text: message,
-    button0: "Import Items",
-    button1: "Ignore",
-    button2: "Cancel",
+    button0: t("inaccessible-items-button-import"),
+    button1: t("inaccessible-items-button-ignore"),
+    button2: t("inaccessible-items-button-cancel"),
   });
 
   if (result === 0) {

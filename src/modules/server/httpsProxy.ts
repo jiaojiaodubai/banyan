@@ -1,4 +1,7 @@
 import { clearPref, getPref, setPref } from "../../utils/prefs";
+import { useL10n } from "../../utils/locale";
+
+const t = useL10n();
 
 export const HTTPS_PROXY_PORT = 23120;
 
@@ -277,11 +280,11 @@ async function generateCertificateState(): Promise<HttpsProxyState> {
 
 function confirmCertificateTrust(): boolean {
   const message = [
-    "Word for Mac requires a trusted local HTTPS endpoint to communicate with Banyan.",
+    t("server-cert-trust-intro"),
     "",
-    "Banyan will add a private, installation-specific certificate authority to your login Keychain. It is used only for https://localhost and can be removed when the Word add-in is uninstalled.",
+    t("server-cert-trust-explanation"),
     "",
-    "Continue?",
+    t("server-cert-trust-prompt"),
   ].join("\n");
   return Services.prompt.confirm(
     Zotero.getMainWindow() as unknown as mozIDOMWindowProxy,

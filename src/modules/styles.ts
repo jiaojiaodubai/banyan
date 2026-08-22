@@ -44,7 +44,7 @@ export async function getStyle(style: StyleIdentifier): Promise<Style> {
   const styleEntry = addon.data.styles.files.get(style.id);
   if (!styleEntry) {
     Zotero.getMainWindow().alert(
-      t("styles-not-found-alert", { args: { title: style.title } }),
+      t("styles-notfound-alert", { args: { title: style.title } }),
     );
     throw new Error(`Style with id ${style.id} not found`);
   }

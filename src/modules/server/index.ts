@@ -42,6 +42,7 @@ import {
 } from "./documentLock";
 import { updateCitationColumnFromRefresh } from "../citedItemsSearch";
 import { initializeHttpsProxy, stopHttpsProxy } from "./httpsProxy";
+import { useL10n } from "../../utils/locale";
 export { restoreBanyanCORSPatch as restoreBanyanCORS };
 
 type EndpointData<P extends HttpPath> = RouteTable[P]["req"] extends never
@@ -72,6 +73,8 @@ type JsonEndpointCallbackHandler<P extends HttpPath> = (
   request: Pick<JsonEndpointRequest<P>, "data">,
   send: JsonEndpointCallback<P>,
 ) => void;
+
+const t = useL10n();
 
 const ROOT_PATH = "banyan";
 const MAIN_WINDOW_READY_TIMEOUT_MS = 5000;
@@ -240,11 +243,11 @@ function confirmUnknownOriginAccess(
   }
 
   const message = [
-    `${clientName} is requesting access to Banyan's local endpoints.`,
+    t("server-origin-auth-intro", { args: { clientName } }),
     "",
-    `Origin: ${origin}`,
+    t("server-origin-auth-origin", { args: { origin } }),
     "",
-    "Allow this origin to send Banyan integration requests?",
+    t("server-origin-auth-prompt"),
   ].join("\n");
 
   try {

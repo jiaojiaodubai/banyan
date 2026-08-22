@@ -414,6 +414,7 @@ export function runtimeFormatDate<T>(
     };
   };
   const numeric = /^(\d{4})[-/.]?(\d{2})[-/.]?(\d{2})$/.exec(source);
+  const yearOnly = /^(\d{1,4})$/.exec(source);
   const yearMonth = /^(\d{1,4})[-/.](\d{1,2})(?:$|[T\s])/.exec(source);
   const ymd = /^(\d{1,4})[-/.](\d{1,2})[-/.](\d{1,2})(?:$|[T\s])/.exec(source);
   const slashDate = /^(\d{1,2})[/-](\d{1,2})[/-](\d{1,4})(?:$|\s)/.exec(source);
@@ -429,6 +430,8 @@ export function runtimeFormatDate<T>(
 
   if (numeric) {
     parts = createParts(numeric[1], numeric[2], numeric[3]);
+  } else if (yearOnly) {
+    parts = createParts(yearOnly[1]);
   } else if (ymd) {
     parts = createParts(ymd[1], ymd[2], ymd[3]);
   } else if (yearMonth) {

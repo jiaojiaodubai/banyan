@@ -2,6 +2,10 @@
  * URI parsing and validation utilities for handling cross-library citations
  */
 
+import { useL10n } from "./locale";
+
+const t = useL10n();
+
 export type ParsedItemURI = {
   libraryType: "user" | "group";
   libraryId: string; // userID or groupID
@@ -162,12 +166,12 @@ export function getInaccessibilityDescription(
 ): string {
   switch (reason) {
     case "deleted":
-      return "The item has been deleted from the library";
+      return t("inaccessible-items-desc-deleted");
     case "cross-library":
-      return "The item is from another user's personal library";
+      return t("inaccessible-items-desc-cross-library");
     case "unknown-group":
-      return "The item is from a group library you don't have access to";
+      return t("inaccessible-items-desc-unknown-group");
     case "invalid-uri":
-      return "The item URI format is invalid";
+      return t("inaccessible-items-desc-invalid-uri");
   }
 }
