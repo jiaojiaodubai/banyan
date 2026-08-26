@@ -1,4 +1,4 @@
-import type { Creator, CreatorType, Item, ItemType } from "./item";
+import type { Creator, CreatorType, Item } from "./item";
 import type { RichText, Unit } from "./unit";
 
 type CitationType = "intext-citation" | "note-citation";
@@ -78,18 +78,15 @@ export type StyleFile = StyleSummary & {
 type ComponentBase = {
   id: string;
   label: string;
-  disabled?: boolean;
 };
 
 type CitationComponentBase = ComponentBase;
 
 type CiteComponentBase = ComponentBase & {
-  // If provided, this control is only shown for matched item types.
-  itemType?: ItemType[];
-  // If provided, this control is only shown for matched CSL `type` in item.extra.
-  // Empty string is a valid matcher and means `item.extra.type` is missing/blank.
-  // A single string (e.g. "book" or "") is treated the same as ["book"] or [""].
-  cslType?: string | string[];
+  /** Evaluate in the style sandbox once when the cite popup opens. */
+  visible?: CiteVisibilityPredicate;
+  /** Evaluate in the style sandbox whenever cite params change. */
+  disabled?: CiteDisabledPredicate;
 };
 
 type CheckboxComponent = {
@@ -121,8 +118,8 @@ export type CiteStyleComponent =
 export type StyleComponent = CitationStyleComponent | CiteStyleComponent;
 
 export type StyleUI = {
-  cite: StyleComponent[];
-  citation: StyleComponent[];
+  cite: CiteStyleComponent[];
+  citation: CitationStyleComponent[];
 };
 
 export type CitationContext = CitationSource & {
@@ -141,6 +138,10 @@ export type Cite = {
   item: Item;
   params?: { [key: string]: string | boolean };
 };
+
+export type CiteVisibilityPredicate = (item: Readonly<Item>) => boolean;
+
+export type CiteDisabledPredicate = (cite: Readonly<Cite>) => boolean;
 
 /**
  * Script items keep strongly typed known fields, but allow arbitrary string

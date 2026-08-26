@@ -510,8 +510,14 @@ function bridgeAndNormalize(
       string,
       unknown
     >;
-    const cite = normalizeComponents(wavedUI.cite, host, "cite");
-    const citation = normalizeComponents(wavedUI.citation, host, "citation");
+    const cite = normalizeComponents(wavedUI.cite, host, sandbox, Cu, "cite");
+    const citation = normalizeComponents(
+      wavedUI.citation,
+      host,
+      sandbox,
+      Cu,
+      "citation",
+    );
     if (cite || citation) {
       UI = { cite: cite || [], citation: citation || [] };
     }

@@ -120,6 +120,7 @@ return {
 
 - `UI.citation`：控制整条引用表现。
 - `UI.cite`：控制单个被引项表现。
+- `UI.cite` 控件可使用 `visible(item)` 根据条目元数据限制输入范围；回调在弹窗展开时于沙箱中执行一次并严格返回布尔值。也可使用 `disabled(cite)` 根据参数动态启用或禁用控件而不改变布局，省略时默认为 `false`。
 - 控件类型使用 `checkbox`、`select`、`text`。
 - `id` 使用 camelCase；在 `generate()` 中从 `context.params` 或 `cite.params` 读取。
 

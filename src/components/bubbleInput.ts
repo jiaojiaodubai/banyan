@@ -1,5 +1,4 @@
 import type { Cite, CiteStyleComponent } from "../../typings/style";
-import type { Item } from "../../typings/item";
 import { getItemDisplayLabel } from "../utils/item";
 import { useL10n } from "../utils/locale";
 
@@ -23,6 +22,8 @@ export class BubbleInput {
   private body: HTMLDivElement;
   private lastFocusedInput: HTMLInputElement | null = null;
   private popup: HTMLElement | null = null;
+  private popupCite: Cite | null = null;
+  private popupVisibleComponentIds: string[] = [];
   private measureSpan: HTMLSpanElement | null = null;
 
   private bubbleElements: HTMLElement[] = [];
@@ -1033,6 +1034,8 @@ export class BubbleInput {
 
   private showPopup(cite: Cite, anchor: HTMLElement) {
     this.closePopup();
+    this.popupCite = cite;
+    this.popupVisibleComponentIds = this.getVisibleComponentIds(cite);
 
     const createXULElement = (tag: string): Element => {
       const doc = document as Document & {
@@ -1061,8 +1064,7 @@ export class BubbleInput {
     content.classList.add("bubble-popup-content");
 
     this.styleComponents.forEach((comp) => {
-      if (comp.disabled) return;
-      if (!this.isComponentVisibleForItem(comp, cite.item)) return;
+      if (!this.popupVisibleComponentIds.includes(comp.id)) return;
 
       const row = document.createElement("div");
       row.classList.add("bubble-popup-row");
@@ -1077,8 +1079,10 @@ export class BubbleInput {
         row.appendChild(label);
 
         const el = document.createElement("input");
+        el.id = `opt-${comp.id}`;
         el.type = "text";
         el.classList.add("bubble-popup-control");
+        this.setElementDisabled(el, this.isComponentDisabled(comp, cite));
         el.value = String(currentVal ?? comp.value ?? "");
         el.addEventListener("input", () => {
           this.updateCiteParam(cite, comp.id, el.value);
@@ -1092,9 +1096,11 @@ export class BubbleInput {
 
         // XUL checkbox carries its own label (Preferences style)
         const el = createXULElement("checkbox") as XULCheckboxElement;
+        el.id = `opt-${comp.id}`;
         el.setAttribute("native", "true");
         el.setAttribute("label", comp.label);
         el.classList.add("bubble-popup-control");
+        this.setElementDisabled(el, this.isComponentDisabled(comp, cite));
         el.checked = Boolean(currentVal ?? comp.value);
         el.addEventListener("command", () => {
           this.updateCiteParam(cite, comp.id, Boolean(el.checked));
@@ -1107,8 +1113,10 @@ export class BubbleInput {
         row.appendChild(label);
 
         const el = createXULElement("menulist") as XULMenulistElement;
+        el.id = `opt-${comp.id}`;
         el.setAttribute("native", "true");
         el.classList.add("bubble-popup-control");
+        this.setElementDisabled(el, this.isComponentDisabled(comp, cite));
 
         const menupopup = createXULElement("menupopup");
         Object.entries(comp.options).forEach(([value, label]) => {
@@ -1172,48 +1180,42 @@ export class BubbleInput {
     popup.addEventListener("click", (e) => e.stopPropagation());
   }
 
-  private isComponentVisibleForItem(
+  private isComponentVisible(
     component: CiteStyleComponent,
-    item: Item,
+    item: Cite["item"],
   ): boolean {
-    const allowedTypes = component.itemType;
-    if (allowedTypes?.length && !allowedTypes.includes(item.itemType)) {
-      return false;
-    }
-
-    const allowedCslTypes = Array.isArray(component.cslType)
-      ? component.cslType
-      : typeof component.cslType === "string"
-        ? [component.cslType]
-        : undefined;
-    if (!allowedCslTypes?.length) {
+    if (!component.visible) {
       return true;
     }
-
-    const itemCslTypes = this.getItemCslTypes(item);
-    if (!itemCslTypes.length) {
-      return false;
-    }
-    return allowedCslTypes.some((type) => itemCslTypes.includes(type));
+    return component.visible(item);
   }
 
-  private getItemCslTypes(item: Item): string[] {
-    const raw = item.extra?.type;
-    if (typeof raw === "string") {
-      const value = raw.trim().toLowerCase();
-      return value ? [value] : [""];
+  private getVisibleComponentIds(cite: Cite): string[] {
+    return this.styleComponents
+      .filter((component) => this.isComponentVisible(component, cite.item))
+      .map((component) => component.id);
+  }
+
+  private isComponentDisabled(
+    component: CiteStyleComponent,
+    cite: Cite,
+  ): boolean {
+    if (component.disabled) {
+      return component.disabled(cite);
     }
-    if (Array.isArray(raw)) {
-      const normalized = raw
-        .map((value) =>
-          String(value ?? "")
-            .trim()
-            .toLowerCase(),
-        )
-        .filter((value, index, array) => array.indexOf(value) === index);
-      return normalized.length ? normalized : [""];
+    return false;
+  }
+
+  private setElementDisabled(element: Element, disabled: boolean): void {
+    const control = element as Element & { disabled?: boolean };
+    if ("disabled" in control) {
+      control.disabled = disabled;
     }
-    return [""];
+    if (disabled) {
+      element.setAttribute("disabled", "true");
+    } else {
+      element.removeAttribute("disabled");
+    }
   }
 
   private closePopup() {
@@ -1221,11 +1223,29 @@ export class BubbleInput {
       this.popup.remove();
       this.popup = null;
     }
+    this.popupCite = null;
+    this.popupVisibleComponentIds = [];
   }
 
   private updateCiteParam(cite: Cite, key: string, value: string | boolean) {
     if (!cite.params) cite.params = {};
     cite.params[key] = value;
     this.delegate.onCitesChanged(this.cites);
+
+    this.refreshPopupDisabledState(cite);
+  }
+
+  private refreshPopupDisabledState(cite: Cite): void {
+    if (this.popupCite !== cite) return;
+    const visibleIds = new Set(this.popupVisibleComponentIds);
+    for (const component of this.styleComponents) {
+      if (!visibleIds.has(component.id)) continue;
+      const control = document.getElementById(`opt-${component.id}`);
+      if (!control) continue;
+      this.setElementDisabled(
+        control,
+        this.isComponentDisabled(component, cite),
+      );
+    }
   }
 }

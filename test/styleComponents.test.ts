@@ -7,6 +7,8 @@ const originalCu = globals.Cu;
 const originalZtoolkit = globals.ztoolkit;
 
 describe("style UI component normalization", function () {
+  const sandbox = {};
+
   beforeEach(function () {
     globals.Zotero = {
       getMainWindow() {
@@ -20,6 +22,9 @@ describe("style UI component normalization", function () {
       log() {
         // Keep invalid-component diagnostics quiet in tests.
       },
+      logError() {
+        // Keep predicate diagnostics quiet in tests.
+      },
     };
   });
 
@@ -32,7 +37,13 @@ describe("style UI component normalization", function () {
   it("normalizes documented checkbox, input, and select controls", function () {
     const result = normalizeComponents(
       [
-        { id: "showDOI", type: "checkbox", label: "Show DOI", value: "true" },
+        {
+          id: "showDOI",
+          type: "checkbox",
+          label: "Show DOI",
+          value: "true",
+          disabled: true,
+        },
         { id: "prefix", type: "input", label: "Prefix", value: 123 },
         {
           id: "mode",
@@ -42,6 +53,8 @@ describe("style UI component normalization", function () {
         },
       ],
       {},
+      sandbox,
+      globals.Cu as never,
       "citation",
     );
 
@@ -58,10 +71,18 @@ describe("style UI component normalization", function () {
     ]);
   });
 
-  it("accepts object-map UI definitions and filters invalid controls", function () {
+  it("normalizes cite visibility and disabled callbacks", function () {
     const result = normalizeComponents(
       {
-        valid: { id: "suffix", type: "input", label: "Suffix", value: "" },
+        visible: {
+          id: "locator",
+          type: "input",
+          label: "Locator",
+          value: "",
+          visible: (item: { itemType: string }) => item.itemType === "book",
+          disabled: (cite: { params?: { mode?: string } }) =>
+            cite.params?.mode === "locked",
+        },
         missingId: { type: "input", label: "Missing ID", value: "x" },
         unsupported: {
           id: "custom",
@@ -71,133 +92,27 @@ describe("style UI component normalization", function () {
         },
       },
       {},
-      "citation",
-    );
-
-    assert.deepEqual(result, [
-      { id: "suffix", label: "Suffix", type: "input", value: "" },
-    ]);
-  });
-
-  it("keeps itemType/cslType constraints only for cite-scoped controls", function () {
-    const citeResult = normalizeComponents(
-      [
-        {
-          id: "locator",
-          type: "input",
-          label: "Locator",
-          value: "",
-          itemType: ["book", "", "journalArticle"],
-          cslType: ["BOOK", "", "manuscript"],
-        },
-      ],
-      {},
-      "cite",
-    );
-    const citationResult = normalizeComponents(
-      [
-        {
-          id: "sortBy",
-          type: "input",
-          label: "Sort By",
-          value: "cite",
-          itemType: ["book"],
-          cslType: ["book"],
-        },
-      ],
-      {},
-      "citation",
-    );
-
-    assert.deepEqual(citeResult, [
-      {
-        id: "locator",
-        label: "Locator",
-        itemType: ["book", "journalArticle"],
-        cslType: ["book", "", "manuscript"],
-        type: "input",
-        value: "",
-      },
-    ]);
-    assert.deepEqual(citationResult, [
-      { id: "sortBy", label: "Sort By", type: "input", value: "cite" },
-    ]);
-  });
-
-  it("keeps explicit empty string in cslType constraints", function () {
-    const result = normalizeComponents(
-      [
-        {
-          id: "locatorType",
-          type: "select",
-          label: "Locator Type",
-          value: "",
-          options: { none: "None", page: "Page" },
-          cslType: ["", "book"],
-        },
-      ],
-      {},
+      sandbox,
+      globals.Cu as never,
       "cite",
     );
 
-    assert.deepEqual(result, [
-      {
-        id: "locatorType",
-        label: "Locator Type",
-        cslType: ["", "book"],
-        type: "select",
-        value: "none",
-        options: { none: "None", page: "Page" },
-      },
-    ]);
-  });
-
-  it("treats string cslType as shorthand for single-item array", function () {
-    const emptyResult = normalizeComponents(
-      [
-        {
-          id: "emptyOnly",
-          type: "input",
-          label: "Empty Only",
-          value: "",
-          cslType: "",
-        },
-      ],
-      {},
-      "cite",
-    );
-
-    const textResult = normalizeComponents(
-      [
-        {
-          id: "bookOnly",
-          type: "input",
-          label: "Book Only",
-          value: "",
-          cslType: "Book",
-        },
-      ],
-      {},
-      "cite",
-    );
-
-    assert.deepEqual(emptyResult, [
-      {
-        id: "emptyOnly",
-        label: "Empty Only",
-        cslType: [""],
-        type: "input",
-        value: "",
-      },
-    ]);
-    assert.deepEqual(textResult, [
-      {
-        id: "bookOnly",
-        label: "Book Only",
-        cslType: ["book"],
-        type: "input",
-        value: "",
-      },
-    ]);
+    assert.equal(result?.length, 1);
+    const component = result?.[0];
+    assert.equal(component?.id, "locator");
+    const visibility =
+      component && "visible" in component ? component.visible : undefined;
+    assert.isFunction(visibility);
+    assert.isTrue(visibility!({ id: 1, itemType: "book" } as never));
+    assert.isFalse(visibility!({ id: 1, itemType: "journalArticle" } as never));
+    const disabled =
+      component && "disabled" in component ? component.disabled : undefined;
+    assert.isFunction(disabled);
+    const disabledPredicate = disabled as (cite: {
+      item: object;
+      params?: { mode?: string };
+    }) => boolean;
+    assert.isFalse(disabledPredicate({ item: {}, params: { mode: "open" } }));
+    assert.isTrue(disabledPredicate({ item: {}, params: { mode: "locked" } }));
   });
 });

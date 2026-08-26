@@ -2,7 +2,7 @@ import type { CitationContext } from "../../../typings/style";
 import type { CitationSource, Cite } from "../../../typings/style";
 import type { RichText } from "../../../typings/unit";
 import type {
-  CitationRequestData,
+  CitationDialogRequestData,
   CitationResponseData,
 } from "../../../typings/server";
 import type { IO as CitationDialogIO } from "../citationDialog";
@@ -1112,7 +1112,7 @@ function notifyCitationStyleRequired(): void {
 }
 
 function openCitationDialog(
-  data: CitationRequestData,
+  data: CitationDialogRequestData,
 ): Promise<CitationResponseData | null> {
   return new Promise((resolve, reject) => {
     const io: CitationDialogIO = {

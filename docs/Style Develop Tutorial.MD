@@ -167,13 +167,22 @@ const UI = {
 - `id`：控件的 ID，用于标识控件。
 - `type`：控件的类型，可选值有 `checkbox`、`select`、`input`。
 - `label`：控件的标签，用于显示给用户。
-- `disabled`：是否禁用控件，默认为 `false`。
+- `disabled`：`cite` 控件可选的回调，接收当前 `Cite` 并返回是否禁用；省略时默认为 `false`，参数变化后会重新计算。
 
-对于 `cite` 属性中定义的控件，还可以携带 `itemType` 属性，它的值是一个 [Zotero 条目类型](https://www.zotero.org/support/kb/item_types_and_fields)组成的数组，使控件仅在指定的条目类型下可见。
+对于 `cite` 属性中定义的控件，还可以携带 `visible` 回调，用于根据当前条目判断控件是否可见。回调在弹窗展开时于样式沙箱中同步执行一次，并且必须严格返回布尔值。例如：
 
-也可以携带 `cslType` 属性，它的值是一个字符串数组，会与条目 `extra` 中的 `type` 字段进行匹配（不区分大小写），只有命中时控件才可见。数组中的空字符串 `""` 是有效值，表示匹配“`type` 未填写或为空”。
+```javascript
+visible: (item) =>
+  item.itemType === "book" && Boolean(item.extra?.type),
+```
 
-`itemType` 和 `cslType` 同时存在时需要同时满足（AND 关系）。
+`visible` 只用于限制用户在引注对话框中的参数输入，不会改变 `Cite` 已保存的 `params`。隐藏控件不会占用布局空间；禁用控件仍保留在布局中。`UI.citation` 中的控件目前始终可见。
+
+`disabled` 回调可以读取当前 `Cite` 的参数，从而实现控件之间的联动，同时不改变弹窗布局。例如，当 `locatorType` 选择 `"custom"` 时启用自定义输入框：
+
+```javascript
+disabled: (cite) => cite.params?.locatorType !== "custom",
+```
 
 `type` 属性取不同的值时，相应可取的组件属性不同：
 

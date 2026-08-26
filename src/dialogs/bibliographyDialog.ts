@@ -1,7 +1,7 @@
 import type {
   BibliographyRequestData,
   BibliographyResponseData,
-  CitationRequestData,
+  CitationDialogRequestData,
   CitationResponseData,
 } from "../../typings/server";
 import type {
@@ -96,7 +96,7 @@ async function onEditUncited(): Promise<void> {
 }
 
 function openCitationDialog(
-  data: CitationRequestData,
+  data: CitationDialogRequestData,
 ): Promise<CitationResponseData | null> {
   return new Promise((resolve, reject) => {
     const io: CitationDialogIO = {

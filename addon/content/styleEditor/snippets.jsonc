@@ -64,7 +64,6 @@
       "  label: \"${2:Show URL}\",",
       "  type: \"checkbox\",",
       "  value: ${3:false},",
-      "  disabled: ${4:false},",
       "},",
       "$0"
     ]
@@ -82,7 +81,6 @@
       "    \"${4:full}\": \"${5:Full Name}\",",
       "    \"${6:abbr}\": \"${7:Abbreviated}\",",
       "  },",
-      "  disabled: ${8:false},",
       "},",
       "$0"
     ]
@@ -96,7 +94,6 @@
       "  label: \"${2:Prefix}\",",
       "  type: \"input\",",
       "  value: \"${3:}\",",
-      "  disabled: ${4:false},",
       "},",
       "$0"
     ]
@@ -110,9 +107,7 @@
       "  label: \"${2:Suppress Author}\",",
       "  type: \"checkbox\",",
       "  value: ${3:false},",
-      "  disabled: ${4:false},",
-      "  itemType: [\"${5:book}\"],",
-      "  cslType: [\"${6:book}\"],",
+      "  visible: (item) => item.itemType === \"${5:book}\",",
       "},",
       "$0"
     ]
@@ -130,9 +125,7 @@
       "    \"${4:page}\": \"${5:Page}\",",
       "    \"${6:folio}\": \"${7:Folio}\",",
       "  },",
-      "  disabled: ${8:false},",
-      "  itemType: [\"${9:manuscript}\"],",
-      "  cslType: [\"${10:manuscript}\"],",
+      "  visible: (item) => item.itemType === \"${9:manuscript}\",",
       "},",
       "$0"
     ]
@@ -146,9 +139,7 @@
       "  label: \"${2:Locator}\",",
       "  type: \"input\",",
       "  value: \"${3:}\",",
-      "  disabled: ${4:false},",
-      "  itemType: [\"${5:book}\"],",
-      "  cslType: [\"${6:book}\"],",
+      "  visible: (item) => item.itemType === \"${5:book}\",",
       "},",
       "$0"
     ]

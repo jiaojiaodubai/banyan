@@ -1,12 +1,32 @@
 import type {
   CitationStyleComponent,
+  Cite,
+  CiteDisabledPredicate,
+  CiteVisibilityPredicate,
   CiteStyleComponent,
 } from "../../../typings/style";
+import type { SandboxCu, SandboxGlobal } from "../sandboxUtils";
 
 /** Normalize COMPONENT definition to an array<StyleComponent> */
 export function normalizeComponents(
   raw: unknown,
   host: Record<string, unknown>,
+  sandbox: SandboxGlobal,
+  Cu: SandboxCu,
+  scope: "cite",
+): CiteStyleComponent[] | undefined;
+export function normalizeComponents(
+  raw: unknown,
+  host: Record<string, unknown>,
+  sandbox: SandboxGlobal,
+  Cu: SandboxCu,
+  scope: "citation",
+): CitationStyleComponent[] | undefined;
+export function normalizeComponents(
+  raw: unknown,
+  host: Record<string, unknown>,
+  sandbox: SandboxGlobal,
+  Cu: SandboxCu,
   scope: "cite" | "citation",
 ): CiteStyleComponent[] | CitationStyleComponent[] | undefined {
   if (!raw) return undefined;
@@ -35,34 +55,15 @@ export function normalizeComponents(
       continue;
     }
 
-    const itemType =
-      scope === "cite" && Array.isArray(itemRecord.itemType)
-        ? itemRecord.itemType
-            .map((v: unknown) => String(v ?? "").trim())
-            .filter(Boolean)
+    const componentBase = { id, label };
+    const visibility =
+      scope === "cite" && typeof itemRecord.visible === "function"
+        ? createVisibilityEvaluator(itemRecord.visible, sandbox, Cu)
         : undefined;
-
-    const cslTypeSource =
-      scope !== "cite"
-        ? undefined
-        : Array.isArray(itemRecord.cslType)
-          ? itemRecord.cslType
-          : typeof itemRecord.cslType === "string"
-            ? [itemRecord.cslType]
-            : undefined;
-
-    const cslType = cslTypeSource?.map((v: unknown) =>
-      String(v ?? "")
-        .trim()
-        .toLowerCase(),
-    );
-
-    const componentBase = {
-      id,
-      label,
-      ...(scope === "cite" && itemType?.length ? { itemType } : {}),
-      ...(scope === "cite" && cslType?.length ? { cslType } : {}),
-    };
+    const disabled =
+      scope === "cite" && typeof itemRecord.disabled === "function"
+        ? createDisabledEvaluator(itemRecord.disabled, sandbox, Cu)
+        : undefined;
 
     let cloned: CiteStyleComponent | CitationStyleComponent;
     if (type === "checkbox") {
@@ -107,13 +108,65 @@ export function normalizeComponents(
 
     try {
       const clonedInto = Cu.cloneInto ? Cu.cloneInto(cloned, host) : cloned;
-      out.push(clonedInto as CiteStyleComponent | CitationStyleComponent);
+      const hostComponent = { ...(clonedInto as object) } as
+        CiteStyleComponent | CitationStyleComponent;
+      if (visibility) {
+        (hostComponent as CiteStyleComponent).visible = visibility;
+      }
+      if (disabled) {
+        (hostComponent as CiteStyleComponent).disabled = disabled;
+      }
+      out.push(hostComponent);
     } catch {
-      out.push(cloned as CiteStyleComponent | CitationStyleComponent);
+      const fallback = { ...cloned } as
+        CiteStyleComponent | CitationStyleComponent;
+      if (visibility) {
+        (fallback as CiteStyleComponent).visible = visibility;
+      }
+      if (disabled) {
+        (fallback as CiteStyleComponent).disabled = disabled;
+      }
+      out.push(fallback);
     }
   }
   if (!out.length) return undefined;
   return scope === "cite"
     ? (out as CiteStyleComponent[])
     : (out as CitationStyleComponent[]);
+}
+
+function createVisibilityEvaluator(
+  raw: Function,
+  sandbox: SandboxGlobal,
+  Cu: SandboxCu,
+): CiteVisibilityPredicate {
+  return (item) => {
+    try {
+      const sandboxItem = Cu.cloneInto(item, sandbox, {
+        cloneFunctions: false,
+      });
+      return raw(sandboxItem) === true;
+    } catch (error) {
+      ztoolkit.logError(error);
+      return false;
+    }
+  };
+}
+
+function createDisabledEvaluator(
+  raw: Function,
+  sandbox: SandboxGlobal,
+  Cu: SandboxCu,
+): CiteDisabledPredicate {
+  return (cite: Readonly<Cite>) => {
+    try {
+      const sandboxCite = Cu.cloneInto(cite, sandbox, {
+        cloneFunctions: false,
+      });
+      return raw(sandboxCite) === true;
+    } catch (error) {
+      ztoolkit.logError(error);
+      return false;
+    }
+  };
 }

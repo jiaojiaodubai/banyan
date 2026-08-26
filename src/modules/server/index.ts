@@ -4,7 +4,7 @@ import type { IO as StyleDialogIO } from "../../dialogs/styleDialog";
 import type {
   BibliographyRequestData,
   BibliographyResponseData,
-  CitationRequestData,
+  CitationDialogRequestData,
   CitationResponseData,
   ConvertRequestData,
   ErrorCode,
@@ -16,11 +16,10 @@ import type {
   ShowInLibraryRequestData,
   StyleIdentifier,
   StyleListEntry,
-  StyleListRequestData,
   StyleResponseData,
 } from "../../../typings/server";
 import { getPref, setPref } from "../../utils/prefs";
-import { getStyle, getStyleUI } from "../styles";
+import { getStyle } from "../styles";
 import { ProgressBar } from "../../utils/progressBar";
 import type { CitationContext, Cite } from "../../../typings/style";
 import { getItemWithMergeFallback, toBanyanItem } from "../../utils/item";
@@ -594,9 +593,7 @@ function registerJsonCallbackEndpoint<P extends HttpPath>(
   };
 }
 
-async function getStyleList(
-  options?: StyleListRequestData,
-): Promise<RouteTable["style/list"]["res"]> {
+async function getStyleList(): Promise<RouteTable["style/list"]["res"]> {
   const summaries = Array.from(addon.data.styles.files.values())
     .map((style): StyleListEntry => ({
       id: style.id,
@@ -607,24 +604,7 @@ async function getStyleList(
     }))
     .toSorted((a, b) => a.title.localeCompare(b.title));
 
-  if (!options?.includeUI) {
-    return summaries;
-  }
-
-  return Promise.all(
-    summaries.map(async (style) => {
-      try {
-        const ui = await getStyleUI({ id: style.id, title: style.title });
-        return {
-          ...style,
-          ui,
-        };
-      } catch (error) {
-        ztoolkit.logError(error);
-        return style;
-      }
-    }),
-  );
+  return summaries;
 }
 
 function handleRefreshRequest(
@@ -876,8 +856,8 @@ export function registerEndpoints(): void {
     });
   });
 
-  registerJsonEndpoint("style/list", async ({ data }) => {
-    return json(200, responseOk<"style/list">(await getStyleList(data)));
+  registerJsonEndpoint("style/list", async () => {
+    return json(200, responseOk<"style/list">(await getStyleList()));
   });
 
   registerJsonEndpoint("citation", async ({ data }) => {
@@ -1093,7 +1073,7 @@ export async function openStyleDialog(
 }
 
 export async function openCitationDialog(
-  data: CitationRequestData,
+  data: CitationDialogRequestData,
 ): Promise<CitationResponseData | null> {
   // Throttle: if this document already has a citation dialog open, activate it instead
   const windowKey = `${data.documentId}:citation`;

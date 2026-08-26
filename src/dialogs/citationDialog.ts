@@ -1,5 +1,5 @@
 import type {
-  CitationRequestData,
+  CitationDialogRequestData,
   CitationResponseData,
 } from "../../typings/server";
 import type {
@@ -16,7 +16,7 @@ import { getPref, setPref } from "../utils/prefs";
 import { loadCollectionViewItemTreeCompat } from "../utils/compat/itemTree";
 
 export type IO = {
-  data: CitationRequestData;
+  data: CitationDialogRequestData;
   mode?: "default" | "uncited";
   resolve: (citation: CitationResponseData) => void;
 };
@@ -262,7 +262,7 @@ async function initCitationDialog(): Promise<void> {
 }
 
 function isStyleIdentifier(
-  styleInput: CitationRequestData["style"],
+  styleInput: CitationDialogRequestData["style"],
 ): styleInput is { id: string; title: string } {
   return (
     !!styleInput &&
@@ -275,7 +275,7 @@ function isStyleIdentifier(
 }
 
 async function resolveCitationStyleUI(
-  styleInput: CitationRequestData["style"],
+  styleInput: CitationDialogRequestData["style"],
 ): Promise<StyleUI> {
   if (isStyleIdentifier(styleInput)) {
     return addon.api.getStyleUI(styleInput);
