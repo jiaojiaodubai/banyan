@@ -75,6 +75,24 @@ export default defineConfig({
     waitForPlugin: `() => Zotero.${pkg.config.addonInstance}.data.initialized`,
   },
 
+  release: {
+    bumpp: {
+      // Ask interactively for the next version when releasing locally.
+      release: "prompt",
+      // Include all tracked changes (submodule pointers, CHANGELOG.md,
+      // dependency lockfile) in the release commit.
+      all: true,
+      // Build with the freshly bumped version before committing/tagging.
+      execute: "pnpm build",
+    },
+    github: {
+      // Create the GitHub Release + upload XPI/update manifests in CI only;
+      // locally `pnpm release` just bumps, commits, tags and pushes.
+      enable: "ci",
+      updater: "release",
+    },
+  },
+
   // If you need to see a more detailed log, uncomment the following line:
   // logLevel: "trace",
 });

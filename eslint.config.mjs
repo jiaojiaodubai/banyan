@@ -15,6 +15,7 @@ export default [
   {
     ignores: [
       "scripts/**",
+      "integrations/**",
       "addon/content/styleEditor/**",
       "addon/content/integration/WPS/**",
     ],

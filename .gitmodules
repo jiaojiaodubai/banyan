@@ -1,0 +1,8 @@
+[submodule "integrations/Banyan-for-WPS"]
+	path = integrations/Banyan-for-WPS
+	url = https://github.com/jiaojiaodubai/Banyan-for-WPS.git
+	branch = master
+[submodule "integrations/Banyan-for-Word-VBA"]
+	path = integrations/Banyan-for-Word-VBA
+	url = https://github.com/jiaojiaodubai/Banyan-for-Word-VBA.git
+	branch = master
