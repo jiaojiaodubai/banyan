@@ -711,9 +711,16 @@ const HTML_ROOT_ID = "__banyan_html_root__";
 
 function parseHTMLContainer(input: string): HTMLElement | null {
   try {
+    // Prefer the ambient global when available (window contexts such as the
+    // in-Zotero test page and dialogs expose DOMParser directly). Fall back to
+    // the main window through ztoolkit, which only exists in the plugin's own
+    // sandbox scope. Guard the lookup so a missing ztoolkit global cannot
+    // shadow an already available DOMParser.
     const DOMParserCtor =
-      (ztoolkit.getGlobal("DOMParser") as (new () => DOMParser) | undefined) ||
-      (typeof DOMParser === "function" ? DOMParser : undefined);
+      (typeof DOMParser === "function" ? DOMParser : undefined) ||
+      (typeof ztoolkit !== "undefined"
+        ? (ztoolkit.getGlobal("DOMParser") as (new () => DOMParser) | undefined)
+        : undefined);
     if (!DOMParserCtor) return null;
     const parser = new DOMParserCtor();
     const doc = parser.parseFromString(
