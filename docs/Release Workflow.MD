@@ -36,7 +36,7 @@ Scaffold 采用“本地打 tag → CI 出资产”两段式，避免 GitHub Rel
    pnpm release:prepare
    ```
 
-   依次执行：`pnpm install`（锁文件随依赖范围刷新）→ `submodules:update`
+   依次执行：`pnpm update`（锁文件随依赖范围升级）→ `submodules:update`
    → `integrations:build` → `pnpm build` → `pnpm changelog`。
    此时 `git status` 会出现：子模块指针更新、`CHANGELOG.md`、可能还有依赖
    锁文件变化。**请人工 review 并补充**（可手改 `CHANGELOG.md` 或补提交），

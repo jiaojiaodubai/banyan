@@ -31,7 +31,7 @@
     "lint:check": "prettier --check . && eslint . && eslint --config addon/content/styleEditor/eslint.config.mjs addon/content/styleEditor",
     "lint:fix": "prettier --write . && eslint . --fix && eslint --config addon/content/styleEditor/eslint.config.mjs addon/content/styleEditor --fix",
     "release": "zotero-plugin release",
-    "release:prepare": "pnpm install && pnpm submodules:update && pnpm integrations:build && pnpm build && pnpm changelog",
+    "release:prepare": "pnpm update && pnpm submodules:update && pnpm integrations:build && pnpm build && pnpm changelog",
     "changelog": "changelogen --output CHANGELOG.md",
     "integrations:build": "node scripts/build-integrations.mjs",
     "submodules:init": "git submodule update --init --recursive",
