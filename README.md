@@ -138,7 +138,8 @@ pnpm lint:check   # 校验格式与规则
 ### 测试
 
 ```powershell
-pnpm test          # mocha 单元测试（zotero-plugin test）
+pnpm test          # 在 Zotero 内运行的 mocha 单元测试（zotero-plugin test）
+pnpm test:node     # 纯 Node 测试（样式 lint 规则，mocha + tsx）
 ```
 
 修改字处理器前端时请到对应仓库开发并自测：

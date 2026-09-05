@@ -37,6 +37,7 @@
     "submodules:init": "git submodule update --init --recursive",
     "submodules:update": "pnpm submodules:init && git submodule update --remote --recursive",
     "test": "node scripts/runTestWithLog.mjs",
+    "test:node": "node --import tsx ./node_modules/mocha/bin/mocha.js --timeout 10000 \"tests-node/**/*.test.ts\"",
     "test:scaffold": "zotero-plugin test",
     "update-deps": "pnpm update"
   },
@@ -54,6 +55,7 @@
     "eslint": "^9.39.5",
     "mocha": "^11.8.0",
     "prettier": "^3.9.6",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "zotero-plugin-scaffold": "^0.8.8",
     "zotero-types": "4.1.0-beta.4"

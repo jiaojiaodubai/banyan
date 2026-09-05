@@ -4,6 +4,8 @@
 # Node.js
 node_modules
 yarn.lock
+# pnpm-lock.yaml formatting is owned by pnpm; keep prettier away
+pnpm-lock.yaml
 
 # TSC
 tsconfig.tsbuildinfo

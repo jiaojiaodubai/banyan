@@ -72,3 +72,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run integrations:build
       - run: pnpm run test
+      - name: Run Node tests (style lint)
+        run: pnpm run test:node

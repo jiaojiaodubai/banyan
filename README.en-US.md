@@ -156,7 +156,8 @@ For code conventions and structure see `AGENTS.md` (and
 ### Testing
 
 ```powershell
-pnpm test          # mocha unit tests (zotero-plugin test)
+pnpm test          # mocha unit tests that run inside Zotero (zotero-plugin test)
+pnpm test:node     # Node-only tests (style lint rules, mocha + tsx)
 ```
 
 When changing a word-processor front end, develop and self-test in its own repo:
