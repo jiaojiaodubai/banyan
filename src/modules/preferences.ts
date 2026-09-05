@@ -8,8 +8,8 @@ import type { StyleFile } from "../../typings/style";
 import {
   installWPSAddin,
   uninstallWPSAddin,
-  installWordAddin,
-  uninstallWordAddin,
+  installWordTemplate,
+  uninstallWordTemplate,
 } from "./integration";
 
 type PrefStyleRow = {
@@ -56,33 +56,6 @@ function bindCitationDialogInitialCollectionMode(): void {
     const value = radioGroup.value as CitationDialogInitialCollectionMode;
     setPref(CITATION_DIALOG_INITIAL_COLLECTION_MODE_PREF, value);
   });
-}
-
-function confirmWordAddinInstall(promptWindow: mozIDOMWindowProxy): boolean {
-  if (Services.appinfo.OS !== "WINNT") {
-    return true;
-  }
-
-  const promptSvc = Services.prompt;
-  const buttonPos0 = promptSvc.BUTTON_POS_0 ?? 0;
-  const buttonPos1 = promptSvc.BUTTON_POS_1 ?? 0;
-  const buttonTitleIsString = promptSvc.BUTTON_TITLE_IS_STRING ?? 0;
-  const flags =
-    buttonPos0 * buttonTitleIsString + buttonPos1 * buttonTitleIsString;
-
-  const idx = promptSvc.confirmEx(
-    promptWindow,
-    t("prefs-word-addon-title"),
-    t("prefs-word-addon-install-confirm"),
-    flags,
-    t("prefs-word-addon-install-confirm-continue"),
-    t("prefs-word-addon-install-confirm-cancel"),
-    "",
-    "",
-    { value: false },
-  );
-
-  return idx === 0;
 }
 
 export function registerPrefs() {
@@ -337,7 +310,7 @@ function bindIntegrationButtons() {
     };
   }
 
-  // ── Word Add‑in buttons ───────────────────────────────
+  // ── Word template buttons ──────────────────────────
   const wordInstallBtn = win.document.querySelector(
     `#${config.addonRef}-word-addon-install`,
   ) as HTMLButtonElement | null;
@@ -358,20 +331,16 @@ function bindIntegrationButtons() {
         wordUninstallBtn?.textContent || t("prefs-word-addon-uninstall");
 
       try {
-        if (!confirmWordAddinInstall(promptWindow)) {
-          return;
-        }
-
         setWordButtonsDisabled(true);
         wordInstallBtn.textContent = t("prefs-word-addon-installing");
 
-        const result = await installWordAddin();
+        const result = await installWordTemplate();
         if (result.success) {
           Services.prompt.alert(
             promptWindow,
             t("prefs-word-addon-title"),
             t("prefs-word-addon-install-success", {
-              args: { path: result.manifestPath },
+              args: { path: result.targetPath },
             }),
           );
           return;
@@ -413,7 +382,7 @@ function bindIntegrationButtons() {
       wordUninstallBtn.textContent = t("prefs-word-addon-uninstalling");
 
       try {
-        const result = await uninstallWordAddin();
+        const result = await uninstallWordTemplate();
         if (result.success) {
           Services.prompt.alert(
             promptWindow,
