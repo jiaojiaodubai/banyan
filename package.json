@@ -1,7 +1,7 @@
 {
   "name": "banyan",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "packageManager": "pnpm@10.24.0",
   "description": "Fully customize citation styles using JavaScript in Zotero",
   "config": {
