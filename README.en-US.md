@@ -102,13 +102,34 @@ the matching version is installed automatically):
 
 ### Use your own styles
 
-Put your `.js` style files under the `banyan/` folder in your Zotero data
-directory (or create them with the built-in style editor). They are indexed
-automatically on startup and listed in the citation dialog. Style development
-docs: [Style Develop Guidelines](docs/Style%20Develop%20Guidelines.MD) and
-[Style Develop Tutorial](docs/Style%20Develop%20Tutorial.MD).
+A Banyan style is a JavaScript file that implements a fixed interface (interface
+spec and tutorial: [Style Develop Tutorial](docs/Style%20Develop%20Tutorial.MD)).
+Two authoring workflows are designed for different backgrounds:
 
-## Contributing
+**Workflow 1 — Hand-written**, for users with JavaScript experience.
+
+1. Use the built-in style editor (recommended): open it via the Zotero menu
+   **Tools → Banyan Style Editor**. It is a full coding environment with **type
+   hints, preset templates & code snippets, code checking & formatting, and
+   output preview**; “Save As Style” indexes it right away.
+2. Or use the editor you prefer: save your `.js` style into the `banyan/` folder
+   under your Zotero data directory (the plugin data folder—locate it via
+   **Zotero settings → Advanced → Files and Folders → Show Data Directory**).
+   Styles there are indexed automatically on startup and listed in the citation
+   dialog.
+
+**Workflow 2 — AI-assisted**, for users without coding experience.
+
+1. Download the
+   [`docs/AI Style Workplace`](docs/AI%20Style%20Workplace/Style%20AI%20Authoring%20Guidelines.MD)
+   folder from this repository (it contains type declarations and authoring
+   rules written for AI agents).
+2. Set that folder as the working directory of an AI agent (e.g. Claude Code,
+   Codex, GitHub Copilot).
+3. Describe your formatting requirements (citation/bibliography style, journal
+   or school rules, etc.). The agent generates the `.js` style from the bundled
+   types and rules; drop the generated file into the `banyan/` data folder and
+   it is ready to use.
 
 The plugin skeleton comes from the
 [zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template);

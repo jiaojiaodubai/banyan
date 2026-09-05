@@ -87,10 +87,29 @@
 
 ### 使用自己的样式
 
-把写好的 `.js` 样式放到 Zotero 数据目录下的 `banyan/` 文件夹（或用插件内
-样式编辑器创建），插件启动时会自动索引并在引用对话框中列出。样式开发文档见
-[Style Develop Guidelines](docs/Style%20Develop%20Guidelines.MD) 与
-[Style Develop Tutorial](docs/Style%20Develop%20Tutorial.MD)。
+Banyan 的样式是一个实现固定接口的 JavaScript 文件（接口说明与编写教程见
+[Style Develop Tutorial](docs/Style%20Develop%20Tutorial.MD)）。针对不同背景的
+用户，我们设计了两种编写工作流：
+
+**工作流一：手动编写** —— 面向有 JavaScript 基础的用户。
+
+1. 推荐使用插件内置编辑器：在 Zotero 菜单 **工具 → Banyan 样式编辑器** 打开。
+   它是完整的编码环境，提供**类型提示、预设模板与代码片段、代码检查与格式化、
+   输出预览**；编辑完成后“保存为样式”即被插件索引。
+2. 也可以使用你习惯的编辑器：把写好的 `.js` 样式保存到 Zotero 数据目录下的
+   `banyan/` 文件夹（即插件数据目录，可在 **Zotero 设置 → 高级 → 文件与文件夹
+   → 显示数据目录** 中定位）。插件启动时会自动索引该目录下的样式，并在引用
+   对话框中列出。
+
+**工作流二：AI 辅助编写** —— 面向无编程基础的用户。
+
+1. 下载本仓库的
+   [`docs/AI Style Workplace`](docs/AI%20Style%20Workplace/Style%20AI%20Authoring%20Guidelines.MD)
+   目录（内含类型声明与面向 AI Agent 的编写规范）。
+2. 将该目录设为 AI Agent（如 Claude Code、Codex、GitHub Copilot 等）的工作目录。
+3. 向 Agent 描述你的格式要求（引注/参考文献样式、期刊或学校规范等），Agent
+   会结合目录内的类型与规范生成 `.js` 样式；把生成的文件放入上述 `banyan/`
+   数据目录即可使用。
 
 ## 贡献指南
 

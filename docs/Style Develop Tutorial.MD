@@ -52,6 +52,8 @@ JavaScript 是文本脚本，理论上你可以用任意文本编辑器编写脚
 - `page`：引注在文档中的页码。
 - `params`：引注的其它的参数，用于控制样式的生成。
 
+`contexts` 及其中的对象是宿主在调用 `generate()` 前注入的**只读安全视图**：读取不存在的属性时会返回空字符串 `""` 而不是 `undefined`；数组的索引访问与数组方法保持原生行为。
+
 而 `cites` 也是一个数组，数组中的每个元素都是 `Cite` 类型的对象，`Cite` 包含以下属性：
 
 - `item`：引用的条目。
@@ -416,15 +418,116 @@ function generate() {
 }
 ```
 
-## 最佳实践
+## 最佳实践与注意事项
 
-这里有一些好的编码习惯，可以帮助你规避错误。
+以下约定与规范是编写可维护、可长期运行的样式时需要遵循的要求，其中大部分由沙箱运行环境决定。
 
-1. 避免使用 `this`。
-2. 避免给全局变量挂载新属性。
-3. 避免使用 `eval`。
-4. 避免使用 `with`。
-5. 避免使用 `new Function`。
-6. 避免使用 `Function` 构造函数。
-7. 避免使用 `setTimeout` 和 `setInterval`。
-8. 谨慎使用 `Array.prototype.join`，推荐用 `group` 来处理。
+### 接口与导出
+
+- 样式只需声明 `INFO` 与 `generate()`（必需）、`UI`（可选）；其他辅助函数与常量在脚本内部自由定义即可，不需要（也无法）导出。
+- 不要向全局对象（如 `window`、`globalThis`）挂载新属性，也不要依赖宿主之外的外部环境变量；脚本可能被重复执行，请保持脚本幂等。
+
+### 语法与兼容性
+
+- 避免使用 `this`，推荐用顶层函数、常量与闭包组织代码；如确需绑定，请在样式内部自行 `.bind(...)`。
+- 避免使用 `eval`、`with`、`new Function` 与 `Function` 构造函数。
+- 避免使用 `setTimeout` 与 `setInterval`。
+- 不要使用 Node.js 专属 API（如 `require`、`fs`、`path` 等），也不要使用仅在现代浏览器可用的新特性（如顶层 `await`），以保证在 Firefox ESR 环境（Zotero）下可用。
+- `generate()` 支持异步：可以声明为 `async function`，也可以返回一个 `Promise`。
+
+### 命名与注释
+
+- 变量、函数、常量采用小驼峰（camelCase）；常量也可使用全大写。
+- `INFO` 中的 `id`、`title`、`updated`、`description` 等字段请使用英文，便于索引与国际化。
+- 重要逻辑、参数与边界条件请编写注释（英文或中英文皆可）；建议在文件头部注明作者、版本与更新时间。
+
+### 健壮性与错误处理
+
+- 推荐用 `try/catch` 包裹主流程，捕获异常时返回空结果（空数组/空字符串），避免把未捕获异常抛给宿主。
+
+  ```javascript
+  function generate() {
+    try {
+      /* 主逻辑 */
+    } catch (e) {
+      return { citations: [], bibliography: [] };
+    }
+  }
+  ```
+
+- 读取 `contexts` 等安全视图上不存在的属性会得到 `""`，不要假设它返回 `undefined`；数组的索引访问与数组方法保持原生行为。
+
+### 渲染内容契约
+
+- `generate()` 返回的 `citations` 与 `bibliography` 统一使用 `content` 字段，其值为**单个**声明式 `Unit`；多片段请用 `group([...])` 或 `fallback([...])` 组合，**不要把 `Unit` 数组直接赋给 `content`**。
+- 最简单的叶子文本可写成 `text("...")`，也可手写 `{ value: "..." }`；宿主会把它编译成 `RichText { text, marks }`。
+- `marks` 的 `start`/`end` 使用 JavaScript UTF-16 字符串偏移，`end` 为排他边界；这些区间由宿主统一生成，样式作者**不要手工维护**这些索引。
+- 超链接请用 `link(unit, href)` 包裹目标 `Unit`，不要把链接写进 `RenderStyle`。
+- 复杂拼接优先使用 `group(...)`、`affix(...)`、`fallback(...)`、`when(...)`、`textCase(...)` 等声明式工具，谨慎使用 `Array.prototype.join`：
+  - `join` 只能安全处理**纯字符串数组**；如果数组里混入 `affix()`、`group()` 等返回的 `Unit` 对象，会被 JavaScript 隐式串成 `"[object Object]"`，直接污染最终输出。
+  - 错误示例：`firstName.split(" ").map((word) => affix(word, "", ".")).join(" ")`
+  - 正确示例：`group(firstName.split(" ").map((word) => affix(word, "", ".")), " ")`
+
+### 代码组织
+
+- 把主逻辑拆成小函数，`generate()` 只做调度；辅助函数与常量用 `const` 定义。
+- `citations` 与 `bibliography` 在同一个 `generate()` 内生成，天然共享作用域，便于实现互相引用（例如引注用 `link(..., "banyan://entry/...")` 指向参考文献项目）。
+- 提交样式前，至少用样式编辑器的渲染预览检查一次；如果只想快速确认某个已安装的样式，可在 Zotero 文库中选中样例条目后，到首选项的样式管理器中预览。
+
+## 示例模板
+
+下面是一个完整的、可直接运行的样式骨架，覆盖 `INFO`、`UI` 与 `generate()`，你可以在此基础上扩展。
+
+```javascript
+const INFO = {
+  id: "your-style-id",
+  title: "Your Style Name",
+  description: "简要描述",
+  // 引注类型，可选值：intext-citation、note-citation
+  citationType: "intext-citation",
+  creator: [{ type: "author", name: "Your Name" }],
+  tags: [],
+  documentation: [],
+  license: "MIT",
+  updated: "2026-01-01",
+};
+
+// 可选：在引注/引用弹窗中定义参数控件
+const UI = {
+  citation: [
+    { id: "showDOI", type: "checkbox", label: "显示 DOI", value: false },
+  ],
+  cite: [],
+};
+
+function generate() {
+  try {
+    // 去重收集所有被引条目
+    const unique = new Map();
+    for (const ctx of contexts) {
+      for (const cite of ctx.cites) {
+        unique.set(cite.item.id, cite.item);
+      }
+    }
+
+    // 生成 citations
+    const citations = contexts.map((ctx) => ({
+      id: ctx.id,
+      content: text(
+        ctx.cites.map((c) => c.item.firstCreator || c.item.title).join("; "),
+      ),
+    }));
+
+    // 生成 bibliography
+    const bibliography = Array.from(unique.values()).map((item) => ({
+      id: String(item.id),
+      type: "bibliography-entry",
+      content: text((item.firstCreator || "Unknown") + ". " + item.title),
+    }));
+
+    return { citations, bibliography };
+  } catch (e) {
+    return { citations: [], bibliography: [] };
+  }
+}
+```
