@@ -106,7 +106,24 @@ Banyan 的样式是一个实现固定接口的 JavaScript 文件（接口说明�
 1. 下载本仓库的
    [`docs/AI Style Workplace`](docs/AI%20Style%20Workplace/Style%20AI%20Authoring%20Guidelines.MD)
    目录（内含类型声明与面向 AI Agent 的编写规范）。
-2. 将该目录设为 AI Agent（如 Claude Code、Codex、GitHub Copilot 等）的工作目录。
+   > 不知道如何下载？
+   >
+   > - **整仓下载（最简单）**：打开仓库首页
+   >   [github.com/jiaojiaodubai/Banyan](https://github.com/jiaojiaodubai/Banyan)，点击绿色
+   >   **Code** 按钮 → **Download ZIP**，下载整个仓库的压缩包并解压；进入其中的
+   >   `docs/AI Style Workplace/` 文件夹即为所需内容，其余文件可忽略。
+   > - **只下载该文件夹**：进入仓库的
+   >   [`docs/AI Style Workplace`](https://github.com/jiaojiaodubai/Banyan/tree/main/docs/AI%20Style%20Workplace)
+   >   目录页后，复制浏览器地址栏的网址，粘贴到
+   >   [DownGit](https://minhaskamal.github.io/DownGit) 一类的“目录打包下载”网站，
+   >   即可单独下载这个文件夹。
+2. 将该目录设为 AI Agent（如 Claude Code、Codex、GitHub Copilot 等）的工作目录，
+   并把手头的格式要求一并准备好：
+   - 收稿方（期刊、学校等）通常会以**在线网页**，或 **`.pdf`、`.docx` 等办公文档**
+     的形式给出引注与参考文献格式要求。
+   - 若格式要求以**网页**形式提供，直接把网页链接发给 Agent 即可；
+     若以 **`.pdf`/`.docx` 等文档**形式提供，则把文件放进上述工作目录，并在对话中
+     告诉 Agent 文件所在位置，Agent 会结合文档与目录内的规范一起生成样式。
 3. 向 Agent 描述你的格式要求（引注/参考文献样式、期刊或学校规范等），Agent
    会结合目录内的类型与规范生成 `.js` 样式；把生成的文件放入上述 `banyan/`
    数据目录即可使用。

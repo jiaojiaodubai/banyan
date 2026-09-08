@@ -124,8 +124,26 @@ Two authoring workflows are designed for different backgrounds:
    [`docs/AI Style Workplace`](docs/AI%20Style%20Workplace/Style%20AI%20Authoring%20Guidelines.MD)
    folder from this repository (it contains type declarations and authoring
    rules written for AI agents).
+   > Don't know how to download?
+   >
+   > - **Easiest — download the whole repo**: open the repository homepage
+   >   [github.com/jiaojiaodubai/Banyan](https://github.com/jiaojiaodubai/Banyan), click the
+   >   green **Code** button → **Download ZIP**, and unzip the archive; open the
+   >   `docs/AI Style Workplace/` folder inside — that is all you need (ignore the rest).
+   > - **Download just this folder**: open the
+   >   [`docs/AI Style Workplace`](https://github.com/jiaojiaodubai/Banyan/tree/main/docs/AI%20Style%20Workplace)
+   >   directory page, copy the URL from the address bar, and paste it into a
+   >   directory-download service such as [DownGit](https://minhaskamal.github.io/DownGit)
+   >   to pack and download only that folder.
 2. Set that folder as the working directory of an AI agent (e.g. Claude Code,
-   Codex, GitHub Copilot).
+   Codex, GitHub Copilot) and also prepare the formatting requirements you have
+   at hand:
+   - Publishers or schools usually provide citation/bibliography requirements as
+     **online web pages** or office documents such as **`.pdf`/`.docx`**.
+   - If the requirements are on a **web page**, simply send the link to the agent;
+     if they are provided as **`.pdf`/`.docx` files**, drop the files into this
+     working directory and tell the agent where they are — it will generate the
+     style from both the document and the bundled rules.
 3. Describe your formatting requirements (citation/bibliography style, journal
    or school rules, etc.). The agent generates the `.js` style from the bundled
    types and rules; drop the generated file into the `banyan/` data folder and
