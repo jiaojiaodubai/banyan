@@ -10,6 +10,16 @@ type ScriptSafeObject<T extends object> = {
   ]-?: ScriptSafe<T[K]>;
 };
 
+/**
+ * Readonly, "safe" structural view of a host value handed to style scripts.
+ *
+ * Every object is recursively made `readonly`; functions are kept callable.
+ * At runtime the sandbox wraps these views with a proxy so that reading a
+ * missing property returns the empty string `""` instead of `undefined`
+ * (arrays keep their native indexing and method behavior). Scripts should
+ * therefore never assume `undefined` from a missing key — always test
+ * against `""` when a value may be absent.
+ */
 type ScriptSafe<T> = T extends undefined
   ? never
   : T extends (...args: unknown[]) => unknown
@@ -144,9 +154,12 @@ type CiteVisibilityPredicate = (item: Readonly<Item>) => boolean;
 type CiteDisabledPredicate = (cite: Readonly<Cite>) => boolean;
 
 /**
- * Script items keep strongly typed known fields, but allow arbitrary string
- * indexing so style authors can probe schema/extra-derived fields without
- * fighting JSDoc narrowing on every access.
+ * Item view exposed to scripts (e.g. `cite.item` inside `contexts`): a
+ * readonly {@link ScriptSafe} view of the normalized Banyan item. Known
+ * schema fields keep their declared types; keys not covered by the schema
+ * stay readable and type as `any`. Absent fields read as `""` at runtime,
+ * never `undefined`. `extra` is an already-parsed key/value object — read
+ * values with `getExtraValue(item, key)`.
  */
 type ScriptItem = ScriptSafe<Item> & {
   readonly [field: string]: any;
@@ -165,6 +178,12 @@ type ScriptCitationSource = ScriptSafe<CitationSource>;
 
 type ScriptContext = ScriptSafe<CitationContext>;
 
+/**
+ * The readonly global `contexts` that the sandbox injects before
+ * `generate()` runs. Each element is a safe view of one citation context;
+ * missing object properties read as `""` while array indexing/methods stay
+ * native. `contexts.length` always equals the number of citations to emit.
+ */
 type ScriptContexts = readonly ScriptContext[];
 
 type ScriptResult<T extends CitationType = CitationType> = {

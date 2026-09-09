@@ -179,8 +179,13 @@ ${formatStringProps(COMMON_ITEM_BASE_FIELDS)}
 
   /** Parsed from Zotero's string \`extra\` field (\"key: value\" per line). */
   extra?: ExtraMap;
-
-  /** Other fields from Zotero.Item.toJSON() */
+} & {
+  /**
+   * Other fields from Zotero.Item.toJSON() are textual. This string index
+   * signature lives on a separate intersection member so the declaration
+   * stays valid even without \`skipLibCheck\` while arbitrary unknown keys
+   * still read as \`string\`.
+   */
   [field: string]: string;
 };
 
