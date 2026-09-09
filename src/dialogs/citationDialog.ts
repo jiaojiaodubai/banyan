@@ -13,7 +13,6 @@ import { renderStyleComponentOptions } from "../components/styleComponentOptions
 import { toBanyanItem } from "../utils/item";
 import { useL10n } from "../utils/locale";
 import { getPref, setPref } from "../utils/prefs";
-import { loadCollectionViewItemTreeCompat } from "../utils/compat/itemTree";
 
 export type IO = {
   data: CitationDialogRequestData;
@@ -79,14 +78,7 @@ let headerResizeObserver: ResizeObserver | null = null;
 let footerResizeObserver: ResizeObserver | null = null;
 
 function getItemsViewCollectionTreeRows(): _ZoteroTypes.CollectionTreeRow[] {
-  if (!itemsView) return [];
-  // Backward Compatibly: compatible with Zotero before upstream commit 15c2c9547
-  // (Support multiple-collection selection, #5954), where CollectionViewItemTree
-  // only exposed a singular collectionTreeRow.
-  if (Array.isArray(itemsView.collectionTreeRows)) {
-    return itemsView.collectionTreeRows.filter(Boolean);
-  }
-  return itemsView.collectionTreeRow ? [itemsView.collectionTreeRow] : [];
+  return itemsView?.collectionTreeRows ?? [];
 }
 
 function getItemsViewPrimaryCollectionTreeRow(): _ZoteroTypes.CollectionTreeRow | null {
@@ -145,25 +137,6 @@ async function waitForCollectionTreeRowLibraries(
   await Promise.all(loadPromises);
 
   return true;
-}
-
-async function changeItemsViewCollectionTreeRows(
-  collectionTreeRows: _ZoteroTypes.CollectionTreeRow[],
-): Promise<void> {
-  if (!itemsView) return;
-  if (!collectionTreeRows.length) return;
-
-  // Backward Compatibly: compatible with Zotero at/after upstream commit 15c2c9547
-  // (#5954), which added multi-row collectionTreeRows/changeCollectionTreeRows().
-  if (typeof itemsView.changeCollectionTreeRows === "function") {
-    await itemsView.changeCollectionTreeRows(collectionTreeRows);
-    return;
-  }
-
-  // Backward Compatibly: compatible with Zotero at upstream commit 5ca1fbb16
-  // (Item tree refactor megacommit) and nearby revisions that still require the
-  // legacy singular changeCollectionTreeRow() API.
-  await itemsView.changeCollectionTreeRow(collectionTreeRows[0]);
 }
 
 function getItemsViewFocusedRowIndex(): number {
@@ -291,7 +264,7 @@ async function initLibrary(): Promise<void> {
   try {
     const loader = window.require;
     const CollectionTree = loader("zotero/collectionTree");
-    const CollectionViewItemTree = loadCollectionViewItemTreeCompat(loader);
+    const CollectionViewItemTree = loader("zotero/collectionViewItemTree");
     const { COLUMNS } = loader("zotero/itemTreeColumns") as {
       COLUMNS: ItemTreeColumn[];
     };
@@ -397,7 +370,8 @@ async function restoreAppSelectedCollection(): Promise<boolean> {
   if (!collectionsView) return false;
 
   const mainWindow = Zotero.getMainWindow();
-  const activeCollectionsView = mainWindow?.ZoteroPane?.collectionsView;
+  const zoteroPane = mainWindow?.ZoteroPane;
+  const activeCollectionsView = zoteroPane?.collectionsView;
   if (!activeCollectionsView) return false;
 
   const selectedTreeRow = activeCollectionsView.selectedTreeRow;
@@ -410,9 +384,18 @@ async function restoreAppSelectedCollection(): Promise<boolean> {
   const targetID = selectedTreeRow.id;
   if (typeof targetID !== "string") return false;
 
+  const selectedItemIDs = zoteroPane.getSelectedItems?.(true, {
+    libraryTabOnly: true,
+  });
+
   try {
     const restored = await collectionsView.selectByID?.(targetID);
-    return restored !== false;
+    if (restored === false) return false;
+
+    if (selectedItemIDs?.length) {
+      await itemsView?.selectItems(selectedItemIDs);
+    }
+    return true;
   } catch (e) {
     ztoolkit.log("恢复客户端当前选中的分类失败");
     ztoolkit.logError(e);
@@ -622,7 +605,7 @@ async function handleLibraryCollectionSelection(): Promise<void> {
   const librariesLoaded = await waitForCollectionTreeRowLibraries(selectedRows);
   if (!librariesLoaded) return;
 
-  await changeItemsViewCollectionTreeRows(
+  await itemsView.changeCollectionTreeRows(
     selectedRows.map((collectionTreeRow) => ({
       id: collectionTreeRow.id,
       getItems: async () => {

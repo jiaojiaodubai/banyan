@@ -7,8 +7,6 @@
   xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
   resizable="true"
   drawintitlebar-platforms="mac,win"
-  customtitlebar="true"
-  drawtitle="false"
 >
   <head>
     <title data-l10n-id="citation-dialog-title"></title>
@@ -27,6 +25,7 @@
 
     <script src="chrome://zotero/content/include.js"></script>
     <script src="chrome://zotero/content/customElements.js"></script>
+    <script src="chrome://zotero/content/titlebar.js"></script>
     <script>
       const addon = Zotero.__addonInstance__;
       const ztoolkit = addon.data.ztoolkit;
@@ -48,6 +47,7 @@
     </div>
   </header>
   <!-- Library, with collections tree and items tree, to find item manually -->
+
   <body>
     <div id="library-trees">
       <div

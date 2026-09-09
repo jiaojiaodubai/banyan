@@ -12,7 +12,6 @@ import type {
 import type { IO as CitationDialogIO } from "./citationDialog";
 import { RichTextEditor } from "../components/richTextEditor";
 import { emptyRichText } from "../utils/richText";
-import { loadCollectionViewItemTreeCompat } from "../utils/compat/itemTree";
 
 export type IO = {
   data: BibliographyRequestData;
@@ -124,7 +123,7 @@ async function initUncitedItemsTree(): Promise<void> {
   if (!container) return;
   try {
     const loader = window.require;
-    const CollectionViewItemTree = loadCollectionViewItemTreeCompat(loader);
+    const CollectionViewItemTree = loader("zotero/collectionViewItemTree");
     const { COLUMNS } = loader("zotero/itemTreeColumns") as {
       COLUMNS: Array<{ dataKey: string; hidden?: boolean }>;
     };

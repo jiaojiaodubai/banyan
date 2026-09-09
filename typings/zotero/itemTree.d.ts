@@ -45,17 +45,18 @@ declare namespace _ZoteroTypes {
       (asIDs: true): number[];
       (asIDs: boolean): Zotero.Item[] | number[];
     };
+    selectItems: (
+      ids: number[],
+      noRecurse?: boolean,
+      noScroll?: boolean,
+    ) => Promise<number>;
     setFilter: (type: string, data?: unknown) => Promise<void>;
     setHighlightedRows?: (ids: number[]) => Promise<void>;
   }
 
   interface CollectionViewItemTree extends ItemTree {
-    collectionTreeRow?: CollectionTreeRow;
-    collectionTreeRows?: CollectionTreeRow[];
-    changeCollectionTreeRow: (
-      collectionTreeRow: CollectionTreeRow,
-    ) => Promise<void>;
-    changeCollectionTreeRows?: (
+    collectionTreeRows: CollectionTreeRow[];
+    changeCollectionTreeRows: (
       collectionTreeRows: CollectionTreeRow[],
     ) => Promise<void>;
   }
