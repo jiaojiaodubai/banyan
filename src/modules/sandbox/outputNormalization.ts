@@ -29,6 +29,12 @@ import { createBanyanRuntimeError } from "./runtimeErrors";
 const MAX_OUTPUT_ARRAY_LENGTH = 10_000;
 const MAX_TEXT_UNIT_VALUE_LENGTH = 20_000;
 const MAX_OUTPUT_TEXT_LENGTH = 2_000_000;
+
+// DOM node type constants for markup splitting. This code also runs in the
+// plugin sandbox scope during refresh, which has no ambient DOM globals
+// (`Node` is undefined there - see parseHTMLContainer), so keep them local.
+const DOM_NODE_TYPE_ELEMENT = 1; // Node.ELEMENT_NODE
+const DOM_NODE_TYPE_TEXT = 3; // Node.TEXT_NODE
 type OutputBudget = {
   textLength: number;
 };
@@ -463,7 +469,7 @@ function splitTextUnitByMarkup(base: TextUnit): InternalTextUnit[] {
   }
 
   const walk = (node: Node, style: InternalTextStyle) => {
-    if (node.nodeType === Node.TEXT_NODE) {
+    if (node.nodeType === DOM_NODE_TYPE_TEXT) {
       const value = node.nodeValue || "";
       if (!value) return;
       const unit: InternalTextUnit = {
@@ -475,7 +481,7 @@ function splitTextUnitByMarkup(base: TextUnit): InternalTextUnit[] {
       return;
     }
 
-    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    if (node.nodeType !== DOM_NODE_TYPE_ELEMENT) return;
 
     const el = node as Element;
     const tag = el.tagName.toLowerCase();

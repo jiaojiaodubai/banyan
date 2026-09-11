@@ -13,8 +13,36 @@ const contexts = [
   },
 ] as unknown as CitationContext[];
 
+const globals = globalThis as Record<string, unknown>;
+const originalDomParser = globals.DOMParser;
+const originalZtoolkit = globals.ztoolkit;
+
+/**
+ * Markup splitting resolves `DOMParser` either from the ambient global (host
+ * windows, the in-Zotero test page) or from the main window via `ztoolkit`
+ * (the plugin sandbox, which strips DOM globals). A plain Node runner has
+ * neither, so tests that assert parsed markup must skip instead of reporting
+ * an environment gap as a product failure.
+ */
+function requireDomParser(context: Mocha.Context): void {
+  if (typeof originalDomParser !== "function") {
+    context.skip();
+  }
+}
+
 function rich(text: string, marks: InlineMark[] = []): RichText {
   return { text, marks };
+}
+
+/** Normalize one citation content unit and return the single content line. */
+function contentOf(unit: unknown): unknown {
+  const result = normalizeGenerateResult(
+    { citations: [{ id: "ctx-1", content: unit }], bibliography: [] },
+    contexts,
+    "Test Style",
+    "intext-citation",
+  );
+  return (result.citations as { content: unknown }[])[0].content;
 }
 
 describe("generate output normalization", function () {
@@ -189,6 +217,10 @@ describe("generate output normalization", function () {
   });
 
   it("splits supported markup and drops unsafe markup links", function () {
+    // Markup splitting needs a DOMParser; a DOM-less Node run cannot exercise
+    // it. The sandbox/host differences are covered in the dedicated suite below.
+    requireDomParser(this);
+
     const result = normalizeGenerateResult(
       {
         citations: [
@@ -223,6 +255,8 @@ describe("generate output normalization", function () {
   });
 
   it("applies text case after markup splitting while honoring rich-text case markers", function () {
+    requireDomParser(this);
+
     const result = normalizeGenerateResult(
       {
         citations: [
@@ -255,6 +289,8 @@ describe("generate output normalization", function () {
   });
 
   it("turns textCase small-caps into text after markup normalization", function () {
+    requireDomParser(this);
+
     const result = normalizeGenerateResult(
       {
         citations: [
@@ -297,5 +333,111 @@ describe("generate output normalization", function () {
         ),
       /cannot be matched to input contexts/,
     );
+  });
+
+  describe("markup splitting across sandbox and host environments", function () {
+    afterEach(function () {
+      globals.DOMParser = originalDomParser;
+      globals.ztoolkit = originalZtoolkit;
+    });
+
+    const markup =
+      'A <strong>B</strong><a href="https://example.test/?a=1&amp;b=2">ok</a><br><sup>2</sup>';
+
+    function expectedMarkup(): RichText {
+      return rich("A Bok\n2", [
+        { type: "bold", start: 2, end: 3, value: true },
+        {
+          type: "link",
+          start: 3,
+          end: 5,
+          value: "https://example.test/?a=1&b=2",
+        },
+        { type: "script", start: 6, end: 7, value: "superscript" },
+      ]);
+    }
+
+    it("uses the ambient DOMParser without touching ztoolkit when one exists", function () {
+      // Host-like environments (dialogs, the in-Zotero test page) expose
+      // DOMParser directly, so the ztoolkit fallback must stay unused. This
+      // branch is only meaningful where the host provides an ambient parser.
+      requireDomParser(this);
+
+      let requested: string | undefined;
+      globals.DOMParser = originalDomParser;
+      globals.ztoolkit = {
+        getGlobal(name: string) {
+          requested = name;
+          return undefined;
+        },
+      };
+
+      assert.deepEqual(contentOf({ value: markup }), expectedMarkup());
+      assert.isUndefined(requested);
+    });
+
+    it("falls back to the main window DOMParser inside the plugin sandbox", function () {
+      // The plugin sandbox strips DOM globals (sandbox.document/window are
+      // undefined), so markup splitting must resolve DOMParser via ztoolkit.
+      delete globals.DOMParser;
+
+      let requested: string | undefined;
+      globals.ztoolkit = {
+        getGlobal(name: string) {
+          requested = name;
+          return originalDomParser;
+        },
+      };
+
+      // In a DOM-less Node run ztoolkit yields no parser, so markup degrades to
+      // decoded literal text; only the request itself is guaranteed here.
+      const result =
+        typeof originalDomParser === "function"
+          ? expectedMarkup()
+          : rich(
+              'A <strong>B</strong><a href="https://example.test/?a=1&b=2">ok</a><br><sup>2</sup>',
+            );
+
+      assert.deepEqual(contentOf({ value: markup }), result);
+      assert.equal(requested, "DOMParser");
+    });
+
+    it("keeps markup readable as plain text when no DOMParser is reachable", function () {
+      // Neither an ambient DOMParser nor a ztoolkit bridge: parseHTMLContainer
+      // returns null and the markup must degrade to decoded literal text instead
+      // of throwing or silently dropping content.
+      delete globals.DOMParser;
+      globals.ztoolkit = { getGlobal: () => undefined };
+
+      assert.deepEqual(
+        contentOf({ value: "A <strong>B</strong> &amp; C" }),
+        rich("A <strong>B</strong> & C"),
+      );
+    });
+
+    it("keeps markup readable when DOMParser construction throws", function () {
+      delete globals.DOMParser;
+      globals.ztoolkit = {
+        getGlobal() {
+          return class {
+            parseFromString() {
+              throw new Error("parser unavailable");
+            }
+          } as unknown as typeof DOMParser;
+        },
+      };
+
+      assert.deepEqual(contentOf({ value: "A <i>B</i>" }), rich("A <i>B</i>"));
+    });
+
+    it("decodes entities even when no parser is available", function () {
+      delete globals.DOMParser;
+      globals.ztoolkit = { getGlobal: () => undefined };
+
+      assert.deepEqual(
+        contentOf({ value: "Tom &amp; Jerry &lt;3 &nbsp;end" }),
+        rich("Tom & Jerry <3  end"),
+      );
+    });
   });
 });
