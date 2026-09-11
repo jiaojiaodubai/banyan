@@ -43,6 +43,11 @@ describe("generate output normalization", function () {
         ],
         bibliography: [
           {
+            id: "references",
+            type: "bibliography-title",
+            content: "References",
+          },
+          {
             id: "item-1",
             type: "bibliography-entry",
             content: {
@@ -72,6 +77,11 @@ describe("generate output normalization", function () {
     ]);
     assert.deepEqual(result.bibliography, [
       {
+        id: "references",
+        type: "bibliography-title",
+        content: rich("References"),
+      },
+      {
         id: "item-1",
         type: "bibliography-entry",
         content: rich("Bibliography", [
@@ -79,6 +89,24 @@ describe("generate output normalization", function () {
         ]),
       },
     ]);
+  });
+
+  it("requires an id for bibliography titles", function () {
+    assert.throws(
+      () =>
+        normalizeGenerateResult(
+          {
+            citations: [],
+            bibliography: [
+              { type: "bibliography-title", content: "References" },
+            ],
+          },
+          contexts,
+          "Test Style",
+          "intext-citation",
+        ),
+      /bibliography\[0\]\.id must be a non-empty string\./,
+    );
   });
 
   it("drops affixes when the main unit has no visible text", function () {

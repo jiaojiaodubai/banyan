@@ -247,6 +247,7 @@ function normalizeBibliographyLine(
 
   if (type === "bibliography-title") {
     return {
+      id: requireNonEmptyString(line.id, `${outputPath}.id`),
       type: "bibliography-title",
       content,
     };

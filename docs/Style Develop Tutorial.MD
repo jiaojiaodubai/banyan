@@ -94,6 +94,7 @@ JavaScript 是文本脚本，理论上你可以用任意文本编辑器编写脚
 
 `BibliographyTitle` 类型表示参考文献列表的标题，有如下属性：
 
+- `id`：标题的 ID，推荐使用标题的烤串形式。
 - `type`：必须是 `bibliography-title`，用以自明身份。
 - `content`：参考文献列表的标题内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
 

@@ -222,6 +222,7 @@ export type NoteCitation = Citation<"note-citation"> & {
 };
 
 export type BibliographyTitle = {
+  id: string;
   type: "bibliography-title";
   content: RichText;
 };
@@ -250,6 +251,7 @@ export type ScriptNoteCitation = ScriptCitation & {
 };
 
 type ScriptBibliographyTitle = {
+  id: string;
   // JS object literal inference widens string properties; keep script-side
   // types permissive and rely on runtime validation for exact tag checking.
   type: "bibliography-title" | string;

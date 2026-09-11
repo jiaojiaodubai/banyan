@@ -6,7 +6,7 @@ type MaybePromise<T> = T | Promise<T>;
 
 type ScriptSafeObject<T extends object> = {
   readonly [
-    K in keyof T as ScriptSafe<T[K]> extends never ? never : K
+  K in keyof T as ScriptSafe<T[K]> extends never ? never : K
   ]-?: ScriptSafe<T[K]>;
 };
 
@@ -23,20 +23,20 @@ type ScriptSafeObject<T extends object> = {
 export type ScriptSafe<T> = T extends undefined
   ? never
   : T extends (...args: unknown[]) => unknown
-    ? T
-    : T extends string
-      ? string
-      : T extends number
-        ? number
-        : T extends boolean
-          ? boolean
-          : T extends readonly (infer U)[]
-            ? readonly ScriptSafe<U>[]
-            : T extends (infer U)[]
-              ? readonly ScriptSafe<U>[]
-              : T extends object
-                ? ScriptSafeObject<T>
-                : T;
+  ? T
+  : T extends string
+  ? string
+  : T extends number
+  ? number
+  : T extends boolean
+  ? boolean
+  : T extends readonly (infer U)[]
+  ? readonly ScriptSafe<U>[]
+  : T extends (infer U)[]
+  ? readonly ScriptSafe<U>[]
+  : T extends object
+  ? ScriptSafeObject<T>
+  : T;
 
 /**
  * Host-side normalized style API.
@@ -222,6 +222,7 @@ export type NoteCitation = Citation<"note-citation"> & {
 };
 
 export type BibliographyTitle = {
+  id: string;
   type: "bibliography-title";
   content: RichText;
 };
@@ -250,6 +251,7 @@ export type ScriptNoteCitation = ScriptCitation & {
 };
 
 type ScriptBibliographyTitle = {
+  id: string;
   // JS object literal inference widens string properties; keep script-side
   // types permissive and rely on runtime validation for exact tag checking.
   type: "bibliography-title" | string;
