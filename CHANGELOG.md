@@ -7,7 +7,32 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit this
 
 ## [Unreleased]
 
-[compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.1.0...main)
+[compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.2.0...main)
+
+### 🩹 Fixes
+
+- **lifecycle:** Release dialog trees, registrations, and locks cleanly ([555f185](https://github.com/jiaojiaodubai/banyan/commit/555f185))
+- **ui:** Prevent text selection in virtualized tables ([e359104](https://github.com/jiaojiaodubai/banyan/commit/e359104))
+
+### 💅 Refactors
+
+- **citedItemsSearch:** Back cited-items rows with in-memory searches ([0c42573](https://github.com/jiaojiaodubai/banyan/commit/0c42573))
+
+### 📖 Documentation
+
+- **readme:** Rework badges and split style authoring from installation ([ad278b4](https://github.com/jiaojiaodubai/banyan/commit/ad278b4))
+
+### 🏡 Chore
+
+- **deps:** Refresh lockfile ranges — `@types/node` `24.19.0`, `prettier` `3.9.9`, `tsx` `4.23.15`
+
+### ❤️ Contributors
+
+- Jiaojiaodubai
+
+## v0.2.0 (2026-09-21)
+
+[compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.1.0...v0.2.0)
 
 ### 🚀 Features
 
