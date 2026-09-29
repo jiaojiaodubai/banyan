@@ -10,6 +10,7 @@ import {
 import {
   cleanupCitationColumn,
   registerCitationColumn,
+  unpatchCollectionsView,
 } from "./modules/citedItemsSearch";
 import { registerToolsMenu, registerContextMenu } from "./modules/menu";
 import { ensureStyleEditorRuntimeAssets } from "./modules/styleEditor";
@@ -95,7 +96,8 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   }
 }
 
-async function onMainWindowUnload(_win: Window): Promise<void> {
+async function onMainWindowUnload(win: Window): Promise<void> {
+  unpatchCollectionsView(win);
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();
 }

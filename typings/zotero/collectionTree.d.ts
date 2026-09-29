@@ -26,6 +26,13 @@ declare namespace _ZoteroTypes {
   interface CollectionTreeRow {
     id: string | number;
     type?: string;
+    /**
+     * Preset id used by the `id` getter for rows whose `type` is not one of
+     * Zotero's built-ins (Banyan's cited-items rows set this).
+     */
+    _id?: string;
+    level?: number;
+    isOpen?: boolean;
     ref: CollectionTreeRowRef;
     getItems: (options?: {
       unfiltered?: boolean;
@@ -35,7 +42,7 @@ declare namespace _ZoteroTypes {
     isSearch?: () => boolean;
     isSearchMode?: () => boolean;
     isCollection?: () => boolean;
-    isLibrary?: () => boolean;
+    isLibrary?: (includeGlobal?: boolean) => boolean;
     visibilityGroup?: string;
     view?: Record<string, unknown>;
   }
@@ -44,6 +51,13 @@ declare namespace _ZoteroTypes {
     count: number;
     focused: number;
     selected?: Set<number>;
+    select: (index: number, shouldDebounce?: boolean) => boolean;
+    /**
+     * While true, the tree applies no selection change and fires no
+     * `onSelectionChange`/`select` event, so only the code that set it may clear
+     * it.
+     */
+    selectEventsSuppressed: boolean;
   }
 
   interface CollectionTreeInitOptions {
@@ -67,8 +81,27 @@ declare namespace _ZoteroTypes {
     itemTreeView: CollectionViewItemTree | null;
     onLoad: CollectionTreeLoadEvent;
     getRow: (index: number) => CollectionTreeRow;
+    /**
+     * Name of the row's icon, resolved by `_getIcon()`. Defaults to the row's
+     * type, so an unknown type gets no icon unless this is overridden.
+     */
+    getIconName: (index: number) => string | null;
     selectByID?: (id: string, ensureRowVisible?: boolean) => Promise<boolean>;
     selectLibrary: (libraryID?: number) => Promise<void>;
+    /** Resolves once the `select` event next fires. */
+    waitForSelect: () => Promise<void>;
+    reload: () => Promise<void>;
+    /**
+     * Expands the row at `row`, splicing its children into `rows`.
+     *
+     * @returns The number of rows added, or `false` for the row types that are
+     *     never expanded (publications and feed rows).
+     */
+    _expandRow: (
+      rows: CollectionTreeRow[],
+      row: number,
+      forceOpen?: boolean,
+    ) => Promise<number | false>;
     unregister: () => void;
   }
 }
@@ -86,5 +119,12 @@ declare module "zotero/collectionTree" {
 declare namespace Zotero {
   const CollectionTreeRow: {
     prototype: _ZoteroTypes.CollectionTreeRow;
+    new (
+      collectionTreeView: _ZoteroTypes.CollectionTree,
+      type: string,
+      ref: unknown,
+      level?: number,
+      isOpen?: boolean,
+    ): _ZoteroTypes.CollectionTreeRow;
   };
 }

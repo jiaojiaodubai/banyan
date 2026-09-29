@@ -6,8 +6,9 @@ import type { CitationContext } from "../../typings/style";
 import { useL10n } from "../utils/locale";
 import {
   buildDocumentCitationPreviewMap,
-  CITED_ITEMS_SEARCH_MARKER,
+  getCitationPreviewText,
   getCitedItemsSearchLabel,
+  mergeDocumentCitationPreviews,
   type DocumentCitationPreview,
 } from "../utils/citedItemsSearch";
 import { renderRichTextToHtml } from "../utils/richTextHtml";
@@ -17,39 +18,39 @@ type CitedItemsSearchState = {
   libraryID: number | null;
   searchName: string;
   search: Zotero.Search | null;
-  searchPromise?: Promise<Zotero.Search | null>;
   itemIDs: number[];
   itemData: Map<number, DocumentCitationPreview>;
 };
 
+type ExpandRow = _ZoteroTypes.CollectionTree["_expandRow"];
+type GetIconName = _ZoteroTypes.CollectionTree["getIconName"];
+
 type ZoteroPaneLike = {
   itemsView?: {
     getRow?: (index: number) => { ref?: Zotero.Item } | undefined;
-    refreshAndMaintainSelection?: () => void;
+    refreshAndMaintainSelection?: () => Promise<void> | void;
   };
-  collectionsView?: {
-    selectedTreeRow?: _ZoteroTypes.CollectionTreeRow;
-  };
+  collectionsView?: _ZoteroTypes.CollectionTree | false;
 };
 
 const t = useL10n(["mainWindow.ftl"]);
-const CITED_ITEMS_SEARCH_CONDITION_PREFIX = `${CITED_ITEMS_SEARCH_MARKER}:`;
 const CITATION_PREVIEW_PART_CLASS = "banyan-document-citation-part";
+// Not a built-in type, so `id` returns the preset `_id`.
+const CITED_ITEMS_ROW_TYPE = "banyanCitedItems";
+const CITED_ITEMS_ROW_ID_PREFIX = "banyanCited:";
+// Name of Zotero's generic document glyph.
+const CITED_ITEMS_ROW_ICON_NAME = "item-type";
+
 const citedItemsSearches = new Map<string, CitedItemsSearchState>();
 let registeredColumnKey: string | false | null = null;
-let orphanCleanupDone = false;
-let originalGetItems:
-  | ((
-      this: _ZoteroTypes.CollectionTreeRow,
-      options?: { unfiltered?: boolean },
-    ) => Promise<Zotero.Item[]>)
-  | null = null;
+const patchedViews = new WeakMap<
+  _ZoteroTypes.CollectionTree,
+  { expandRow: ExpandRow; getIconName: GetIconName }
+>();
 
 export async function registerCitationColumn(): Promise<void> {
-  // Main windows load concurrently, so register synchronously: deferring the
-  // assignment past an `await` would let a second window register a duplicate,
-  // and `registerColumn()` returns `false` for a duplicate, which would lose
-  // the real key that `cleanupCitationColumn()` has to unregister.
+  // Register synchronously: a duplicate registration would lose the key that
+  // cleanup has to unregister.
   if (registeredColumnKey === null) {
     registeredColumnKey = Zotero.ItemTreeManager.registerColumn({
       dataKey: "citationPreview",
@@ -60,11 +61,8 @@ export async function registerCitationColumn(): Promise<void> {
       minWidth: 120,
       zoteroPersist: ["width", "hidden", "sortDirection"],
       dataProvider: (item) => {
-        const preview = getPreviewForSelectedCitationColumn(
-          Zotero.getMainWindow(),
-          item.id,
-        );
-        return preview ? preview.text : "";
+        const preview = getCitationPreview(Zotero.getMainWindow(), item.id);
+        return preview ? getCitationPreviewText(preview) : "";
       },
       renderCell: (index, _data, column, _isFirstColumn, doc) => {
         const cell = doc.createElement("span");
@@ -73,7 +71,7 @@ export async function registerCitationColumn(): Promise<void> {
         const pane = getZoteroPane(doc.defaultView);
         const rowItem = pane?.itemsView?.getRow?.(index)?.ref;
         const preview = rowItem?.id
-          ? getPreviewForSelectedCitationColumn(doc.defaultView, rowItem.id)
+          ? getCitationPreview(doc.defaultView, rowItem.id)
           : undefined;
 
         if (preview) {
@@ -83,19 +81,15 @@ export async function registerCitationColumn(): Promise<void> {
                 `<span class="${CITATION_PREVIEW_PART_CLASS}">${html}</span>`,
             )
             .join("");
-          cell.title = preview.text;
+          cell.title = getCitationPreviewText(preview);
         }
         return cell;
       },
     });
   }
 
-  patchCollectionTreeRowGetItems();
-  if (!orphanCleanupDone) {
-    // Every main window load would otherwise rescan the searches of all
-    // libraries; the orphans only need to be cleared once per plugin session.
-    orphanCleanupDone = true;
-    await clearOrphanCitedItemsSearches();
+  for (const win of Zotero.getMainWindows()) {
+    patchCollectionsView(win);
   }
 }
 
@@ -104,19 +98,55 @@ export function cleanupCitationColumn(): void {
     Zotero.ItemTreeManager.unregisterColumn(registeredColumnKey);
   }
   registeredColumnKey = null;
-  orphanCleanupDone = false;
 
-  if (originalGetItems) {
-    Zotero.CollectionTreeRow.prototype.getItems = originalGetItems;
-    originalGetItems = null;
-  }
-
-  for (const state of citedItemsSearches.values()) {
-    if (state.search) {
-      void state.search.eraseTx();
-    }
+  for (const win of Zotero.getMainWindows()) {
+    unpatchCollectionsView(win);
   }
   citedItemsSearches.clear();
+
+  void refreshOpenTrees(true);
+}
+
+export function patchCollectionsView(win: Window): void {
+  const view = getZoteroPane(win)?.collectionsView;
+  if (!view || patchedViews.has(view)) {
+    return;
+  }
+
+  const originalExpandRow = view._expandRow.bind(view);
+  const originalGetIconName = view.getIconName.bind(view);
+  patchedViews.set(view, {
+    expandRow: originalExpandRow,
+    getIconName: originalGetIconName,
+  });
+
+  view._expandRow = async (rows, row, forceOpen) => {
+    const added = await originalExpandRow(rows, row, forceOpen);
+    // Keep Zotero's `false` for the rows it never expands; callers sum the result.
+    if (added === false) {
+      return false;
+    }
+    return added + injectCitedItemsRows(view, rows, row, added, forceOpen);
+  };
+
+  view.getIconName = (index) =>
+    view.getRow(index)?.type === CITED_ITEMS_ROW_TYPE
+      ? CITED_ITEMS_ROW_ICON_NAME
+      : originalGetIconName(index);
+}
+
+export function unpatchCollectionsView(win: Window): void {
+  const view = getZoteroPane(win)?.collectionsView;
+  if (!view) {
+    return;
+  }
+
+  const original = patchedViews.get(view);
+  if (original) {
+    view._expandRow = original.expandRow;
+    view.getIconName = original.getIconName;
+    patchedViews.delete(view);
+  }
 }
 
 export async function updateCitationColumnFromRefresh(
@@ -125,6 +155,8 @@ export async function updateCitationColumnFromRefresh(
 ): Promise<void> {
   const documentId = normalizeDocumentId(request.documentId);
   const state = getOrCreateCitedItemsSearchState(documentId);
+  const previousLibraryID = state.libraryID;
+
   state.searchName = getCitedItemsSearchLabel(documentId);
   state.libraryID = getFirstLibraryID(request.contexts) ?? state.libraryID;
   state.itemData = buildDocumentCitationPreviewMap(
@@ -135,34 +167,51 @@ export async function updateCitationColumnFromRefresh(
   );
   state.itemIDs = Array.from(state.itemData.keys());
 
-  await ensureSearchForState(state);
-  refreshOpenItemTrees();
+  syncSearchForState(state);
+  // A row lives under its library, so a document that moved needs the old one gone.
+  await refreshOpenTrees(state.libraryID !== previousLibraryID);
 }
 
-function patchCollectionTreeRowGetItems(): void {
-  if (originalGetItems) {
-    return;
+/** Splice one row per matching document after the rows the original produced. */
+function injectCitedItemsRows(
+  view: _ZoteroTypes.CollectionTree,
+  rows: _ZoteroTypes.CollectionTreeRow[],
+  row: number,
+  added: number,
+  forceOpen: boolean | undefined,
+): number {
+  const treeRow = rows[row];
+  // An on-demand expansion sets `isOpen` only after `_expandRow` returns.
+  if (!treeRow.isLibrary?.(true) || (treeRow.isOpen === false && !forceOpen)) {
+    return 0;
   }
 
-  originalGetItems = Zotero.CollectionTreeRow.prototype.getItems;
-  Zotero.CollectionTreeRow.prototype.getItems = async function (options = {}) {
-    const state = getCitedItemsSearchStateByRow(this);
-    if (!state) {
-      return originalGetItems!.call(this, options);
+  const libraryID = treeRow.ref.libraryID;
+  const level = (treeRow.level ?? 0) + 1;
+  let injected = 0;
+
+  for (const state of citedItemsSearches.values()) {
+    if (state.libraryID !== libraryID || !stateHasCitedItemsRow(state)) {
+      continue;
     }
 
-    const items = await Zotero.Items.getAsync(state.itemIDs);
-    const itemsByID = new Map<number, Zotero.Item>();
-    for (const item of items) {
-      if (typeof item.id === "number") {
-        itemsByID.set(item.id, item);
-      }
-    }
+    const treeRowRow = new Zotero.CollectionTreeRow(
+      view,
+      CITED_ITEMS_ROW_TYPE,
+      state.search,
+      level,
+      false,
+    );
+    treeRowRow._id = getCitedItemsRowID(state.documentId);
+    rows.splice(row + 1 + added + injected, 0, treeRowRow);
+    injected += 1;
+  }
 
-    return state.itemIDs
-      .map((itemId) => itemsByID.get(itemId))
-      .filter((item): item is Zotero.Item => Boolean(item));
-  };
+  return injected;
+}
+
+function stateHasCitedItemsRow(state: CitedItemsSearchState): boolean {
+  return Boolean(state.search) && state.itemIDs.length > 0;
 }
 
 function getOrCreateCitedItemsSearchState(
@@ -186,74 +235,77 @@ function getOrCreateCitedItemsSearchState(
   return state;
 }
 
-function getCitedItemsSearchStateBySearchKey(
-  searchKey: string | undefined,
-): CitedItemsSearchState | null {
-  if (!searchKey) {
-    return null;
+/** Rebuilds `joinMode=any` plus one `itemID is` condition per cited item. */
+function syncSearchForState(state: CitedItemsSearchState): void {
+  const libraryID = state.libraryID ?? Zotero.Libraries.userLibraryID;
+  if (typeof libraryID !== "number") {
+    return;
+  }
+  state.libraryID = libraryID;
+
+  // `libraryID` is readonly, so recreate the search if the library changed.
+  if (!state.search || state.search.libraryID !== libraryID) {
+    state.search = new Zotero.Search({ libraryID });
   }
 
-  for (const state of citedItemsSearches.values()) {
-    if (state.search?.key === searchKey) {
-      return state;
-    }
+  const search = state.search;
+  search.name = state.searchName;
+
+  // Highest id first: removeCondition() shifts the ids after it.
+  const conditionIds = Object.keys(search.getConditions())
+    .map((id) => Number(id))
+    .sort((a, b) => b - a);
+  for (const conditionId of conditionIds) {
+    search.removeCondition(conditionId);
   }
-  return null;
+
+  search.addCondition("joinMode", "any");
+  for (const itemID of state.itemIDs) {
+    search.addCondition("itemID", "is", itemID);
+  }
 }
 
-function getCitedItemsSearchStateBySearch(
-  search: Pick<Zotero.Search, "id" | "key"> | null | undefined,
-): CitedItemsSearchState | null {
-  if (!search) {
-    return null;
-  }
-
-  for (const state of citedItemsSearches.values()) {
-    if (isSameSearch(state.search, search)) {
-      return state;
-    }
-  }
-
-  return getCitedItemsSearchStateBySearchKey(search.key);
+/** Id of the injected row, which `CollectionTreeRow.id` returns as is. */
+function getCitedItemsRowID(documentId: string): string {
+  return `${CITED_ITEMS_ROW_ID_PREFIX}${documentId}`;
 }
-
 function getCitedItemsSearchStateByRow(
-  row: _ZoteroTypes.CollectionTreeRow,
+  row: _ZoteroTypes.CollectionTreeRow | undefined,
 ): CitedItemsSearchState | null {
-  if (!row.isSearch?.() || !(row.ref instanceof Zotero.Search)) {
+  if (!row || row.type !== CITED_ITEMS_ROW_TYPE) {
     return null;
   }
 
-  const mappedBySearch = getCitedItemsSearchStateBySearch(row.ref);
-  if (mappedBySearch) {
-    return mappedBySearch;
-  }
-
-  const documentId = getDocumentIdFromManagedSearch(row.ref);
-  if (!documentId) {
+  const rowId = typeof row.id === "string" ? row.id : "";
+  if (!rowId.startsWith(CITED_ITEMS_ROW_ID_PREFIX)) {
     return null;
   }
+
+  const documentId = rowId.slice(CITED_ITEMS_ROW_ID_PREFIX.length);
   return citedItemsSearches.get(documentId) ?? null;
 }
 
-function getPreviewForSelectedCitationColumn(
+/** The selected document's citations for an item, or every document's. */
+function getCitationPreview(
   win: Window | null | undefined,
   itemID: number,
 ): DocumentCitationPreview | undefined {
-  const row = getZoteroPane(win)?.collectionsView?.selectedTreeRow;
-  const state = row ? getCitedItemsSearchStateByRow(row) : null;
-  return state?.itemData.get(itemID);
-}
-
-function isSameSearch(
-  left: Pick<Zotero.Search, "id" | "key"> | null | undefined,
-  right: Pick<Zotero.Search, "id" | "key"> | null | undefined,
-): boolean {
-  if (!left || !right) {
-    return false;
+  const view = getZoteroPane(win)?.collectionsView;
+  const state = getCitedItemsSearchStateByRow(
+    view ? view.selectedTreeRow : undefined,
+  );
+  if (state) {
+    return state.itemData.get(itemID);
   }
 
-  return left.id === right.id || left.key === right.key;
+  const previews: DocumentCitationPreview[] = [];
+  for (const candidate of citedItemsSearches.values()) {
+    const preview = candidate.itemData.get(itemID);
+    if (preview) {
+      previews.push(preview);
+    }
+  }
+  return previews.length ? mergeDocumentCitationPreviews(previews) : undefined;
 }
 
 function getZoteroPane(win: Window | null | undefined): ZoteroPaneLike | null {
@@ -273,151 +325,74 @@ function getFirstLibraryID(contexts: CitationContext[]): number | null {
   return null;
 }
 
-async function ensureSearchForState(
-  state: CitedItemsSearchState,
-): Promise<Zotero.Search | null> {
-  if (state.search) {
-    if (state.search.name !== state.searchName) {
-      state.search.name = state.searchName;
-      await state.search.saveTx({ skipSelect: true });
-    }
-    return state.search;
-  }
-
-  if (state.searchPromise) {
-    return state.searchPromise;
-  }
-
-  state.searchPromise = (async () => {
-    const libraryID = state.libraryID ?? Zotero.Libraries.userLibraryID;
-    if (typeof libraryID !== "number") {
-      return null;
-    }
-
-    const existingSearch = await findManagedSearchByDocumentId(
-      state.documentId,
-      libraryID,
-    );
-    if (existingSearch) {
-      const search = existingSearch;
-
-      if (search.name !== state.searchName) {
-        search.name = state.searchName;
-        await search.saveTx({ skipSelect: true });
-      }
-
-      state.search = search;
-      return search;
-    }
-
-    const search = new Zotero.Search({ libraryID });
-    search.name = state.searchName;
-    search.addCondition(
-      "anyField",
-      "contains",
-      getCitedItemsSearchConditionValue(state.documentId),
-    );
-    await search.saveTx({ skipSelect: true });
-
-    state.search = search;
-    return search;
-  })().finally(() => {
-    state.searchPromise = undefined;
-  });
-
-  return state.searchPromise;
-}
-
-async function clearOrphanCitedItemsSearches(): Promise<void> {
-  const activeKeys = new Set(
-    Array.from(citedItemsSearches.values())
-      .map((state) => state.search?.key)
-      .filter((key): key is string => Boolean(key)),
-  );
-
-  for (const search of await getAllSearchesAcrossLibraries()) {
-    if (!isManagedCitedItemsSearch(search) || activeKeys.has(search.key)) {
-      continue;
-    }
-    await search.eraseTx();
-  }
-}
-
-function isManagedCitedItemsSearch(search: Zotero.Search): boolean {
-  return Object.values(search.getConditions()).some(
-    (condition) =>
-      condition.condition === "anyField" &&
-      condition.operator === "contains" &&
-      typeof condition.value === "string" &&
-      condition.value.startsWith(CITED_ITEMS_SEARCH_CONDITION_PREFIX),
-  );
-}
-
-function getCitedItemsSearchConditionValue(documentId: string): string {
-  return `${CITED_ITEMS_SEARCH_CONDITION_PREFIX}${encodeURIComponent(documentId)}`;
-}
-
-async function findManagedSearchByDocumentId(
-  documentId: string,
-  libraryID: number,
-): Promise<Zotero.Search | null> {
-  const normalizedId = normalizeDocumentId(documentId);
-  for (const search of await Zotero.Searches.getAll(libraryID)) {
-    const searchDocumentId = getDocumentIdFromManagedSearch(search);
-    if (!searchDocumentId) {
-      continue;
-    }
-
-    if (normalizeDocumentId(searchDocumentId) === normalizedId) {
-      return search;
-    }
-  }
-  return null;
-}
-
-function getDocumentIdFromManagedSearch(search: Zotero.Search): string | null {
-  for (const condition of Object.values(search.getConditions())) {
-    if (
-      condition.condition !== "anyField" ||
-      condition.operator !== "contains" ||
-      typeof condition.value !== "string" ||
-      !condition.value.startsWith(CITED_ITEMS_SEARCH_CONDITION_PREFIX)
-    ) {
-      continue;
-    }
-
-    const encodedId = condition.value.slice(
-      CITED_ITEMS_SEARCH_CONDITION_PREFIX.length,
-    );
-    if (!encodedId) {
-      return null;
-    }
-
-    try {
-      return decodeURIComponent(encodedId);
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-}
-
 function normalizeDocumentId(documentId: string): string {
   return documentId.trim();
 }
 
-function refreshOpenItemTrees(): void {
+/**
+ * Refresh the trees of every main window.
+ *
+ * @param reloadCollections - Rebuild the collections tree even if it already
+ *     lists every document.
+ */
+async function refreshOpenTrees(reloadCollections = false): Promise<void> {
   for (const win of Zotero.getMainWindows()) {
+    // A window opened after startup may not have been patched yet.
+    patchCollectionsView(win);
+
     const pane = getZoteroPane(win);
-    pane?.itemsView?.refreshAndMaintainSelection?.();
+    const view = pane?.collectionsView;
+    if (view && (reloadCollections || isMissingCitedItemsRow(view))) {
+      await reloadCollectionsView(view);
+    }
+    await pane?.itemsView?.refreshAndMaintainSelection?.();
   }
 }
 
-async function getAllSearchesAcrossLibraries(): Promise<Zotero.Search[]> {
-  const searches: Zotero.Search[] = [];
-  for (const library of Zotero.Libraries.getAll()) {
-    searches.push(...(await Zotero.Searches.getAll(library.libraryID)));
+/** Only a row that is missing from a library the tree shows needs a rebuild. */
+function isMissingCitedItemsRow(view: _ZoteroTypes.CollectionTree): boolean {
+  for (const state of citedItemsSearches.values()) {
+    if (!stateHasCitedItemsRow(state)) {
+      continue;
+    }
+    if (view.getRowIndexByID(getCitedItemsRowID(state.documentId)) !== false) {
+      continue;
+    }
+    // A collapsed library shows no children; expanding it injects them then.
+    const libraryRow = view.getRowIndexByID(`L${state.libraryID}`);
+    if (libraryRow !== false && view.getRow(libraryRow)?.isOpen === false) {
+      continue;
+    }
+    return true;
   }
-  return searches;
+  return false;
+}
+
+/**
+ * Reload a collections view the way Zotero's own callers do: `reload()` leaves
+ * selection events suppressed, which makes the tree ignore every click, and the
+ * selection has to be restored by id because row indices move.
+ */
+async function reloadCollectionsView(
+  view: _ZoteroTypes.CollectionTree,
+): Promise<void> {
+  const selection = view.selection;
+  const selectedID = view.getRow(selection.focused)?.id;
+
+  await view.reload();
+
+  if (selectedID !== undefined) {
+    const index = view.getRowIndexByID(String(selectedID));
+    if (index !== false) {
+      selection.select(index);
+    }
+  }
+
+  // Setting the flag to the value it already has fires no `select` event to await.
+  if (!selection.selectEventsSuppressed) {
+    return;
+  }
+  const selectPromise = view.waitForSelect();
+  selection.selectEventsSuppressed = false;
+  await selectPromise;
 }

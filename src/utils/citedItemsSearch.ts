@@ -4,12 +4,11 @@ import type {
   NoteCitation,
 } from "../../typings/style";
 
-export const CITED_ITEMS_SEARCH_MARKER =
-  "__banyan_cited_items_search_collection__";
-
 export type DocumentCitationPreview = {
+  /** One entry per citation, in document order, without repeats of the previous one. */
   htmlParts: string[];
-  text: string;
+  /** Plain text of those citations, in the same order. */
+  textParts: string[];
 };
 
 type CitationOutput = IntextCitation | NoteCitation;
@@ -68,12 +67,8 @@ export function buildDocumentCitationPreviewMap(
         previewParts.set(itemId, bucket);
       }
 
-      if (html && bucket.html.at(-1) !== html) {
-        bucket.html.push(html);
-      }
-      if (text && bucket.text.at(-1) !== text) {
-        bucket.text.push(text);
-      }
+      pushUniquePart(bucket.html, html);
+      pushUniquePart(bucket.text, text);
     }
   }
 
@@ -82,8 +77,43 @@ export function buildDocumentCitationPreviewMap(
       itemId,
       {
         htmlParts: parts.html,
-        text: parts.text.join("  "),
+        textParts: parts.text,
       },
     ]),
   );
+}
+
+/** The preview joined the way a cell or a tooltip shows it. */
+export function getCitationPreviewText(
+  preview: DocumentCitationPreview,
+): string {
+  return preview.textParts.join("  ");
+}
+
+/**
+ * Combine what several documents say about one item, in order and without an
+ * adjacent repeat.
+ */
+export function mergeDocumentCitationPreviews(
+  previews: DocumentCitationPreview[],
+): DocumentCitationPreview {
+  const htmlParts: string[] = [];
+  const textParts: string[] = [];
+
+  for (const preview of previews) {
+    for (const html of preview.htmlParts) {
+      pushUniquePart(htmlParts, html);
+    }
+    for (const text of preview.textParts) {
+      pushUniquePart(textParts, text);
+    }
+  }
+
+  return { htmlParts, textParts };
+}
+
+function pushUniquePart(parts: string[], part: string): void {
+  if (part && parts.at(-1) !== part) {
+    parts.push(part);
+  }
 }
