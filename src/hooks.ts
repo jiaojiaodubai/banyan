@@ -101,6 +101,10 @@ async function onMainWindowUnload(_win: Window): Promise<void> {
 }
 
 function onShutdown(): void {
+  // Note: the multilingual item-pane section is intentionally not unregistered
+  // here. `registerSection` binds it to our `pluginID`, so Zotero removes it
+  // automatically when the plugin is disabled/removed. The citation column has
+  // no such owner tracking, so it must be cleaned up explicitly below.
   cleanupCitationColumn();
   shutdownServer();
   ztoolkit.unregisterAll();

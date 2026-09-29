@@ -8,6 +8,7 @@ declare namespace _ZoteroTypes {
   interface Prefs {
     PluginPrefsMap: {
       "progressTimeout": number;
+      "lockWatchdogTimeout": number;
       "styleEditorAssetsVersion": string;
       "citationDialogInitialCollectionMode": string;
       "citationDialogCollectionTreeWidth": number;

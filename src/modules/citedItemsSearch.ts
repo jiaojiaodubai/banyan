@@ -37,6 +37,7 @@ const CITED_ITEMS_SEARCH_CONDITION_PREFIX = `${CITED_ITEMS_SEARCH_MARKER}:`;
 const CITATION_PREVIEW_PART_CLASS = "banyan-document-citation-part";
 const citedItemsSearches = new Map<string, CitedItemsSearchState>();
 let registeredColumnKey: string | false | null = null;
+let orphanCleanupDone = false;
 let originalGetItems:
   | ((
       this: _ZoteroTypes.CollectionTreeRow,
@@ -45,8 +46,12 @@ let originalGetItems:
   | null = null;
 
 export async function registerCitationColumn(): Promise<void> {
+  // Main windows load concurrently, so register synchronously: deferring the
+  // assignment past an `await` would let a second window register a duplicate,
+  // and `registerColumn()` returns `false` for a duplicate, which would lose
+  // the real key that `cleanupCitationColumn()` has to unregister.
   if (registeredColumnKey === null) {
-    registeredColumnKey = await Zotero.ItemTreeManager.registerColumn({
+    registeredColumnKey = Zotero.ItemTreeManager.registerColumn({
       dataKey: "citationPreview",
       label: t("item-tree-citation-column"),
       pluginID: addon.data.config.addonID,
@@ -86,14 +91,20 @@ export async function registerCitationColumn(): Promise<void> {
   }
 
   patchCollectionTreeRowGetItems();
-  await clearOrphanCitedItemsSearches();
+  if (!orphanCleanupDone) {
+    // Every main window load would otherwise rescan the searches of all
+    // libraries; the orphans only need to be cleared once per plugin session.
+    orphanCleanupDone = true;
+    await clearOrphanCitedItemsSearches();
+  }
 }
 
 export function cleanupCitationColumn(): void {
   if (registeredColumnKey) {
     Zotero.ItemTreeManager.unregisterColumn(registeredColumnKey);
-    registeredColumnKey = null;
   }
+  registeredColumnKey = null;
+  orphanCleanupDone = false;
 
   if (originalGetItems) {
     Zotero.CollectionTreeRow.prototype.getItems = originalGetItems;

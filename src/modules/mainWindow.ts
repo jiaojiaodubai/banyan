@@ -25,6 +25,12 @@ type ItemNotifier = {
   notify: (event: string, type: string, ids: Array<number | string>) => void;
 };
 
+/** Per-window state of the multilingual item-pane section. */
+type MultilingualSectionInstance = {
+  item: Zotero.Item | null;
+  notifierID: string | null;
+};
+
 type Deferred<T> = {
   promise: Promise<T>;
   resolve: (value: T | PromiseLike<T>) => void;
@@ -41,12 +47,25 @@ function createDeferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
-export function registerItemPaneSection() {
-  // Cached item to pass to notifier
-  let currentItem: Zotero.Item | null = null;
-  let notifierID: string | null = null;
+let itemPaneSectionRegistered = false;
 
-  Zotero.ItemPaneManager.registerSection({
+/**
+ * Register the multilingual item-pane section.
+ *
+ * The registration is global, but Zotero instantiates the section once per
+ * main window (`itemDetails.renderCustomSections()`), so every instance keeps
+ * its own notifier observer. A single shared observer id would be overwritten
+ * by the next window, leaking observers and making windows unregister each
+ * other's observers as soon as more than one window is open.
+ */
+export function registerItemPaneSection() {
+  if (itemPaneSectionRegistered) {
+    return;
+  }
+
+  const sectionInstances = new WeakMap<Element, MultilingualSectionInstance>();
+
+  const registeredKey = Zotero.ItemPaneManager.registerSection({
     paneID: "multilingual",
     pluginID: addon.data.config.addonID,
     header: {
@@ -114,12 +133,17 @@ export function registerItemPaneSection() {
       },
     ],
     onInit: ({ body, item, refresh }) => {
-      currentItem = item ?? null;
+      const instance: MultilingualSectionInstance = {
+        item: item ?? null,
+        notifierID: null,
+      };
+      sectionInstances.set(body, instance);
       body.id = "banyan-multilingual-body";
 
       const observer: ItemNotifier = {
         _banyanMultilingualObserver: true,
         notify(event: string, _type: string, ids: Array<number | string>) {
+          const currentItem = instance.item;
           if (!currentItem || !currentItem.id) return;
 
           if (event === "modify" && ids.includes(currentItem.id)) {
@@ -149,7 +173,7 @@ export function registerItemPaneSection() {
         },
       };
 
-      notifierID = Zotero.Notifier.registerObserver(
+      instance.notifierID = Zotero.Notifier.registerObserver(
         observer,
         ["item"],
         "banyan-multilingual-section",
@@ -161,16 +185,28 @@ export function registerItemPaneSection() {
       placeholder.textContent = t("item-section-multilingual-loading");
       body.replaceChildren(placeholder);
     },
-    onDestroy: () => {
-      if (notifierID !== null) {
-        Zotero.Notifier.unregisterObserver(notifierID);
-        notifierID = null;
+    onDestroy: ({ body }) => {
+      const instance = sectionInstances.get(body);
+      if (!instance) return;
+      if (instance.notifierID !== null) {
+        Zotero.Notifier.unregisterObserver(instance.notifierID);
+        instance.notifierID = null;
       }
-      currentItem = null;
+      instance.item = null;
+      sectionInstances.delete(body);
     },
-    onItemChange: ({ item, editable, setEnabled, setSectionButtonStatus }) => {
-      currentItem = item ?? null;
-      const enabled = !!currentItem && currentItem.isRegularItem();
+    onItemChange: ({
+      body,
+      item,
+      editable,
+      setEnabled,
+      setSectionButtonStatus,
+    }) => {
+      const instance = sectionInstances.get(body);
+      if (instance) {
+        instance.item = item ?? null;
+      }
+      const enabled = !!item && item.isRegularItem();
       setEnabled(enabled);
       setSectionButtonStatus("add", { hidden: !enabled || !editable });
     },
@@ -213,4 +249,8 @@ export function registerItemPaneSection() {
       await renderMultilingualItemsList(args);
     },
   });
+
+  // Keep the flag false when the registration failed (e.g. the pane is still
+  // registered by a previous load) so the next window load can retry.
+  itemPaneSectionRegistered = registeredKey !== false;
 }

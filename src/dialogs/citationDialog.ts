@@ -154,6 +154,27 @@ window.addEventListener("unload", () => {
   if (!resolved) {
     io?.resolve(null);
   }
+  // Nothing in the dialog may keep running after it closes: pending timers and
+  // observers would touch the dead document, and the trees must unregister
+  // their notifier observers (see `unregister()` on the Zotero trees).
+  if (searchDebounceTimer !== null) {
+    window.clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = null;
+  }
+  if (minHeightUpdateTimer !== null) {
+    window.clearTimeout(minHeightUpdateTimer);
+    minHeightUpdateTimer = null;
+  }
+  if (windowResizeHandler) {
+    window.removeEventListener("resize", windowResizeHandler);
+    windowResizeHandler = null;
+  }
+  headerResizeObserver?.disconnect();
+  headerResizeObserver = null;
+  footerResizeObserver?.disconnect();
+  footerResizeObserver = null;
+  itemsView?.unregister();
+  collectionsView?.unregister();
 });
 
 async function initCitationDialog(): Promise<void> {
@@ -1069,6 +1090,10 @@ function initResizableSidebar(): void {
     splitter.addEventListener("lostpointercapture", onLostPointerCapture);
   });
 
+  // Not removed on unload: this listener is bound to the dialog's own window
+  // and is torn down with it when the dialog closes, so it leaks nothing. The
+  // observers/timers cleaned up in the `unload` handler are different — they
+  // would fire callbacks against the dead document during teardown.
   window.addEventListener("resize", () => {
     currentWidth = applyWidth(currentWidth);
   });

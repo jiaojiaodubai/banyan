@@ -69,6 +69,7 @@ declare namespace _ZoteroTypes {
     getRow: (index: number) => CollectionTreeRow;
     selectByID?: (id: string, ensureRowVisible?: boolean) => Promise<boolean>;
     selectLibrary: (libraryID?: number) => Promise<void>;
+    unregister: () => void;
   }
 }
 

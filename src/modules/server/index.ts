@@ -21,6 +21,7 @@ import type {
 import { getPref, setPref } from "../../utils/prefs";
 import { getStyle } from "../styles";
 import { ProgressBar } from "../../utils/progressBar";
+import { isWindowAlive } from "../../utils/window";
 import type { CitationContext, Cite } from "../../../typings/style";
 import { getItemWithMergeFallback, toBanyanItem } from "../../utils/item";
 import {
@@ -38,6 +39,7 @@ import {
   acquireDocumentLock,
   acquireStyleLock,
   withDocumentLock,
+  type LockHandle,
 } from "./documentLock";
 import { updateCitationColumnFromRefresh } from "../citedItemsSearch";
 import { initializeHttpsProxy, stopHttpsProxy } from "./httpsProxy";
@@ -635,8 +637,8 @@ function handleRefreshRequest(
   const refreshData = data as RefreshRequestData;
   const documentId = refreshData.documentId;
   let settled = false;
-  let releaseLock: (() => void) | undefined;
-  let releaseStyleLock: (() => void) | undefined;
+  let documentLock: LockHandle | undefined;
+  let styleLock: LockHandle | undefined;
 
   const finish = (result: JsonEndpointResult<"refresh">) => {
     if (settled) {
@@ -645,10 +647,10 @@ function handleRefreshRequest(
     }
     settled = true;
     try {
-      releaseStyleLock?.();
+      styleLock?.release();
     } finally {
       try {
-        releaseLock?.();
+        documentLock?.release();
       } finally {
         send(result);
       }
@@ -661,8 +663,8 @@ function handleRefreshRequest(
 
   void (async () => {
     try {
-      releaseLock = await acquireDocumentLock(documentId);
-      releaseStyleLock = await acquireStyleLock(refreshData.style.id);
+      documentLock = await acquireDocumentLock(documentId);
+      styleLock = await acquireStyleLock(refreshData.style.id);
 
       const style = await getStyle(refreshData.style);
       const shouldSyncItems = refreshData.syncItems !== false;
@@ -737,6 +739,18 @@ function handleRefreshRequest(
 
       generateWithCallbacks(contexts, {
         resolve: ({ citations, bibliography }) => {
+          // The watchdog force-released our lock, so a later request may
+          // already own this document/style. Abandon this stale result instead
+          // of racing its write-back (both the cited-items search update and
+          // the response the front-end applies to the document).
+          if (documentLock?.forceReleased || styleLock?.forceReleased) {
+            finishWithError(
+              new Error(
+                "Refresh exceeded the lock watchdog timeout and was superseded",
+              ),
+            );
+            return;
+          }
           void updateCitationColumnFromRefresh(
             {
               documentId,
@@ -1025,6 +1039,40 @@ export async function initializeServer(): Promise<void> {
 export function shutdownServer(): void {
   stopHttpsProxy();
   restoreBanyanCORSPatch();
+  unregisterEndpoints();
+  closeOpenDialogs();
+  progressBar.close("plugin_shutdown");
+}
+
+/**
+ * Remove the Banyan endpoints from Zotero's HTTP server.
+ *
+ * `Zotero.Server.Endpoints` is a plain registry and is not plugin-aware, so
+ * without an explicit removal the classes registered here outlive the plugin
+ * (disable/reload/update) and keep answering `/banyan/*` requests from a stale
+ * module scope.
+ */
+function unregisterEndpoints(): void {
+  const root = `/${ROOT_PATH}`;
+  for (const path of Object.keys(Zotero.Server.Endpoints)) {
+    if (path === root || path.startsWith(`${root}/`)) {
+      delete Zotero.Server.Endpoints[path];
+    }
+  }
+}
+
+/** Close dialog windows owned by the plugin so they don't outlive it. */
+function closeOpenDialogs(): void {
+  for (const win of openWindowsByDocument.values()) {
+    try {
+      if (isWindowAlive(win)) {
+        win.close();
+      }
+    } catch (e) {
+      ztoolkit.logError(e);
+    }
+  }
+  openWindowsByDocument.clear();
 }
 
 /**

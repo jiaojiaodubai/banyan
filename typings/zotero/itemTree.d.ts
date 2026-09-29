@@ -52,6 +52,7 @@ declare namespace _ZoteroTypes {
     ) => Promise<number>;
     setFilter: (type: string, data?: unknown) => Promise<void>;
     setHighlightedRows?: (ids: number[]) => Promise<void>;
+    unregister: () => void;
   }
 
   interface CollectionViewItemTree extends ItemTree {

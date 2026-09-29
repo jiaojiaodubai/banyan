@@ -38,6 +38,7 @@ window.addEventListener("unload", () => {
   if (!resolved) {
     io?.resolve(null);
   }
+  uncitedItemsView?.unregister();
 });
 
 async function initBibliographyDialog(): Promise<void> {
