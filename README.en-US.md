@@ -2,12 +2,15 @@
 
 [简体中文](README.md) | English
 
+[![CI](https://github.com/jiaojiaodubai/Banyan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jiaojiaodubai/Banyan/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/jiaojiaodubai/Banyan?include_prereleases&style=flat-square&label=release)](https://github.com/jiaojiaodubai/Banyan/releases)
+[![License](https://img.shields.io/github/license/jiaojiaodubai/Banyan?style=flat-square)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/jiaojiaodubai/Banyan/total?style=flat-square)](https://github.com/jiaojiaodubai/Banyan/releases)
+[![Zotero](https://img.shields.io/badge/Zotero-7%E2%80%9310-CC2936?style=flat-square&logo=zotero&logoColor=white)](https://www.zotero.org/)
+[![Front ends](https://img.shields.io/badge/front--end-Word%20%7C%20WPS-2B579A?style=flat-square)](#install-a-word-processor-front-end)
+[![Stars](https://img.shields.io/github/stars/jiaojiaodubai/Banyan?style=flat-square&logo=github)](https://github.com/jiaojiaodubai/Banyan/stargazers)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](#contributing)
 [![Using Zotero Plugin Template](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
-
-> This project was created from the
-> [zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template)
-> and keeps the badge above as the template requests; the code inherits its GNU
-> AGPL license (see [License](#license)).
 
 ## Table of Contents
 
@@ -17,7 +20,7 @@
   - [Install the plugin](#install-the-plugin)
   - [Install a word-processor front end](#install-a-word-processor-front-end)
   - [Writing workflow](#writing-workflow)
-  - [Use your own styles](#use-your-own-styles)
+  - [Write & install styles](#write--install-styles)
 - [Contributing](#contributing)
   - [Environment](#environment)
   - [Clone & prepare](#clone--prepare)
@@ -67,28 +70,24 @@ HTTP service.
 
 ### Install a word-processor front end
 
-The plugin does the “thinking”; the word processor does the “writing”. A
-word-processor front end talks to this plugin (the backend) over local HTTP.
-Currently Microsoft Word and WPS Office are implemented, and more clients can
-be added later:
+The plugin does the “thinking”; the word processor does the “writing”. The two
+talk over local HTTP. Two front ends exist today, and more clients can be added
+later:
 
-| Front end  | Purpose                                         | Repository                                                                                |
-| ---------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Word (VBA) | Insert/refresh citations & bibliography in Word | [jiaojiaodubai/Banyan-for-Word-VBA](https://github.com/jiaojiaodubai/Banyan-for-Word-VBA) |
-| WPS        | Insert/refresh citations & bibliography in WPS  | [jiaojiaodubai/Banyan-for-WPS](https://github.com/jiaojiaodubai/Banyan-for-WPS)           |
+| Front end                                                               | Host application     | Platforms             | Features                                                                                                                                            |
+| ----------------------------------------------------------------------- | -------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Banyan for Word](https://github.com/jiaojiaodubai/Banyan-for-Word-VBA) | Microsoft Word 2016+ | Windows, macOS        | Insert/Edit Citation, Insert Break, Insert/Edit Bibliography, Refresh, Convert Zotero Fields, Finalize, Preferences                                 |
+| [Banyan for WPS](https://github.com/jiaojiaodubai/Banyan-for-WPS)       | WPS Writer 2019+     | Windows, macOS, Linux | Insert/Edit Citation, Insert Break, Insert/Edit Bibliography, Open Citation Pane, Refresh, Convert Zotero Fields, Finalize, Preferences, Dark Theme |
 
-It is recommended to install/uninstall from the **Add-ins** section of the
-plugin preferences (front ends are **released in lockstep** with the plugin, so
-the matching version is installed automatically):
+Front ends are **released in lockstep** with the plugin, so install or uninstall
+them from **Zotero settings → Banyan → Add-ins**:
 
-- **Word**: one-click install copies `Banyan.dotm` into Word's STARTUP folder;
-  restart Word and enable macros/content if prompted, then use the ribbon under
-  **Home → Banyan**. Manual installation is also documented in that repo's
-  README.
-- **WPS**: installs into WPS's add-in folder; restart WPS and approve the
-  prompt to enable it.
-- Keep Zotero (the backend) running while using a front end; on first use you
-  may be asked to trust the client.
+- **Close the host application first** (Word or WPS) when installing or
+  uninstalling, then start it again for the change to take effect.
+- **While using it**, keep Zotero running with the Banyan plugin enabled.
+- **On first use** the host application asks for authorization (Word may also
+  ask to enable macros/content, and on macOS you must trust the local HTTPS
+  certificate); approve the prompts to continue.
 
 ### Writing workflow
 
@@ -100,23 +99,23 @@ the matching version is installed automatically):
 3. Before submission use **Convert/Finalize** to replace Banyan fields with
    plain text (finalize backs up first).
 
-### Use your own styles
+### Write & install styles
 
 A Banyan style is a JavaScript file that implements a fixed interface (interface
 spec and tutorial: [Style Develop Tutorial](docs/Style%20Develop%20Tutorial.MD)).
-Two authoring workflows are designed for different backgrounds:
+Writing and installing are two separate steps: produce the file with either
+workflow below, then follow
+[How to install a style](#how-to-install-a-style).
 
 **Workflow 1 — Hand-written**, for users with JavaScript experience.
 
 1. Use the built-in style editor (recommended): open it via the Zotero menu
    **Tools → Banyan Style Editor**. It is a full coding environment with **type
    hints, preset templates & code snippets, code checking & formatting, and
-   output preview**; “Save As Style” indexes it right away.
-2. Or use the editor you prefer: save your `.js` style into the `banyan/` folder
-   under your Zotero data directory (the plugin data folder—locate it via
-   **Zotero settings → Advanced → Files and Folders → Show Data Directory**).
-   Styles there are indexed automatically on startup and listed in the citation
-   dialog.
+   output preview**; “Save As Style” indexes the style right away, so **no manual
+   installation is needed**.
+2. Or use the editor you prefer: write a `.js` file (the type declarations under
+   `docs/AI Style Workplace/typings` provide completion and checking).
 
 **Workflow 2 — AI-assisted**, for users without coding experience.
 
@@ -146,8 +145,25 @@ Two authoring workflows are designed for different backgrounds:
      style from both the document and the bundled rules.
 3. Describe your formatting requirements (citation/bibliography style, journal
    or school rules, etc.). The agent generates the `.js` style from the bundled
-   types and rules; drop the generated file into the `banyan/` data folder and
-   it is ready to use.
+   types and rules.
+
+#### How to install a style
+
+Any one of the following works; installed styles are indexed by the plugin and
+listed in the “Choose Style” dialog:
+
+- **Save from the built-in editor (no manual install)**: “Save” in the style
+  editor writes the file straight into the plugin's style folder, ready to use.
+- **Import via the style manager**: **Zotero settings → Banyan → Style manager →
+  Import Style** and pick the `.js` file; the **Import** button in the “Choose
+  Style” dialog does the same. A duplicate style ID prompts to overwrite.
+- **Copy the file manually**: drop the `.js` into the `banyan/` folder inside
+  your Zotero data directory (locate it via **Zotero settings → Advanced → Files
+  and Folders → Show Data Directory**); `banyan/` is created on first run. A
+  style is indexed by the `INFO.id` inside the file, so the file name does not
+  matter.
+
+## Contributing
 
 The plugin skeleton comes from the
 [zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template);
