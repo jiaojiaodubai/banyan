@@ -31,7 +31,7 @@ header {
   width: 28px;
   height: 28px;
   flex: 0 0 28px;
-  user-select: none;
+  -moz-user-select: none;
   background-image: url("chrome://__addonRef__/content/icons/favicon.png");
   background-repeat: no-repeat;
   background-size: 80%;
@@ -73,7 +73,7 @@ body {
   min-height: 200px;
   display: flex;
   flex-direction: row;
-  user-select: none;
+  -moz-user-select: none;
   -moz-window-dragging: no-drag;
 }
 
@@ -277,7 +277,7 @@ footer {
   font-size: 15px;
   cursor: pointer;
   -moz-window-dragging: no-drag;
-  user-select: none;
+  -moz-user-select: none;
 }
 
 .bubble-text {

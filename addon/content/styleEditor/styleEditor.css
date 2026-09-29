@@ -28,7 +28,7 @@ body {
 /* Prevent drag-selection on controls in HTML-hosted style editor window */
 #titlebar,
 #zotero-toolbar {
-  user-select: none;
+  -moz-user-select: none;
 }
 
 #toolbar-menubar {
@@ -367,8 +367,8 @@ main {
   line-height: 1;
 }
 
-.virtualized-table .row .cell {
-  user-select: none;
+/* Keep row labels unselectable, matching Zotero's item tree behavior. */
+.virtualized-table {
   -moz-user-select: none;
 }
 
@@ -385,7 +385,6 @@ main {
   width: 64px;
   min-width: 0;
   box-sizing: border-box;
-  user-select: text;
   -moz-user-select: text;
 }
 
@@ -452,7 +451,6 @@ main {
   font: var(--monospace-font);
   line-height: 1.5;
   resize: vertical;
-  user-select: text;
   -moz-user-select: text;
 }
 
@@ -481,7 +479,7 @@ main {
 body.resizing-panes,
 body.resizing-panes-y {
   cursor: ew-resize;
-  user-select: none;
+  -moz-user-select: none;
 }
 
 body.resizing-panes-y {

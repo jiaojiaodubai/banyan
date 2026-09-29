@@ -66,6 +66,11 @@ section {
   background-color: var(--material-background);
 }
 
+/* Keep row labels unselectable, matching Zotero's item tree behavior. */
+.virtualized-table {
+  -moz-user-select: none;
+}
+
 footer {
   display: flex;
   align-items: center;

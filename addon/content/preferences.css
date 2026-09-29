@@ -58,3 +58,9 @@
   background-color: var(--color-accent);
   color: var(--color-accent-text);
 }
+
+/* Keep row labels unselectable, matching Zotero's item tree behavior.
+   Scoped to #style-table so Zotero's own virtualized tables are untouched. */
+#style-table .virtualized-table {
+  -moz-user-select: none;
+}

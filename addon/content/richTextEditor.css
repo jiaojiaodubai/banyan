@@ -6,7 +6,7 @@
 
 .banyan-richtext-toolbar {
   appearance: none;
-  user-select: none;
+  -moz-user-select: none;
   /* color: var(--fill-secondary); */
   display: flex;
   align-items: center;
