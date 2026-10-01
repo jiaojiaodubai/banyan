@@ -1,9 +1,18 @@
-addon-name = Banyan
+# Menu items are localized through the Fluent DOM overlay, which replaces an
+# element's children with a plain text node when the message has a value.
+# Menu labels must therefore use attribute-only messages (`.label = ...`) so
+# that the rendered `.menu-icon` and nested <menupopup> children are preserved.
+addon-name =
+    .label = Banyan
 
-menuitem-relate-items = Relate Multilingual Items
-menuitem-style-editor = Banyan Style Editor
-menuitem-create-output = Create Citation/Bibliography
-menuitem-write-extra-field = Write Extra Field
+menuitem-relate-items =
+    .label = Relate Multilingual Items
+menuitem-style-editor =
+    .label = Banyan Style Editor
+menuitem-create-output =
+    .label = Create Citation/Bibliography
+menuitem-write-extra-field =
+    .label = Write Extra Field
 item-tree-citation-column = Citation
 
 item-section-multilingual-head-text =

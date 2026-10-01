@@ -65,7 +65,7 @@ body {
 }
 
 .titlebar-icon {
-  background-image: url("chrome://banyan/content/icons/favicon@0.5x.png");
+  background-image: url("chrome://banyan/content/icons/favicon.svg");
   background-position: center;
   background-repeat: no-repeat;
   background-size: contain;

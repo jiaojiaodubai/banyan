@@ -32,7 +32,7 @@ header {
   height: 28px;
   flex: 0 0 28px;
   -moz-user-select: none;
-  background-image: url("chrome://__addonRef__/content/icons/favicon.png");
+  background-image: url("chrome://__addonRef__/content/icons/favicon.svg");
   background-repeat: no-repeat;
   background-size: 80%;
   background-position: center;

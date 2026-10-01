@@ -33,6 +33,12 @@ async function onStartup() {
   addon.data.ztoolkit = createZToolkit();
   registerAPIs();
   registerPrefs();
+  // Registered once per session: `Zotero.MenuManager` keys menus by `menuID`
+  // and injects them into each popup as it opens, so every main window
+  // (including ones opened later) gets them. Per-window registration would be
+  // rejected by its unique-`menuID` check.
+  registerToolsMenu();
+  registerContextMenu();
   await initializeServer();
   await ensureStyleEditorRuntimeAssets();
   await loadStyles();
@@ -73,8 +79,6 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   });
 
   registerStyleSheet(win);
-  registerToolsMenu();
-  registerContextMenu();
   registerItemPaneSection();
 
   void registerCitationColumn().catch((e: unknown) => {

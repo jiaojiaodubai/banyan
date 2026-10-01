@@ -1,9 +1,18 @@
-addon-name = 榕树
+# Menu items are localized through the Fluent DOM overlay, which replaces an
+# element's children with a plain text node when the message has a value.
+# Menu labels must therefore use attribute-only messages (`.label = ...`) so
+# that the rendered `.menu-icon` and nested <menupopup> children are preserved.
+addon-name =
+    .label = 榕树
 
-menuitem-relate-items = 关联多语条目
-menuitem-style-editor = Banyan 样式编辑器
-menuitem-create-output = 创建引注/参考文献表
-menuitem-write-extra-field = 写入其他字段
+menuitem-relate-items =
+    .label = 关联多语条目
+menuitem-style-editor =
+    .label = Banyan 样式编辑器
+menuitem-create-output =
+    .label = 创建引注/参考文献表
+menuitem-write-extra-field =
+    .label = 写入其他字段
 item-tree-citation-column = 引注
 
 item-section-multilingual-head-text =

@@ -1,5 +1,5 @@
 import { relateItems } from "./relations";
-import { useL10n } from "../utils/locale";
+import { getLocaleID, useL10n } from "../utils/locale";
 import { openStyleEditorWindow } from "./styleEditor";
 import { openDialogWindow } from "./server";
 import {
@@ -20,8 +20,24 @@ import type {
   NoteCitation,
   BibliographyLine,
 } from "../../typings/style";
+import { config } from "../../package.json";
 
 const t = useL10n(["mainWindow.ftl"]);
+
+// Menu items are localized through the Fluent DOM overlay, which REPLACES the
+// element's children with a plain text node unless the message is defined as an
+// attribute-only message (`.label = ...`). A plain-value message would wipe the
+// rendered `.menu-icon` (no icon) and, for submenus, the nested <menupopup>
+// (submenu can no longer open), and it drops the label out of `.menu-text`
+// (2px shorter row). Every l10nID passed to `Zotero.MenuManager` below MUST
+// resolve to a `.label` message in `addon/locale/*/mainWindow.ftl`.
+// The vector logo is declared at the fixed 16x16 `.menu-icon` slot size and
+// scaled by the consumers, so one SVG serves the menu, the manifest icons, and
+// the in-window logos instead of a raster per size.
+// Build the URL from the compile-time `config` instead of the `addon` global:
+// module bodies run before `src/index.ts` assigns `_globalThis.addon`.
+const MENU_ICON = `chrome://${config.addonRef}/content/icons/favicon.svg`;
+
 type LegacySupportsString = {
   data: string;
 };
@@ -82,76 +98,95 @@ function showSimpleMessage(message: string): void {
     .show();
 }
 
+function getRegularSelection(): { canEdit: boolean; items: Zotero.Item[] } {
+  const pane = Zotero.getActiveZoteroPane();
+  // Never throw from an `onShowing` handler: a throw aborts Zotero's whole
+  // context-menu build, leaving the popup without labels.
+  if (!pane) {
+    return { canEdit: false, items: [] };
+  }
+  return {
+    canEdit: pane.canEdit(),
+    items: pane.getSelectedItems().filter((item) => item.isRegularItem()),
+  };
+}
+
 /**
- * Register menu items in Tools menu
+ * Register menu items in the Tools menu. Call once at startup: the native
+ * `Zotero.MenuManager` keeps menus globally (keyed by `menuID`, removed on
+ * shutdown through `pluginID`) and injects them into every main window.
  */
-export function registerToolsMenu() {
-  ztoolkit.Menu.register("menuTools", {
-    tag: "menuitem",
-    id: "banyan-menu-style-editor",
-    icon: `chrome://${addon.data.config.addonRef}/content/icons/favicon.png`,
-    label: t("menuitem-style-editor"),
-    commandListener: () => {
-      openStyleEditorWindow();
-    },
+export function registerToolsMenu(): void {
+  Zotero.MenuManager.registerMenu({
+    menuID: `${addon.data.config.addonID}-tools-menu`,
+    pluginID: addon.data.config.addonID,
+    target: "main/menubar/tools",
+    menus: [
+      {
+        menuType: "menuitem",
+        l10nID: getLocaleID("menuitem-style-editor"),
+        icon: MENU_ICON,
+        onCommand: () => {
+          openStyleEditorWindow();
+        },
+      },
+    ],
   });
 }
 
 /**
  * Register context menu items for item selection
- * All Banyan menu items are grouped under a single top-level menu
+ * All Banyan menu items are grouped under a single top-level menu.
+ * Call once at startup, like {@link registerToolsMenu}.
  */
-export function registerContextMenu() {
-  ztoolkit.Menu.register("item", {
-    tag: "menu",
-    icon: `chrome://${addon.data.config.addonRef}/content/icons/favicon.png`,
-    label: t("addon-name"),
-    children: [
+export function registerContextMenu(): void {
+  Zotero.MenuManager.registerMenu({
+    menuID: `${addon.data.config.addonID}-item-menu`,
+    pluginID: addon.data.config.addonID,
+    target: "main/library/item",
+    menus: [
       {
-        tag: "menuitem",
-        label: t("menuitem-create-output"),
-        isHidden: () => {
-          const pane = Zotero.getActiveZoteroPane();
-          const items = pane
-            .getSelectedItems()
-            .filter((item) => item.isRegularItem());
-          return !pane.canEdit() || items.length === 0;
-        },
-        commandListener: () => {
-          void openCreateOutputDialog();
-        },
-      },
-      {
-        tag: "menuitem",
-        label: t("menuitem-write-extra-field"),
-        isHidden: () => {
-          const pane = Zotero.getActiveZoteroPane();
-          const items = pane
-            .getSelectedItems()
-            .filter((item) => item.isRegularItem());
-          return !pane.canEdit() || items.length === 0;
-        },
-        commandListener: () => {
-          void openWriteExtraFieldDialog();
-        },
-      },
-      {
-        tag: "menuitem",
-        label: t("menuitem-relate-items"),
-        isHidden: () => {
-          const pane = Zotero.getActiveZoteroPane();
-          const items = pane
-            .getSelectedItems()
-            .filter((item) => item.isRegularItem());
-          return !pane.canEdit() || items.length < 2;
-        },
-        commandListener: () => {
-          const pane = Zotero.getActiveZoteroPane();
-          const items = pane
-            .getSelectedItems()
-            .filter((item) => item.isRegularItem());
-          relateItems(items);
-        },
+        menuType: "submenu",
+        l10nID: getLocaleID("addon-name"),
+        icon: MENU_ICON,
+        menus: [
+          {
+            menuType: "menuitem",
+            l10nID: getLocaleID("menuitem-create-output"),
+            onShowing: (_event, context) => {
+              const { canEdit, items } = getRegularSelection();
+              context.setVisible(canEdit && items.length > 0);
+            },
+            onCommand: () => {
+              void openCreateOutputDialog();
+            },
+          },
+          {
+            menuType: "menuitem",
+            l10nID: getLocaleID("menuitem-write-extra-field"),
+            onShowing: (_event, context) => {
+              const { canEdit, items } = getRegularSelection();
+              context.setVisible(canEdit && items.length > 0);
+            },
+            onCommand: () => {
+              void openWriteExtraFieldDialog();
+            },
+          },
+          {
+            menuType: "menuitem",
+            l10nID: getLocaleID("menuitem-relate-items"),
+            onShowing: (_event, context) => {
+              const { canEdit, items } = getRegularSelection();
+              context.setVisible(canEdit && items.length >= 2);
+            },
+            onCommand: () => {
+              const { items } = getRegularSelection();
+              void relateItems(items).catch((error) =>
+                ztoolkit.logError(error),
+              );
+            },
+          },
+        ],
       },
     ],
   });

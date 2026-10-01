@@ -63,7 +63,7 @@ export function registerPrefs() {
     pluginID: addon.data.config.addonID,
     src: rootURI + "content/preferences.xhtml",
     label: t("prefs-title"),
-    image: `chrome://${addon.data.config.addonRef}/content/icons/favicon.png`,
+    image: `chrome://${addon.data.config.addonRef}/content/icons/favicon.svg`,
   });
 }
 

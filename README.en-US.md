@@ -6,7 +6,7 @@
 [![Release](https://img.shields.io/github/v/release/jiaojiaodubai/Banyan?include_prereleases&style=flat-square&label=release)](https://github.com/jiaojiaodubai/Banyan/releases)
 [![License](https://img.shields.io/github/license/jiaojiaodubai/Banyan?style=flat-square)](LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/jiaojiaodubai/Banyan/total?style=flat-square)](https://github.com/jiaojiaodubai/Banyan/releases)
-[![Zotero](https://img.shields.io/badge/Zotero-7%E2%80%9310-CC2936?style=flat-square&logo=zotero&logoColor=white)](https://www.zotero.org/)
+[![Zotero](https://img.shields.io/badge/Zotero-8%E2%80%9310-CC2936?style=flat-square&logo=zotero&logoColor=white)](https://www.zotero.org/)
 [![Front ends](https://img.shields.io/badge/front--end-Word%20%7C%20WPS-2B579A?style=flat-square)](#install-a-word-processor-front-end)
 [![Stars](https://img.shields.io/github/stars/jiaojiaodubai/Banyan?style=flat-square&logo=github)](https://github.com/jiaojiaodubai/Banyan/stargazers)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](#contributing)
