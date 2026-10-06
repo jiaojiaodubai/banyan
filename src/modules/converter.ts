@@ -12,7 +12,7 @@ import type {
   NoteCitation,
 } from "../../typings/style";
 import { textToRichText } from "../utils/richText";
-import { toBanyanItem } from "../utils/item";
+import { getItemWithMergeFallback, toBanyanItem } from "../utils/item";
 
 type ConvertStatus = "ok" | "fallback" | "error";
 
@@ -301,48 +301,6 @@ async function resolveCitationItem(
     fallback: true,
     warning: `Cannot restore citation item ${primaryUri || `cite-${index + 1}`}`,
   };
-}
-
-async function getItemWithMergeFallback(
-  itemId?: number,
-  itemUri?: string,
-): Promise<Zotero.Item | null> {
-  if (itemUri) {
-    try {
-      const itemFromUri = await Zotero.URI.getURIItem(itemUri);
-      if (itemFromUri && !itemFromUri.deleted) {
-        return itemFromUri;
-      }
-    } catch {
-      // Continue to fallback checks.
-    }
-
-    try {
-      const replacers = await Zotero.Relations.getByPredicateAndObject(
-        "item",
-        Zotero.Relations.replacedItemPredicate,
-        itemUri,
-      );
-      if (replacers.length && !replacers[0].deleted) {
-        return replacers[0];
-      }
-    } catch {
-      // Continue to ID fallback.
-    }
-  }
-
-  if (itemId && Number.isFinite(itemId) && itemId > 0) {
-    try {
-      const item = await Zotero.Items.getAsync(itemId);
-      if (item && !item.deleted) {
-        return item;
-      }
-    } catch {
-      // No-op
-    }
-  }
-
-  return null;
 }
 
 function buildCiteParams(

@@ -22,8 +22,7 @@ import { getPref, setPref } from "../../utils/prefs";
 import { getStyle } from "../styles";
 import { ProgressBar } from "../../utils/progressBar";
 import { isWindowAlive } from "../../utils/window";
-import type { CitationContext, Cite } from "../../../typings/style";
-import { getItemWithMergeFallback, toBanyanItem } from "../../utils/item";
+import { syncContextsWithLiveItems } from "../../utils/item";
 import {
   scanInaccessibleItems,
   showInaccessibleItemsDialog,
@@ -698,36 +697,9 @@ function handleRefreshRequest(
           }
         }
 
-        contexts = await Promise.all(
-          refreshData.contexts.map(async (context: CitationContext) => {
-            const cites = await Promise.all(
-              context.cites.map(async (cite: Cite) => {
-                try {
-                  let item: Zotero.Item | null = null;
-
-                  if (cite.item.uri && importedItemsMap.has(cite.item.uri)) {
-                    item = importedItemsMap.get(cite.item.uri)!;
-                  } else {
-                    item = await getItemWithMergeFallback(
-                      cite.item.id,
-                      cite.item.uri,
-                    );
-                  }
-
-                  if (item) {
-                    cite.item = toBanyanItem(item);
-                  }
-                  return cite;
-                } catch (error) {
-                  ztoolkit.logError(error);
-                  return cite;
-                }
-              }),
-            );
-            context.cites = cites;
-
-            return context;
-          }),
+        contexts = await syncContextsWithLiveItems(
+          refreshData.contexts,
+          importedItemsMap,
         );
       }
 

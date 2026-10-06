@@ -14,6 +14,10 @@ const t = useL10n();
 /**
  * Scan all contexts for inaccessible items
  *
+ * Each distinct URI is checked and reported once: the same item is commonly
+ * cited several times, while the dialog counts and the import step are per
+ * item.
+ *
  * @param contexts - Citation contexts to scan
  * @returns Array of inaccessible item information
  */
@@ -21,20 +25,23 @@ export async function scanInaccessibleItems(
   contexts: CitationContext[],
 ): Promise<InaccessibleItemInfo[]> {
   const inaccessibleItems: InaccessibleItemInfo[] = [];
+  const seenUris = new Set<string>();
 
   for (const context of contexts) {
     for (const cite of context.cites) {
-      if (!cite.item.uri) {
+      const uri = cite.item.uri;
+      if (!uri || seenUris.has(uri)) {
         continue;
       }
+      seenUris.add(uri);
 
-      const accessibility = await checkURIAccessibility(cite.item.uri);
+      const accessibility = await checkURIAccessibility(uri);
       if (!accessibility.accessible && accessibility.reason) {
         inaccessibleItems.push({
           cite,
           contextId: context.id,
           reason: accessibility.reason,
-          uri: cite.item.uri,
+          uri,
         });
       }
     }
@@ -63,6 +70,11 @@ export function groupInaccessibleItemsByReason(
 /**
  * Show dialog to inform user about inaccessible items and provide solutions
  *
+ * Only the reasons that were actually found are listed, and only the actions
+ * that make sense for them are offered: importing is available solely when
+ * there are cross-library items, because deleted and unknown-group items have
+ * no metadata to import.
+ *
  * @param inaccessibleItems - Array of inaccessible item information
  * @returns User's chosen action: 'import' | 'ignore' | 'cancel'
  */
@@ -70,53 +82,80 @@ export async function showInaccessibleItemsDialog(
   inaccessibleItems: InaccessibleItemInfo[],
 ): Promise<"import" | "ignore" | "cancel"> {
   const grouped = groupInaccessibleItemsByReason(inaccessibleItems);
-  const crossLibraryCount = grouped.get("cross-library")?.length || 0;
-  const deletedCount = grouped.get("deleted")?.length || 0;
-  const unknownGroupCount = grouped.get("unknown-group")?.length || 0;
+  const counts = new Map<InaccessibleReason, number>([
+    ["cross-library", grouped.get("cross-library")?.length || 0],
+    ["deleted", grouped.get("deleted")?.length || 0],
+    ["unknown-group", grouped.get("unknown-group")?.length || 0],
+    ["invalid-uri", grouped.get("invalid-uri")?.length || 0],
+  ]);
+  const present = Array.from(counts)
+    .filter(([, count]) => count > 0)
+    .map(([reason]) => reason);
+  const canImport = present.includes("cross-library");
 
   // Build message
   const lines: string[] = [t("inaccessible-items-intro")];
-
-  if (crossLibraryCount > 0) {
+  for (const reason of present) {
     lines.push(
-      `• ${t("inaccessible-items-count-cross-library", {
-        args: { count: crossLibraryCount },
-      })}`,
-    );
-  }
-  if (deletedCount > 0) {
-    lines.push(
-      `• ${t("inaccessible-items-count-deleted", {
-        args: { count: deletedCount },
-      })}`,
-    );
-  }
-  if (unknownGroupCount > 0) {
-    lines.push(
-      `• ${t("inaccessible-items-count-unknown-group", {
-        args: { count: unknownGroupCount },
+      `• ${t(`inaccessible-items-count-${reason}`, {
+        args: { count: counts.get(reason) ?? 0 },
       })}`,
     );
   }
 
-  lines.push(
-    "",
-    t("inaccessible-items-reason-heading"),
-    `1. ${t("inaccessible-items-reason-shared")}`,
-    `2. ${t("inaccessible-items-reason-deleted")}`,
-    `3. ${t("inaccessible-items-reason-group-access")}`,
-    "",
-    t("inaccessible-items-solution-heading"),
-    `• ${t("inaccessible-items-solution-group")}`,
-    `  (${t("inaccessible-items-solution-group-link")})`,
-    `• ${t("inaccessible-items-solution-import")}`,
-    `• ${t("inaccessible-items-solution-ignore")}`,
-    "",
-    t("inaccessible-items-action-heading"),
-    `- ${t("inaccessible-items-action-import")}`,
-    `- ${t("inaccessible-items-action-ignore")}`,
-    `- ${t("inaccessible-items-action-cancel")}`,
-  );
+  lines.push("", t("inaccessible-items-reason-heading"));
+  if (present.includes("cross-library")) {
+    lines.push(`• ${t("inaccessible-items-reason-shared")}`);
+  }
+  if (present.includes("deleted")) {
+    lines.push(`• ${t("inaccessible-items-reason-deleted")}`);
+  }
+  if (present.includes("unknown-group")) {
+    lines.push(`• ${t("inaccessible-items-reason-group-access")}`);
+  }
+  if (present.includes("invalid-uri")) {
+    lines.push(`• ${t("inaccessible-items-desc-invalid-uri")}`);
+  }
+
+  lines.push("", t("inaccessible-items-solution-heading"));
+  if (canImport) {
+    lines.push(
+      `• ${t("inaccessible-items-solution-group")}`,
+      `  (${t("inaccessible-items-solution-group-link")})`,
+      `• ${t("inaccessible-items-solution-import")}`,
+    );
+  }
+  if (present.includes("deleted")) {
+    lines.push(`• ${t("inaccessible-items-solution-deleted")}`);
+  }
+  if (present.includes("unknown-group")) {
+    lines.push(`• ${t("inaccessible-items-solution-unknown-group")}`);
+  }
+  lines.push(`• ${t("inaccessible-items-solution-ignore")}`);
+
+  const actions: Array<{
+    action: "import" | "ignore" | "cancel";
+    label: string;
+  }> = [];
+  if (canImport) {
+    actions.push({
+      action: "import",
+      label: t("inaccessible-items-button-import"),
+    });
+  }
+  actions.push({
+    action: "ignore",
+    label: t("inaccessible-items-button-ignore"),
+  });
+  actions.push({
+    action: "cancel",
+    label: t("inaccessible-items-button-cancel"),
+  });
+
+  lines.push("", t("inaccessible-items-action-heading"));
+  for (const { label } of actions) {
+    lines.push(`- ${label}`);
+  }
 
   const message = lines.join("\n");
 
@@ -133,22 +172,18 @@ export async function showInaccessibleItemsDialog(
   } catch (e) {
     ztoolkit.logError(e);
   }
+
+  const [button0, button1, button2] = actions;
   const result = Zotero.Prompt.confirm({
     window: parentWindow,
     title: t("inaccessible-items-title"),
     text: message,
-    button0: t("inaccessible-items-button-import"),
-    button1: t("inaccessible-items-button-ignore"),
-    button2: t("inaccessible-items-button-cancel"),
+    button0: button0.label,
+    button1: button1?.label,
+    button2: button2?.label,
   });
 
-  if (result === 0) {
-    return "import";
-  }
-  if (result === 1) {
-    return "ignore";
-  }
-  return "cancel";
+  return actions[result]?.action ?? "cancel";
 }
 
 /**

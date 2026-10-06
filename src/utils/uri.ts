@@ -36,10 +36,10 @@ export function parseItemURI(uri: string): ParsedItemURI | null {
     return null;
   }
 
-  const [, libraryType, localPrefix, libraryId, itemKey] = match;
+  const [, librarySegment, localPrefix, libraryId, itemKey] = match;
 
   return {
-    libraryType: libraryType as "user" | "group",
+    libraryType: librarySegment === "users" ? "user" : "group",
     libraryId,
     isLocal: Boolean(localPrefix),
     itemKey,
@@ -64,22 +64,88 @@ export function isCurrentUserLibrary(uri: string): boolean {
     return false;
   }
 
-  // Get current user ID
-  const currentUserID = Zotero.Users.getCurrentUserID();
+  return getCurrentUserURIPrefixes().some(
+    (prefix) => uri === prefix || uri.startsWith(`${prefix}/`),
+  );
+}
 
-  // If user is synced, compare user IDs
-  if (currentUserID && !parsed.isLocal) {
-    return parsed.libraryId === String(currentUserID);
+/**
+ * URIs of the current user's library, in both the synced and the local
+ * (not-yet-synced) form. Only one of them is produced by
+ * `Zotero.URI.getItemURI()` at a given moment, but documents keep the form
+ * they were written with and Zotero only migrates URIs stored in its own
+ * relations table on login (`Zotero.Relations.updateUser`), so both forms can
+ * legitimately point at the current user's library.
+ */
+function getCurrentUserURIPrefixes(): string[] {
+  return Array.from(
+    new Set([Zotero.URI.getCurrentUserURI(), Zotero.URI.getLocalUserURI()]),
+  );
+}
+
+/**
+ * Alternate URI form of the same item, for URI lookups that depend on the
+ * exact string (e.g. merge-tracking relation objects): a citation written
+ * before the account was synced carries a local user URI, while the relation
+ * may have been rewritten to the account URI later, or vice versa. URIs of
+ * other users are never mapped onto the local library.
+ */
+function getEquivalentUserURIs(uri: string): string[] {
+  const parsed = parseItemURI(uri);
+  if (!parsed || parsed.libraryType !== "user" || !isCurrentUserLibrary(uri)) {
+    return [];
   }
 
-  // If user is not synced, compare local user keys
-  if (!currentUserID && parsed.isLocal) {
-    const localUserKey = Zotero.Users.getLocalUserKey();
-    return parsed.libraryId === localUserKey;
+  const currentUserURI = Zotero.URI.getCurrentUserURI();
+  const localUserURI = Zotero.URI.getLocalUserURI();
+  if (currentUserURI === localUserURI) {
+    return [];
   }
 
-  // Mixed sync state (one synced, one local) - not the same user
-  return false;
+  const pairs: Array<[string, string]> = [
+    [currentUserURI, localUserURI],
+    [localUserURI, currentUserURI],
+  ];
+  for (const [from, to] of pairs) {
+    if (uri.startsWith(`${from}/`)) {
+      return [`${to}${uri.slice(from.length)}`];
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Resolve the item that replaced `uri` when duplicates were merged, by
+ * following the merge-tracking relation (`dc:replaces`) that Zotero adds to
+ * the surviving item. Mirrors the lookup order of
+ * `Zotero.Integration.URIMap.prototype.getZoteroItemForURIs`, and keeps
+ * working after the trashed duplicate is erased, since Zotero deliberately
+ * preserves merge-tracking relations.
+ *
+ * @param uri - Item URI that may have been merged into another item
+ * @returns The surviving item, or null if the URI was not replaced
+ */
+export async function getReplacingItemForURI(
+  uri: string,
+): Promise<Zotero.Item | null> {
+  for (const candidate of [uri, ...getEquivalentUserURIs(uri)]) {
+    try {
+      const replacers = await Zotero.Relations.getByPredicateAndObject(
+        "item",
+        Zotero.Relations.replacedItemPredicate,
+        candidate,
+      );
+      const replacer = replacers.find((item) => !item.deleted);
+      if (replacer) {
+        return replacer;
+      }
+    } catch {
+      // Relation lookup failed for this candidate, try the next one.
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -132,17 +198,31 @@ export async function checkURIAccessibility(
     return { accessible: false, reason: "invalid-uri" };
   }
 
+  let item: Zotero.Item | null = null;
+
   // Try to get the item
   try {
-    const item = await Zotero.URI.getURIItem(uri);
-    if (item && !item.deleted) {
-      return { accessible: true, parsed };
-    }
-    if (item && item.deleted) {
-      return { accessible: false, reason: "deleted", parsed };
-    }
+    item = await Zotero.URI.getURIItem(uri);
   } catch {
     // Item not found, continue to check why
+  }
+
+  if (item && !item.deleted) {
+    return { accessible: true, parsed };
+  }
+
+  // Merged duplicates are trashed, but the surviving item carries a
+  // `dc:replaces` relation pointing at their URI, so citations that resolve
+  // through that relation are still accessible and must not be reported as
+  // deleted.
+  if (await getReplacingItemForURI(uri)) {
+    return { accessible: true, parsed };
+  }
+
+  // The URI resolves to a trashed item, so it does belong to a reachable
+  // library and the item itself is what's missing.
+  if (item) {
+    return { accessible: false, reason: "deleted", parsed };
   }
 
   // Check if it's a cross-library reference

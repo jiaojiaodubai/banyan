@@ -1,5 +1,6 @@
 import type { ExtraMap, Item } from "../../typings/item";
-import type { Cite, ScriptItem } from "../../typings/style";
+import type { Cite, CitationContext, ScriptItem } from "../../typings/style";
+import { getReplacingItemForURI } from "./uri";
 
 type ItemFieldsBaseMapper = Pick<
   _ZoteroTypes.ItemFields,
@@ -230,17 +231,9 @@ export async function getItemWithMergeFallback(
       // URI resolution failed, continue to fallback checks.
     }
 
-    try {
-      const replacers = await Zotero.Relations.getByPredicateAndObject(
-        "item",
-        Zotero.Relations.replacedItemPredicate,
-        itemUri,
-      );
-      if (replacers.length && !replacers[0].deleted) {
-        return replacers[0];
-      }
-    } catch {
-      // Relation lookup failed, continue to ID fallback.
+    const replacer = await getReplacingItemForURI(itemUri);
+    if (replacer) {
+      return replacer;
     }
   }
 
@@ -259,28 +252,65 @@ export async function getItemWithMergeFallback(
 }
 
 /**
- * Re-fetch live item data for a list of cites — the `syncItems` effect used
- * by the server refresh endpoint. Each resolved cite gets a fresh `item`
- * snapshot from Zotero; cites that cannot be resolved keep their cached
- * snapshot.
+ * Re-resolve a single cite against the live library. The result carries the
+ * surviving item's id and URI, which is what replaces the stale identity a
+ * document still holds after duplicates were merged or items were imported.
+ */
+async function resolveCiteWithLiveItem(
+  cite: Cite,
+  importedItems?: Map<string, Zotero.Item>,
+): Promise<Cite> {
+  try {
+    const imported = cite.item.uri
+      ? importedItems?.get(cite.item.uri)
+      : undefined;
+    const item =
+      imported ?? (await getItemWithMergeFallback(cite.item.id, cite.item.uri));
+    if (!item) {
+      return cite;
+    }
+    return { ...cite, item: toBanyanItem(item) };
+  } catch (e) {
+    ztoolkit.logError(e);
+    return cite;
+  }
+}
+
+/**
+ * Re-fetch live item data for a flat list of cites. Each resolved cite gets a
+ * fresh `item` snapshot from Zotero; cites that cannot be resolved keep their
+ * cached snapshot. Callers that hold whole contexts should use
+ * {@link syncContextsWithLiveItems} instead.
  */
 export async function syncCitesWithLiveItems(cites: Cite[]): Promise<Cite[]> {
+  return Promise.all(cites.map((cite) => resolveCiteWithLiveItem(cite)));
+}
+
+/**
+ * Re-fetch live item data for whole citation contexts, before they reach the
+ * sandbox. Resolving up front means both the generated output and the
+ * `citations[].source` returned to the front-end carry the surviving item
+ * identities, so the front-end can replace the stale URIs stored in the
+ * document instead of reporting them as inaccessible on every refresh.
+ *
+ * @param contexts - Citation contexts as received from the front-end
+ * @param importedItems - Items imported during this refresh, keyed by the URI
+ *   they replace
+ * @returns Contexts with `cites[].item` refreshed from the live library
+ */
+export async function syncContextsWithLiveItems(
+  contexts: CitationContext[],
+  importedItems?: Map<string, Zotero.Item>,
+): Promise<CitationContext[]> {
   return Promise.all(
-    cites.map(async (cite) => {
-      try {
-        const item = await getItemWithMergeFallback(
-          cite.item.id,
-          cite.item.uri,
-        );
-        if (!item) {
-          return cite;
-        }
-        return { ...cite, item: toBanyanItem(item) };
-      } catch (e) {
-        ztoolkit.logError(e);
-        return cite;
-      }
-    }),
+    contexts.map(async (context) => ({
+      ...context,
+      cites: await Promise.all(
+        context.cites.map((cite) =>
+          resolveCiteWithLiveItem(cite, importedItems),
+        ),
+      ),
+    })),
   );
 }
 

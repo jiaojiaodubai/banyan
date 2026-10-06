@@ -88,6 +88,13 @@ export type RefreshRequestData = {
   documentId: string;
   style: StyleIdentifier;
   contexts: CitationContext[];
+  /**
+   * Re-resolve the contexts against the live library before the sandbox runs.
+   * When enabled (the default), `citations[].source.cites[].item` in the
+   * response carries the refreshed identity — merged duplicates resolve to the
+   * item that replaced them — and the front-end persists it into the document
+   * so that the stale identity is dropped.
+   */
   syncItems: boolean;
 };
 export type RefreshResponseData = {
