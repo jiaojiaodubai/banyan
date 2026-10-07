@@ -59,6 +59,10 @@ export default defineConfig({
             in: "src/dialogs/extraFieldDialog.ts",
             out: "extraFieldDialog",
           },
+          {
+            in: "src/dialogs/multilingualItemDialog.ts",
+            out: "multilingualItemDialog",
+          },
         ],
         define: {
           __env__: `"${process.env.NODE_ENV}"`,

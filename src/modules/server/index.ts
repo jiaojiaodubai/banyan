@@ -475,12 +475,13 @@ export function openDialogWindow<T extends object>(
   url: string,
   features: string,
   io: T,
+  name = "",
 ): Window {
   return Services.ww.openWindow(
     // @ts-expect-error Services.ww.openWindow has incomplete type definitions
     null,
     url,
-    "",
+    name,
     `${getCommonDialogFeatures()},${features}`,
     { wrappedJSObject: io },
   ) as Window;

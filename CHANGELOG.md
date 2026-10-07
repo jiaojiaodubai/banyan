@@ -7,24 +7,50 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit this
 
 ## [Unreleased]
 
-[compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.2.0...main)
+[compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.3.0...main)
 
-### 🚀 Features
+### 🚀 Enhancements
 
+- **multilingual items:** Create a copy of an item in another language from the item context menu; Banyan links the copy and its source into a multilingual group, so one reference can be cited in several languages
+- Edit that copy in a dedicated window beside a preview of its source (PDF, ePub, snapshot, web page, or URL), with Zotero's own field rows, creator name modes, date parsing, and local-time display
+- Accept a language tag written as BCP 47 and, when a copy in that language already exists, offer to jump to it or to change the language instead of creating a duplicate
+- Move a whole multilingual group to a new item type when one member changes type, listing the fields each member would lose
+- Show the group in the item pane the way Zotero shows related items, and leave the Banyan menu out where Zotero hides its own item actions, such as the trash
+- Select the copy you saved, or an existing copy you jump to, in the item list, and tell you when a member could not join the group or no longer matches the group's item type
 - **inaccessible-items:** Report only the reasons and solutions that were actually found, count per item instead of per citation, and offer the import action only when something can be imported
 - **refresh:** Replace stale item URIs in the incoming contexts before the sandbox runs and return the refreshed identities with `citations[].source`, so the front end can drop what merged duplicates left behind in the document (documented on `RefreshRequestData.syncItems`)
 
 ### 🩹 Fixes
 
-- **lifecycle:** Release dialog trees, registrations, and locks cleanly ([555f185](https://github.com/jiaojiaodubai/banyan/commit/555f185))
-- **ui:** Prevent text selection in virtualized tables ([e359104](https://github.com/jiaojiaodubai/banyan/commit/e359104))
+- **style:** `getMultilingualItem()` resolves a list of language preferences in order — a sibling matching an earlier preference now wins over the item itself matching a later one; before, any preference that matched the item returned the item
 - **inaccessible-items:** Resolve merged duplicates through their `dc:replaces` relation before reporting an item as deleted, so citing a merged item no longer raises an "item may have been deleted" prompt
 - **inaccessible-items:** Normalize the library type parsed from an item URI, which had never matched the checks against it and left the cross-library and unknown-group branches dead; the current user's own local URI is no longer mistaken for a cross-library one
 
 ### 💅 Refactors
 
-- **citedItemsSearch:** Back cited-items rows with in-memory searches ([0c42573](https://github.com/jiaojiaodubai/banyan/commit/0c42573))
 - **item:** Keep merged-item resolution and refresh-time context hydration in one implementation, shared by the refresh endpoint, the field converter, and the style editor, with Node regression tests for both
+
+### 📖 Documentation
+
+- **style:** Spell out how `getMultilingualItem()` resolves language preferences
+
+### 🏡 Chore
+
+- **deps:** Upgrade `zotero-plugin-toolkit` to 5.2.0; use Zotero's native menu manager and raise the minimum Zotero version to 8.0
+- **locale:** Regenerate Fluent typings after dropping the message ids the inaccessible-items dialog no longer uses
+
+## v0.3.0 (2026-09-29)
+
+[compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.2.0...v0.3.0)
+
+### 🩹 Fixes
+
+- **lifecycle:** Release dialog trees, registrations, and locks cleanly ([555f185](https://github.com/jiaojiaodubai/banyan/commit/555f185))
+- **ui:** Prevent text selection in virtualized tables ([e359104](https://github.com/jiaojiaodubai/banyan/commit/e359104))
+
+### 💅 Refactors
+
+- **citedItemsSearch:** Back cited-items rows with in-memory searches ([0c42573](https://github.com/jiaojiaodubai/banyan/commit/0c42573))
 
 ### 📖 Documentation
 
@@ -33,7 +59,6 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit this
 ### 🏡 Chore
 
 - **deps:** Refresh lockfile ranges — `@types/node` `24.19.0`, `prettier` `3.9.9`, `tsx` `4.23.15`
-- **locale:** Regenerate Fluent typings after dropping the message ids the inaccessible-items dialog no longer uses
 
 ### ❤️ Contributors
 

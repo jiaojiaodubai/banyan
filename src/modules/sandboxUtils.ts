@@ -20,6 +20,11 @@ import { normalizeTextValue, plainText as plainUnitText } from "./unit";
 import { getMultilingualItems as getRelatedMultilingualItems } from "./relations";
 import { isBanyanItem, toBanyanItem } from "../utils/item";
 import { sanitizeLink } from "../utils/html";
+import {
+  findLanguageMatch,
+  normalizeStyleLanguageTag,
+  type StyleLanguageCandidate,
+} from "../utils/multilingualDraft";
 
 type IsAsync<T> = T extends (...args: never[]) => Promise<unknown>
   ? true
@@ -879,20 +884,15 @@ export function normalizeTextUnit(input: Record<string, unknown>): TextUnit {
   return out;
 }
 
-function normalizeLanguageTag(value: unknown): string {
-  return String(value ?? "")
-    .trim()
-    .replace(/_/g, "-")
-    .toLowerCase();
-}
-
 function normalizeLanguagePreferences(language: LanguagePreference): string[] {
   const inputs = Array.isArray(language) ? language : [language];
   const seen = new Set<string>();
   const normalized: string[] = [];
 
   for (const input of inputs) {
-    const value = normalizeLanguageTag(input);
+    // Styles may pass tags the dialog's strict validation refuses (script and
+    // variant subtags, macro-regions), so only empty values are dropped here.
+    const value = normalizeStyleLanguageTag(input);
     if (!value || seen.has(value)) {
       continue;
     }
@@ -901,19 +901,6 @@ function normalizeLanguagePreferences(language: LanguagePreference): string[] {
   }
 
   return normalized;
-}
-
-function matchesLanguage(candidate: unknown, language: string): boolean {
-  const normalizedCandidate = normalizeLanguageTag(candidate);
-  if (!normalizedCandidate || !language) {
-    return false;
-  }
-
-  return (
-    normalizedCandidate === language ||
-    normalizedCandidate.startsWith(`${language}-`) ||
-    language.startsWith(`${normalizedCandidate}-`)
-  );
 }
 
 function serializeSandboxRuntimeFunction(
@@ -1418,9 +1405,9 @@ async function readMultilingualItemsForStyle<T extends ScriptItem>(
   }
 
   const relatedItems = await getRelatedMultilingualItems(zoteroItem);
-  return relatedItems.map(
-    (relatedItem) => toBanyanItem(relatedItem) as unknown as T,
-  );
+  return relatedItems
+    .filter((relatedItem) => !relatedItem.deleted)
+    .map((relatedItem) => toBanyanItem(relatedItem) as unknown as T);
 }
 
 async function readMultilingualItemForStyle<T extends ScriptItem>(
@@ -1435,24 +1422,28 @@ async function readMultilingualItemForStyle<T extends ScriptItem>(
   }
 
   const { sourceItem, zoteroItem } = await resolveStyleItem(item);
-  if (
-    preferences.some((preference) =>
-      matchesLanguage(sourceItem.language, preference),
-    )
-  ) {
-    return sourceItem;
-  }
   if (!zoteroItem) {
     return sourceItem;
   }
 
   const relatedItems = await readMultilingualItemsForStyle(sourceItem);
+  // Normalized once, not per preference: `Intl.Locale` is the expensive part.
+  const candidates: StyleLanguageCandidate<T>[] = [];
+  for (const candidate of [sourceItem, ...relatedItems]) {
+    const candidateLanguage = normalizeStyleLanguageTag(candidate.language);
+    if (!candidateLanguage) {
+      continue;
+    }
+    candidates.push({
+      item: candidate,
+      language: candidateLanguage,
+      isSource: candidate === sourceItem,
+    });
+  }
   for (const preference of preferences) {
-    const matched = relatedItems.find((candidate) =>
-      matchesLanguage(candidate.language, preference),
-    );
-    if (matched) {
-      return matched;
+    const match = findLanguageMatch(candidates, preference);
+    if (match) {
+      return match;
     }
   }
 

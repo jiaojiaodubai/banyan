@@ -1,4 +1,4 @@
-import { getMultilingualUris, unRelateItem } from "../modules/relations";
+import { unRelateItem } from "../modules/relations";
 function createItemTypeIcon(doc: Document, item: Zotero.Item): HTMLElement {
   const icon = doc.createElement("span");
   icon.className = "icon icon-css icon-item-type";
@@ -7,10 +7,12 @@ function createItemTypeIcon(doc: Document, item: Zotero.Item): HTMLElement {
   return icon;
 }
 
-export async function renderMultilingualItemsList(
+/** Render the multilingual members the caller already resolved and filtered. */
+export function renderMultilingualItemsList(
   args: _ZoteroTypes.ItemPaneManagerSection.SectionHookArgs,
-): Promise<void> {
-  const { body, item, editable } = args;
+  items: Zotero.Item[],
+): void {
+  const { body, editable } = args;
 
   const doc = body.ownerDocument ?? document;
   const collation = Zotero.getLocaleCollation() as unknown as {
@@ -27,13 +29,10 @@ export async function renderMultilingualItemsList(
     return title;
   };
 
-  const items = await Promise.all(
-    getMultilingualUris(item).map((uri: string) => Zotero.URI.getURIItem(uri)),
-  );
+  const sorted = [...items];
+  sorted.sort((a, b) => collation.compareString(1, getTitle(a), getTitle(b)));
 
-  items.sort((a, b) => collation.compareString(1, getTitle(a), getTitle(b)));
-
-  for (const relItem of items) {
+  for (const relItem of sorted) {
     const row = doc.createElement("div");
     row.className = "row";
 

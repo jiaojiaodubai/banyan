@@ -1,0 +1,591 @@
+html,
+body {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 860px;
+  min-height: 520px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: var(--zotero-font-family, system-ui, sans-serif);
+  font-size: var(--zotero-font-size, 13px);
+  color: var(--fill-primary, FieldText);
+  /* The sidepane color official Zotero windows, their `body`, and the item
+     pane content all start from. */
+  background: var(--material-sidepane, Field);
+}
+
+#workspace {
+  --item-info-content-width: 320px;
+  display: grid;
+  grid-template-columns:
+    minmax(320px, 1fr) 5px
+    calc(var(--item-info-content-width) + 16px);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+#source-pane {
+  /* Reader toolbar height (`$height-toolbar`). */
+  --source-toolbar-height: 41px;
+  position: relative;
+}
+
+#source-viewer,
+#editor-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+#source-viewer {
+  display: flex;
+  /* The reader document root is transparent, so match its canvas here. */
+  background: var(--material-background);
+}
+
+#source-viewer > iframe,
+#source-viewer > .source-frame {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: var(--material-background);
+}
+
+/* Official spinner glyph and `rotating` animation; the reader shows its own
+ * progress once it is up, so this only covers the blank boot phase. */
+#source-spinner {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--source-toolbar-height) + 1px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+#source-spinner[hidden] {
+  display: none;
+}
+
+#source-spinner::before {
+  width: 28px;
+  height: 28px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  animation: rotating 0.5s steps(12) infinite;
+  content: "";
+}
+
+@media (prefers-color-scheme: light) {
+  #source-spinner::before {
+    background-image: url("chrome://zotero/skin/16/light/loading.svg");
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  #source-spinner::before {
+    background-image: url("chrome://zotero/skin/16/dark/loading.svg");
+  }
+}
+
+/* Hint for sources without a preview, per the style editor's
+ * `.panel-empty-state`. */
+#source-placeholder {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--source-toolbar-height) + 1px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 40px;
+  color: var(--fill-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+  pointer-events: none;
+}
+
+#source-placeholder[hidden] {
+  display: none;
+}
+
+#source-placeholder[data-overlay] {
+  z-index: 4;
+  background: color-mix(in srgb, var(--material-background) 88%, transparent);
+  color: var(--fill-primary);
+  font-size: 13px;
+  pointer-events: auto;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#duplicate-language-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+#duplicate-language-actions[hidden] {
+  display: none;
+}
+
+/* Failure strip; theme tokens as the reader's `.error-bar`. */
+#source-error-banner {
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--source-toolbar-height) + 1px);
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5em;
+  padding: 4px 16px;
+  background: var(--accent-red);
+  color: var(--accent-white);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
+}
+
+#source-error-banner[hidden] {
+  display: none;
+}
+
+/* Page controls live in the toolbar, as in the reader; hidden for formats
+ * without pagination. */
+#source-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  direction: ltr;
+}
+
+#source-controls[hidden] {
+  display: none;
+}
+
+#source-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  height: var(--source-toolbar-height);
+  /* Colors from the reader toolbar (`.toolbar`). */
+  padding-inline: 8px 4px;
+  border-bottom: var(--material-panedivider);
+  background: var(--material-toolbar);
+}
+
+/* As the reader toolbar's `.divider`. */
+.source-toolbar-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  border-radius: 0.5px;
+  background: var(--fill-quinary);
+}
+
+.source-toolbar-divider[hidden] {
+  display: none;
+}
+
+/* The reader unmounts its own resizer while the sidebar is collapsed. */
+#sidebar-edge {
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--source-toolbar-height) + 1px);
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+#sidebar-edge:hover {
+  background: color-mix(in srgb, var(--fill-secondary) 30%, transparent);
+}
+
+#sidebar-edge[hidden] {
+  display: none;
+}
+
+/* As the reader toolbar's `.toolbar-button`; glyphs are 20px. */
+.source-toolbar-button {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+  border: 0;
+  border-radius: 5px;
+  background-color: transparent;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 20px;
+  color: var(--fill-secondary);
+  -moz-context-properties: fill;
+  fill: currentColor;
+}
+
+.source-toolbar-button:hover:not(:disabled) {
+  background-color: var(--fill-quinary);
+}
+
+.source-toolbar-button:active:not(:disabled) {
+  background-color: var(--fill-quarternary);
+}
+
+.source-toolbar-button[aria-pressed="true"] {
+  background-color: var(--fill-quarternary);
+}
+
+.source-toolbar-button:disabled {
+  opacity: 50%;
+}
+
+.source-toolbar-button[hidden] {
+  display: none;
+}
+
+/* Zotero's own sidebar toggle asset, shared with the main window. */
+#sidebar-toggle {
+  background-image: url("chrome://zotero/skin/20/universal/sidebar.svg");
+}
+
+/* The reader's `zoom-in.svg`, with `fill` switched to `context-fill`. */
+#zoom-in {
+  background-image: url("chrome://banyan/content/icons/zoom-in.svg");
+}
+
+/* The reader's `zoom-out.svg`, with `fill` switched to `context-fill`. */
+#zoom-out {
+  background-image: url("chrome://banyan/content/icons/zoom-out.svg");
+}
+
+.source-control {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+  border: 0;
+  border-radius: 5px;
+  background-color: transparent;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 20px;
+  color: var(--fill-secondary);
+  -moz-context-properties: fill, fill-opacity;
+  fill: currentColor;
+}
+
+.source-control .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.source-control:hover:not(:disabled) {
+  background-color: var(--fill-quinary);
+}
+
+.source-control:active:not(:disabled) {
+  background-color: var(--fill-quarternary);
+}
+
+.source-control:disabled {
+  opacity: 50%;
+}
+
+/* The reader's chevrons (`res/icons/20`) under their upstream names, with
+ * `fill` switched to `context-fill`. */
+.page-first {
+  background-image: url("chrome://banyan/content/icons/chevron-left-page.svg");
+}
+
+.page-previous {
+  background-image: url("chrome://banyan/content/icons/chevron-left.svg");
+}
+
+.page-next {
+  background-image: url("chrome://banyan/content/icons/chevron-right.svg");
+}
+
+.page-last {
+  background-image: url("chrome://banyan/content/icons/chevron-right-page.svg");
+}
+
+/* As the reader toolbar's `.toolbar-text-input`. */
+#reader-page-index {
+  width: 52px;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border: var(--material-border-quinary);
+  border-radius: 5px;
+  background: var(--material-background);
+  color: inherit;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+
+#reader-page-index:focus {
+  border-color: transparent;
+  outline: none;
+  box-shadow: 0 0 0 var(--width-focus-border) var(--color-focus-search);
+}
+
+#reader-page-index::-webkit-inner-spin-button,
+#reader-page-index::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.page-separator {
+  color: var(--fill-secondary);
+}
+
+#reader-page-count {
+  min-width: 24px;
+  color: var(--fill-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+#pane-splitter {
+  --draggable-size: 5px;
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  min-width: var(--draggable-size);
+  cursor: ew-resize;
+  border: 0;
+  border-inline-start: var(--material-border-quarternary);
+  border-inline-end: 0;
+  margin-inline-start: -1px;
+  margin-inline-end: calc(1px - var(--draggable-size));
+  background: transparent;
+  touch-action: none;
+}
+
+#pane-splitter::before {
+  position: absolute;
+  inset: 0 -4px 0 -4px;
+  content: "";
+}
+
+#editor-scroll {
+  /* Carries the official `zotero-item-pane-content` class for its sidepane
+     background; 6px block padding as the scaffold's `scaffold-item-preview`. */
+  padding: 6px 8px;
+}
+
+#editor-scroll > multilingual-item-editor {
+  display: block;
+  width: 100%;
+}
+
+/* Row grid: the pane's `meta-table` mixin is scoped to `info-box`, so this
+ * element carries its own copy. */
+#editor-scroll #info-table {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 8px;
+  row-gap: 2px;
+  width: inherit;
+}
+
+#editor-scroll #info-table .meta-row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: span 2;
+}
+
+#editor-scroll #info-table .meta-row .meta-label {
+  display: flex;
+  font-weight: normal;
+  text-align: end;
+  color: var(--fill-secondary);
+}
+
+#editor-scroll #info-table .meta-row .meta-label > label {
+  margin-top: 2px;
+}
+
+/* Aligns the label with the taller comfortable-density value. */
+[zoteroUIDensity="comfortable"]
+  #editor-scroll
+  #info-table
+  .meta-row
+  .meta-label
+  > label {
+  margin-top: 3px;
+}
+
+#editor-scroll #info-table .meta-row .key {
+  width: 100%;
+}
+
+#editor-scroll #info-table .meta-row .meta-data {
+  display: flex;
+  width: 0;
+  min-width: 100%;
+}
+
+#editor-scroll #info-table .meta-row editable-text {
+  flex: 1;
+  max-width: 100%;
+}
+
+#editor-scroll #info-table .meta-row editable-text .input {
+  min-width: 0;
+}
+
+/* The item pane's resize-grip rule is scoped to `info-box` and does not reach
+ * this element. */
+#editor-scroll textarea {
+  font: inherit;
+  resize: none;
+}
+
+/* Creator rows as in the item pane; the fields are sized in script, so the
+ * last name takes the spare room first. */
+#editor-scroll .creator-type-value {
+  display: flex;
+  align-items: center;
+}
+
+#editor-scroll .creator-name-box {
+  display: flex;
+  flex: 1;
+}
+
+#editor-scroll .creator-name-box editable-text input {
+  min-width: 0;
+}
+
+#editor-scroll .creator-name-box editable-text[hidden] {
+  display: none;
+}
+
+#editor-scroll .creator-name-box editable-text[fieldMode="0"]:first-child {
+  flex-grow: 3;
+  margin-inline-end: calc(max(0px, 4px - var(--editable-text-padding-inline)));
+  position: relative;
+}
+
+/* The comma only follows a last name that has a first name after it. */
+#editor-scroll
+  .creator-name-box
+  editable-text[fieldMode="0"]:first-child::after {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: var(--editable-text-padding-block);
+  content: var(--comma-character, ",");
+  pointer-events: none;
+}
+
+#editor-scroll
+  .creator-name-box
+  editable-text[fieldMode="0"]:first-child.overflowing {
+  --ellipsis: var(--ellipsis-and-comma-character, "…,");
+}
+
+#editor-scroll
+  .creator-name-box
+  editable-text[fieldMode="0"]:first-child.overflowing::after {
+  display: none;
+}
+
+#editor-scroll
+  .creator-name-box
+  editable-text[fieldMode="0"]:first-child.focused::after {
+  visibility: hidden;
+}
+
+/* The stock `.zotero-clicky-switch-type` supplies the icon; the row alignment
+ * and reveal-on-hover are scoped to `info-box` upstream, so reproduce them. */
+#editor-scroll .creator-type-value > .zotero-clicky {
+  margin-inline-start: 1px;
+}
+
+#editor-scroll #info-table .meta-row toolbarbutton {
+  appearance: none;
+  align-self: baseline;
+  width: auto;
+  height: auto;
+  padding: 0.25em 1px 1px;
+  border-radius: 2px;
+}
+
+/* `no-display` also takes the hidden button out of the layout. */
+#editor-scroll
+  #info-table
+  .meta-row:not(:hover):not(:focus-within)
+  .show-on-hover {
+  clip-path: inset(50%);
+}
+
+/* As the item pane's `#zotero-date-field-status`. */
+#editor-scroll #info-table .date-box .date-status {
+  align-self: center;
+  padding-inline-start: 5px;
+  color: var(--fill-secondary);
+  white-space: nowrap;
+}
+
+#editor-scroll
+  #info-table
+  .meta-row:not(:hover):not(:focus-within)
+  .show-on-hover.no-display {
+  position: absolute;
+  width: 0;
+  height: 0;
+  padding: 0;
+}
+
+footer {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: var(--material-panedivider);
+  background: var(--material-sidepane);
+}
+
+footer button {
+  min-width: 80px;
+  padding: 4px 12px;
+}
+
+/* Zotero's `open-link.svg`, at the 20px of every other toolbar icon. */
+#open-source-button {
+  background-image: url("chrome://zotero/skin/16/universal/open-link.svg");
+}

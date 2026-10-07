@@ -1,4 +1,4 @@
-import { relateItems, prefix, getMultilingualUris } from "./relations";
+import { relateItems, prefix, getVisibleMultilingualItems } from "./relations";
 import { useL10n, getLocaleID } from "../utils/locale";
 import { renderMultilingualItemsList } from "../components/multilingualBox";
 
@@ -225,28 +225,20 @@ export function registerItemPaneSection() {
         open?: boolean;
       } | null;
       body.replaceChildren();
-      if (!item) {
-        setSectionSummary(
-          t("item-section-multilingual-summary", { args: { count: 0 } }),
-        );
-        section?.setCount?.(0);
-        return;
-      }
-      const uris = getMultilingualUris(item);
-      if (!uris.length) {
-        setSectionSummary(
-          t("item-section-multilingual-summary", { args: { count: 0 } }),
-        );
-        section?.setCount?.(0);
-        return;
-      }
+
+      // The count comes from the same list the section renders, so a hidden
+      // member is not counted either.
+      const items = item ? await getVisibleMultilingualItems(item) : [];
       setSectionSummary(
         t("item-section-multilingual-summary", {
-          args: { count: uris.length },
+          args: { count: items.length },
         }),
       );
-      section?.setCount?.(uris.length);
-      await renderMultilingualItemsList(args);
+      section?.setCount?.(items.length);
+      if (!items.length) {
+        return;
+      }
+      renderMultilingualItemsList(args, items);
     },
   });
 

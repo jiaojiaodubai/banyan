@@ -2,6 +2,7 @@ import { relateItems } from "./relations";
 import { getLocaleID, useL10n } from "../utils/locale";
 import { openStyleEditorWindow } from "./styleEditor";
 import { openDialogWindow } from "./server";
+import { openCreateMultilingualItemDialog } from "./multilingualItem";
 import {
   normalizeExtraKey,
   toBanyanItem,
@@ -98,17 +99,62 @@ function showSimpleMessage(message: string): void {
     .show();
 }
 
-function getRegularSelection(): { canEdit: boolean; items: Zotero.Item[] } {
+function getRegularSelection(): {
+  canEdit: boolean;
+  items: Zotero.Item[];
+  selectedCount: number;
+} {
   const pane = Zotero.getActiveZoteroPane();
   // Never throw from an `onShowing` handler: a throw aborts Zotero's whole
   // context-menu build, leaving the popup without labels.
   if (!pane) {
-    return { canEdit: false, items: [] };
+    return { canEdit: false, items: [], selectedCount: 0 };
   }
+  const selection = pane.getSelectedItems();
   return {
     canEdit: pane.canEdit(),
-    items: pane.getSelectedItems().filter((item) => item.isRegularItem()),
+    items: selection.filter((item) => item.isRegularItem()),
+    // Lets callers tell "one item" from "one item plus a note/attachment".
+    selectedCount: selection.length,
   };
+}
+
+/**
+ * The source item for "Create Multilingual Item", or null when the entry does
+ * not apply. The item's own `isEditable()` is checked as well as the view's
+ * `canEdit()`: for a library tab the latter reports the collection row, not the
+ * selected item, so a read-only item would otherwise show a dead entry.
+ */
+function getMultilingualSourceItem(): Zotero.Item | null {
+  const { canEdit, items, selectedCount } = getRegularSelection();
+  if (
+    !canEdit ||
+    items.length !== 1 ||
+    selectedCount !== 1 ||
+    !items[0].isEditable()
+  ) {
+    return null;
+  }
+  const languageFieldID = Zotero.ItemFields.getID("language");
+  if (
+    languageFieldID === false ||
+    !Zotero.ItemFields.isValidForType(languageFieldID, items[0].itemTypeID)
+  ) {
+    return null;
+  }
+  return items[0];
+}
+
+/**
+ * Whether the group has anything to offer for the current selection. Zotero
+ * trims its own item actions outside editable views (the trash, publications,
+ * read-only groups) by checking the collection row, which the view-level
+ * `canEdit()` already reflects. Hiding only the entries would leave the group
+ * in the menu as an empty submenu, so the group is hidden as a whole.
+ */
+function hasItemMenuEntries(): boolean {
+  const { canEdit, items } = getRegularSelection();
+  return canEdit && items.length > 0;
 }
 
 /**
@@ -149,6 +195,9 @@ export function registerContextMenu(): void {
         menuType: "submenu",
         l10nID: getLocaleID("addon-name"),
         icon: MENU_ICON,
+        onShowing: (_event, context) => {
+          context.setVisible(hasItemMenuEntries());
+        },
         menus: [
           {
             menuType: "menuitem",
@@ -170,6 +219,19 @@ export function registerContextMenu(): void {
             },
             onCommand: () => {
               void openWriteExtraFieldDialog();
+            },
+          },
+          {
+            menuType: "menuitem",
+            l10nID: getLocaleID("menuitem-create-multilingual-item"),
+            onShowing: (_event, context) => {
+              context.setVisible(getMultilingualSourceItem() !== null);
+            },
+            onCommand: () => {
+              const item = getMultilingualSourceItem();
+              if (item) {
+                void openCreateMultilingualItemDialog(item);
+              }
             },
           },
           {

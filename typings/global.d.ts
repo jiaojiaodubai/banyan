@@ -20,3 +20,7 @@ declare const window: Window;
 declare const document: Document;
 
 declare const __env__: "production" | "development";
+
+declare interface Window {
+  arguments: Array<{ wrappedJSObject?: unknown }>;
+}

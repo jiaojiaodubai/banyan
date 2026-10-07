@@ -3,10 +3,12 @@ import type { UnitUtils } from "./unit";
 
 /**
  * Language selector for multilingual helpers. Pass a single BCP-47-style tag
- * (e.g. `"en"`, `"zh-CN"`) or an ordered array of preferences. Tags are
- * matched case-insensitively with `_` treated as `-`; a bare language code
- * also matches its regional variants (and vice versa), e.g. `"zh"` matches
- * `"zh-CN"`.
+ * (e.g. `"en"`, `"zh-CN"`) or an ordered array of preferences. Tags are matched
+ * leniently — lowercased with `_` treated as `-`, and canonicalized when the
+ * runtime knows them — so script and variant subtags (`ca-ES-valencia`,
+ * `en-150`) are accepted here even though the dialog's own validation is
+ * stricter. A bare language code also matches its regional variants (and vice
+ * versa), e.g. `"zh"` matches `"zh-CN"`.
  */
 export type MultilingualLanguage = string | readonly string[];
 
@@ -88,11 +90,14 @@ export type StyleUtils = UnitUtils & {
     item: T,
   ) => Promise<readonly T[]>;
   /**
-   * Pick the multilingual sibling of `item` that best matches `language`
-   * (see {@link MultilingualLanguage}). The current item itself is returned
-   * when its own language matches first, and unmatched requests fall back
-   * to the source item. Throws when `language` resolves to an empty list.
-   * Returns the same safe readonly views used by `contexts`.
+   * Pick the entry of `item`'s multilingual group that best matches
+   * `language` (see {@link MultilingualLanguage}). Selectors are tried in
+   * order, and within one selector an exact language tag wins over the
+   * bare-code/variant fallback; `item` itself is preferred over its siblings,
+   * and the rest is settled by tag then item ID, so the result never depends on
+   * relation order. Unmatched requests fall back to the source item. Throws
+   * when `language` resolves to an empty list. Returns the same safe readonly
+   * views used by `contexts`.
    */
   getMultilingualItem: <T extends ScriptItem = ScriptItem>(
     item: T,

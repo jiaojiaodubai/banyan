@@ -1,0 +1,9 @@
+<!--
+  First-page icon: Zotero reader's chevron (res/icons/20/chevron-left.svg)
+  plus a bar of the same 1.25px stroke, composed so the artwork stays
+  centered in the 20px canvas (AGPL-3.0-or-later).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+  <path d="M4.31 3H5.56V17H4.31V3Z" fill="context-fill"/>
+  <path d="M15.6939 17.1161L14.81 18L6.81 10L14.81 2L15.6939 2.88388L8.57777 10L15.6939 17.1161Z" fill="context-fill"/>
+</svg>

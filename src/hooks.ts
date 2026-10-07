@@ -13,8 +13,14 @@ import {
   unpatchCollectionsView,
 } from "./modules/citedItemsSearch";
 import { registerToolsMenu, registerContextMenu } from "./modules/menu";
+import {
+  registerRetypeObserver,
+  unregisterRetypeObserver,
+} from "./modules/multilingualRetype";
 import { ensureStyleEditorRuntimeAssets } from "./modules/styleEditor";
 import { initializeServer, shutdownServer } from "./modules/server";
+import { DIALOG_WINDOW_NAME } from "./modules/multilingualItem";
+import { findWindowByName } from "./utils/window";
 
 function registerAPIs(): void {
   addon.api.getStyleUI = async (style) => {
@@ -39,6 +45,7 @@ async function onStartup() {
   // rejected by its unique-`menuID` check.
   registerToolsMenu();
   registerContextMenu();
+  registerRetypeObserver();
   await initializeServer();
   await ensureStyleEditorRuntimeAssets();
   await loadStyles();
@@ -112,9 +119,13 @@ function onShutdown(): void {
   // automatically when the plugin is disabled/removed. The citation column has
   // no such owner tracking, so it must be cleaned up explicitly below.
   cleanupCitationColumn();
+  unregisterRetypeObserver();
   shutdownServer();
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();
+  // The editor keeps references to this now-destroyed instance; the next
+  // plugin version would otherwise retarget it while it still runs old code.
+  findWindowByName(DIALOG_WINDOW_NAME)?.close();
   // Remove addon object
   addon.data.alive = false;
   // @ts-expect-error - Plugin instance is not typed

@@ -1,8 +1,6 @@
 /**
- * Zotero ItemFields types used by Banyan.
- *
- * Mirrors the public surface of `chrome/content/zotero/xpcom/data/itemFields.js`
- * so the missing upstream declaration can be contributed back to zotero-types.
+ * Zotero ItemFields types used by Banyan, mirroring the public surface of
+ * `chrome/content/zotero/xpcom/data/itemFields.js`.
  */
 
 declare namespace _ZoteroTypes {
@@ -30,7 +28,7 @@ declare namespace _ZoteroTypes {
      * or false if none.
      */
     getFieldIDFromTypeAndBase(
-      itemType: string,
+      itemType: number | string,
       baseField: number | string,
     ): number | false;
 
@@ -39,7 +37,7 @@ declare namespace _ZoteroTypes {
      * or false if none.
      */
     getBaseIDFromTypeAndField(
-      itemType: string,
+      itemType: number | string,
       typeField: number | string,
     ): number | false;
 

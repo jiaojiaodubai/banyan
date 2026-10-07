@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<html
+  id="banyan-multilingual-item-dialog"
+  persist="screenX screenY width height sizemode"
+  xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+  width="1100"
+  height="720"
+  resizable="true"
+>
+  <head>
+    <title data-l10n-id="multilingual-item-dialog-title"></title>
+    <link rel="localization" href="zotero.ftl" />
+    <link rel="localization" href="__addonRef__-multilingualItemDialog.ftl" />
+
+    <link rel="stylesheet" href="chrome://global/skin/global.css" />
+    <link rel="stylesheet" href="chrome://zotero/skin/zotero.css" />
+    <link rel="stylesheet" href="chrome://zotero/skin/overlay.css" />
+    <link rel="stylesheet" href="chrome://zotero-platform/content/zotero.css" />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/multilingualItemDialog.css"
+    />
+
+    <script src="chrome://zotero/content/include.js"></script>
+    <script src="chrome://zotero/content/customElements.js"></script>
+    <!--
+      Chrome windows host content browsers without a `browserDOMWindow`; this
+      shim (the one `basicViewer.xhtml` loads) makes `window.open()` and
+      `target="_blank"` work outside Firefox's tabbed browser windows.
+    -->
+    <script>
+      Services.scriptloader.loadSubScript(
+        "chrome://zotero/content/browserWindowShim.js",
+        this,
+      );
+    </script>
+    <script>
+      const addon = Zotero.__addonInstance__;
+      const ztoolkit = addon.data.ztoolkit;
+    </script>
+    <script src="chrome://__addonRef__/content/scripts/multilingualItemDialog.js"></script>
+  </head>
+
+  <body>
+    <main id="workspace">
+      <section id="source-pane" class="pane">
+        <div id="source-toolbar">
+          <button
+            id="sidebar-toggle"
+            class="source-toolbar-button"
+            type="button"
+            aria-pressed="true"
+            hidden="true"
+            data-l10n-id="multilingual-item-toggle-sidebar"
+            data-l10n-attrs="title,aria-label"
+          ></button>
+          <div
+            id="source-divider-tools"
+            class="source-toolbar-divider"
+            hidden="true"
+          ></div>
+          <button
+            id="zoom-in"
+            class="source-toolbar-button"
+            type="button"
+            hidden="true"
+            data-l10n-id="multilingual-item-zoom-in"
+            data-l10n-attrs="title,aria-label"
+          ></button>
+          <button
+            id="zoom-out"
+            class="source-toolbar-button"
+            type="button"
+            hidden="true"
+            data-l10n-id="multilingual-item-zoom-out"
+            data-l10n-attrs="title,aria-label"
+          ></button>
+          <div
+            id="source-divider-pages"
+            class="source-toolbar-divider"
+            hidden="true"
+          ></div>
+          <div id="source-controls" role="group" hidden="true">
+            <button
+              id="page-first"
+              class="source-control page-first"
+              type="button"
+              data-l10n-id="multilingual-item-page-first"
+              data-l10n-attrs="title,aria-label"
+            ></button>
+            <button
+              id="page-previous"
+              class="source-control page-previous"
+              type="button"
+              data-l10n-id="multilingual-item-page-previous"
+              data-l10n-attrs="title,aria-label"
+            ></button>
+            <input
+              id="reader-page-index"
+              type="number"
+              min="1"
+              step="1"
+              inputmode="numeric"
+              data-l10n-id="multilingual-item-page-input"
+              data-l10n-attrs="title,aria-label"
+            />
+            <span class="page-separator">/</span>
+            <span id="reader-page-count"></span>
+            <button
+              id="page-next"
+              class="source-control page-next"
+              type="button"
+              data-l10n-id="multilingual-item-page-next"
+              data-l10n-attrs="title,aria-label"
+            ></button>
+            <button
+              id="page-last"
+              class="source-control page-last"
+              type="button"
+              data-l10n-id="multilingual-item-page-last"
+              data-l10n-attrs="title,aria-label"
+            ></button>
+          </div>
+          <!--
+            Glyph is Zotero's official `open-link.svg` (the item box URL
+            field's "view online" icon), at the 20px of the other toolbar icons.
+          -->
+          <button
+            id="open-source-button"
+            class="source-toolbar-button"
+            type="button"
+            data-l10n-id="multilingual-item-open-source"
+            data-l10n-attrs="title,aria-label"
+            hidden="true"
+          ></button>
+        </div>
+        <div id="source-viewer"></div>
+        <div id="source-spinner" hidden="true"></div>
+        <div
+          id="source-placeholder"
+          role="status"
+          aria-live="polite"
+          hidden="true"
+        >
+          <span id="source-placeholder-message"></span>
+          <div id="duplicate-language-actions" hidden="true">
+            <button
+              id="duplicate-use-existing"
+              type="button"
+              data-l10n-id="multilingual-item-duplicate-use-existing"
+            ></button>
+            <button
+              id="duplicate-keep-editing"
+              type="button"
+              data-l10n-id="multilingual-item-duplicate-keep-editing"
+            ></button>
+          </div>
+        </div>
+        <div id="source-error-banner" role="alert" hidden="true"></div>
+        <div id="sidebar-edge" hidden="true"></div>
+      </section>
+      <div
+        id="pane-splitter"
+        role="separator"
+        aria-orientation="vertical"
+        data-l10n-id="multilingual-item-pane-splitter"
+        data-l10n-attrs="aria-label"
+      ></div>
+      <section id="editor-pane" class="pane">
+        <!--
+          `zotero-item-pane-content` is the official item pane content class;
+          its sidepane background keeps this editor identical to the item pane.
+        -->
+        <div id="editor-scroll" class="zotero-item-pane-content">
+          <xul:multilingual-item-editor id="item-editor" />
+        </div>
+      </section>
+    </main>
+    <footer>
+      <button
+        id="cancel-button"
+        type="button"
+        data-l10n-id="multilingual-item-cancel"
+      ></button>
+      <button
+        id="accept-button"
+        type="button"
+        data-l10n-id="multilingual-item-save"
+        default="true"
+      ></button>
+    </footer>
+    <xul:popupset id="reader-popupset"></xul:popupset>
+  </body>
+</html>
