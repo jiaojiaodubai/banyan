@@ -256,6 +256,9 @@ export function registerContextMenu(): void {
 
 async function openWriteExtraFieldDialog(): Promise<void> {
   const pane = Zotero.getActiveZoteroPane();
+  if (!pane) {
+    return;
+  }
   const selectedItems = pane
     .getSelectedItems()
     .filter((item) => item.isRegularItem());
@@ -486,6 +489,9 @@ function promptExtraConflict(
  */
 async function openCreateOutputDialog(): Promise<void> {
   const pane = Zotero.getActiveZoteroPane();
+  if (!pane) {
+    return;
+  }
   const selectedItems = pane
     .getSelectedItems()
     .filter((item) => item.isRegularItem());

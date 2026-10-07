@@ -1389,10 +1389,10 @@ async function resolveStyleItem<T extends ScriptItem>(
     );
   }
 
-  const zoteroItem = await Zotero.Items.getAsync(item.id);
+  const zoteroItem = (await Zotero.Items.getAsync(item.id)) || undefined;
   return {
     sourceItem: zoteroItem ? (toBanyanItem(zoteroItem) as unknown as T) : item,
-    zoteroItem: zoteroItem ?? undefined,
+    zoteroItem,
   };
 }
 

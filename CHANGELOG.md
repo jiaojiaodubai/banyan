@@ -5,9 +5,9 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit this
 "Unreleased" section as needed; `pnpm release` will then cut the version.
 -->
 
-## [Unreleased]
+## v0.4.0 (2026-10-07)
 
-[compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.3.0...main)
+[compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.3.0...v0.4.0)
 
 ### 🚀 Enhancements
 

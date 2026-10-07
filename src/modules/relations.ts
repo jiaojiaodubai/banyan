@@ -163,6 +163,10 @@ export async function relateItemsWithinTransaction(
     for (let j = i + 1; j < ids.length; j++) {
       const item1 = Zotero.Items.get(ids[i]);
       const item2 = Zotero.Items.get(ids[j]);
+      // `Items.get()` returns false once an item is gone.
+      if (!item1 || !item2) {
+        continue;
+      }
       // Keep the rest of the group connected when one member cannot be.
       if (!canRelate(item1, item2)) {
         skippedPairs++;
