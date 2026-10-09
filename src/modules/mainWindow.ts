@@ -1,4 +1,5 @@
 import { relateItems, prefix, getVisibleMultilingualItems } from "./relations";
+import { openMainWindowDialog } from "../utils/window";
 import { useL10n, getLocaleID } from "../utils/locale";
 import { renderMultilingualItemsList } from "../components/multilingualBox";
 
@@ -105,9 +106,8 @@ export function registerItemPaneSection() {
             onlyRegularItems: true,
           };
 
-          Zotero.getMainWindow()?.openDialog(
+          openMainWindowDialog(
             "chrome://zotero/content/selectItemsDialog.xhtml",
-            "",
             "chrome,dialog=no,centerscreen,resizable=yes",
             io,
           );

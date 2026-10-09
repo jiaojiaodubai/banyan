@@ -35,20 +35,29 @@
 
   <!-- Ensure the item tree menu bar is ready before body renders -->
   <xul:item-tree-menu-bar />
-  <!-- Search area, with icon, search box, and cancel/accept buttons -->
-  <header>
-    <div id="icon" />
-    <div id="search-placeholder" style="flex: 1 1 auto; min-height: 32px"></div>
-    <progress id="progress" max="100" hidden="true"></progress>
-    <div id="top-level-btn-group">
-      <button id="accept-button" class="btn-icon icon-citation-dialog-accept" />
-      <div class="vertical-separator" role="presentation"></div>
-      <button id="cancel-button" class="btn-icon icon-citation-dialog-cancel" />
-    </div>
-  </header>
-  <!-- Library, with collections tree and items tree, to find item manually -->
 
   <body>
+    <!-- Search area, with icon, search box, and cancel/accept buttons -->
+    <header>
+      <div id="icon" />
+      <div
+        id="search-placeholder"
+        style="flex: 1 1 auto; min-height: 32px"
+      ></div>
+      <progress id="progress" max="100" hidden="true"></progress>
+      <div id="top-level-btn-group">
+        <button
+          id="accept-button"
+          class="btn-icon icon-citation-dialog-accept"
+        />
+        <div class="vertical-separator" role="presentation"></div>
+        <button
+          id="cancel-button"
+          class="btn-icon icon-citation-dialog-cancel"
+        />
+      </div>
+    </header>
+    <!-- Library, with collections tree and items tree, to find item manually -->
     <div id="library-trees">
       <div
         id="collections-tree-container"
@@ -66,7 +75,7 @@
         <div id="zotero-items-tree" data-tabindex="60"></div>
       </div>
     </div>
+    <!-- Footer, with citation settings settings -->
+    <footer></footer>
   </body>
-  <!-- Footer, with citation settings settings -->
-  <footer></footer>
 </html>

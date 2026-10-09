@@ -17,12 +17,15 @@
     <link rel="stylesheet" href="chrome://zotero-platform/content/zotero.css" />
     <link
       rel="stylesheet"
+      href="chrome://__addonRef__/content/dialogFooter.css"
+    />
+    <link
+      rel="stylesheet"
       href="chrome://__addonRef__/content/extraFieldDialog.css"
     />
 
     <script src="chrome://zotero/content/include.js"></script>
     <script src="chrome://zotero/content/customElements.js"></script>
-    <script src="chrome://zotero/content/titlebar.js"></script>
     <script>
       const addon = Zotero.__addonInstance__;
       const ztoolkit = addon.data.ztoolkit;
@@ -31,31 +34,15 @@
   </head>
   <body>
     <div class="dialog-container">
-      <div id="item-count-info" class="info-row"></div>
-
       <div class="form-row form-row-stack">
-        <label
-          for="key-preset-select"
-          data-l10n-id="extra-field-form-label"
-        ></label>
-        <select id="key-preset-select">
-          <option
-            value="custom"
-            data-l10n-id="extra-field-key-preset-custom"
-          ></option>
-          <option
-            value="type"
-            data-l10n-id="extra-field-key-preset-type"
-          ></option>
-          <option
-            value="genre"
-            data-l10n-id="extra-field-key-preset-genre"
-          ></option>
-          <option
-            value="status"
-            data-l10n-id="extra-field-key-preset-status"
-          ></option>
-        </select>
+        <xul:menulist
+          id="key-preset-select"
+          native="true"
+          data-l10n-id="extra-field-key-placeholder"
+          data-l10n-attrs="aria-label"
+        >
+          <xul:menupopup id="key-preset-popup" />
+        </xul:menulist>
         <input
           id="key-input"
           type="text"
@@ -70,7 +57,7 @@
         />
       </div>
     </div>
-    <footer>
+    <footer class="dialog-footer">
       <button
         id="cancel-button"
         type="button"

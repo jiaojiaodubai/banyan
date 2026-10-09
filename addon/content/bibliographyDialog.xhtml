@@ -17,6 +17,10 @@
     <link rel="stylesheet" href="chrome://zotero-platform/content/zotero.css" />
     <link
       rel="stylesheet"
+      href="chrome://__addonRef__/content/dialogFooter.css"
+    />
+    <link
+      rel="stylesheet"
       href="chrome://__addonRef__/content/bibliographyDialog.css"
     />
     <link
@@ -34,49 +38,52 @@
   </head>
 
   <body>
-    <section id="line-section">
-      <div
-        class="section-title"
-        data-l10n-id="bibliography-dialog-line-section-title"
-      ></div>
-      <div
-        class="section-desc"
-        data-l10n-id="bibliography-dialog-line-section-desc"
-      ></div>
-      <div id="line-editor"></div>
-    </section>
+    <main class="dialog-content">
+      <section id="line-section">
+        <div
+          class="section-title"
+          data-l10n-id="bibliography-dialog-line-section-title"
+        ></div>
+        <div
+          class="section-desc"
+          data-l10n-id="bibliography-dialog-line-section-desc"
+        ></div>
+        <div id="line-editor"></div>
+      </section>
 
-    <section id="uncited-section">
-      <div
-        class="section-title"
-        data-l10n-id="bibliography-dialog-uncited-section-title"
-      ></div>
-      <div
-        class="section-desc"
-        data-l10n-id="bibliography-dialog-uncited-section-desc"
-      ></div>
-      <div class="virtualized-table-container">
-        <div id="uncited-items-tree"></div>
-      </div>
-      <div class="btn-group">
-        <button
-          id="edit-uncited"
-          type="button"
-          data-l10n-id="bibliography-dialog-uncited-edit"
-        ></button>
-      </div>
-    </section>
+      <section id="uncited-section">
+        <div
+          class="section-title"
+          data-l10n-id="bibliography-dialog-uncited-section-title"
+        ></div>
+        <div
+          class="section-desc"
+          data-l10n-id="bibliography-dialog-uncited-section-desc"
+        ></div>
+        <div class="virtualized-table-container">
+          <div id="uncited-items-tree"></div>
+        </div>
+        <div class="btn-group">
+          <button
+            id="edit-uncited"
+            type="button"
+            data-l10n-id="bibliography-dialog-uncited-edit"
+          ></button>
+        </div>
+      </section>
+    </main>
+    <footer class="dialog-footer">
+      <button
+        id="cancel-button"
+        type="button"
+        data-l10n-id="bibliography-dialog-cancel"
+      ></button>
+      <button
+        id="accept-button"
+        type="button"
+        data-l10n-id="bibliography-dialog-accept"
+        default="true"
+      ></button>
+    </footer>
   </body>
-  <footer>
-    <button
-      id="accept-button"
-      type="button"
-      data-l10n-id="bibliography-dialog-accept"
-    ></button>
-    <button
-      id="cancel-button"
-      type="button"
-      data-l10n-id="bibliography-dialog-cancel"
-    ></button>
-  </footer>
 </html>

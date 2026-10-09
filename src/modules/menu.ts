@@ -1,7 +1,7 @@
 import { relateItems } from "./relations";
 import { getLocaleID, useL10n } from "../utils/locale";
 import { openStyleEditorWindow } from "./styleEditor";
-import { openDialogWindow } from "./server";
+import { openDialogWindow } from "../utils/window";
 import { openCreateMultilingualItemDialog } from "./multilingualItem";
 import {
   normalizeExtraKey,
@@ -269,7 +269,6 @@ async function openWriteExtraFieldDialog(): Promise<void> {
 
   return new Promise((resolve) => {
     const io = {
-      itemCount: selectedItems.length,
       result: null as ExtraFieldDialogResult | null,
       deferred: {
         promise: Promise.resolve(),
@@ -295,7 +294,7 @@ async function openWriteExtraFieldDialog(): Promise<void> {
 
     openDialogWindow(
       `chrome://${addon.data.config.addonRef}/content/extraFieldDialog.xhtml`,
-      "modal,resizable=no",
+      "modal,resizable=yes",
       io,
     );
   });

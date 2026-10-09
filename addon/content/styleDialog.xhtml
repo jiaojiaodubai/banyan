@@ -17,6 +17,10 @@
     <link rel="stylesheet" href="chrome://zotero-platform/content/zotero.css" />
     <link
       rel="stylesheet"
+      href="chrome://__addonRef__/content/dialogFooter.css"
+    />
+    <link
+      rel="stylesheet"
       href="chrome://__addonRef__/content/styleDialog.css"
     />
 
@@ -38,16 +42,17 @@
         <div id="table-container"></div>
       </div>
     </main>
-    <footer>
-      <button
-        id="confirm"
-        type="button"
-        data-l10n-id="style-dialog-confirm"
-      ></button>
+    <footer class="dialog-footer">
       <button
         id="import"
         type="button"
         data-l10n-id="style-dialog-import"
+      ></button>
+      <button
+        id="confirm"
+        type="button"
+        data-l10n-id="style-dialog-confirm"
+        default="true"
       ></button>
     </footer>
   </body>

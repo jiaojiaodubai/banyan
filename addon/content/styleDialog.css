@@ -16,16 +16,12 @@ body {
   overflow-y: hidden;
 }
 
-header,
-footer {
+header {
   display: flex;
   align-items: center;
   /* keep consistance with default body background */
   background: var(--material-sidepane);
   flex-shrink: 0;
-}
-
-header {
   justify-content: end;
   padding: 8px 10px 8px 10px;
   -moz-window-dragging: drag;
@@ -45,7 +41,7 @@ main {
   display: flex;
   flex-direction: column;
   flex: 1;
-  border-bottom: var(--material-panedivider);
+  /* The footer's own top border (dialogFooter.css) separates the two. */
   border-top: var(--material-panedivider);
   overflow-y: hidden;
   -moz-window-dragging: no-drag;
@@ -81,15 +77,4 @@ main {
   background-color: var(--material-background);
 }
 
-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 8px 10px 8px 10px;
-  -moz-window-dragging: no-drag;
-}
-
-footer button {
-  min-width: 6.3em;
-}
+/* Buttons sit in the shared `.dialog-footer` box (dialogFooter.css). */

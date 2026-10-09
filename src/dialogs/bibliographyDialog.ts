@@ -12,6 +12,10 @@ import type {
 import type { IO as CitationDialogIO } from "./citationDialog";
 import { RichTextEditor } from "../components/richTextEditor";
 import { emptyRichText } from "../utils/richText";
+import { unwrapDialogIO } from "../utils/window";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("bibliography-dialog");
 
 export type IO = {
   data: BibliographyRequestData;
@@ -42,7 +46,12 @@ window.addEventListener("unload", () => {
 });
 
 async function initBibliographyDialog(): Promise<void> {
-  io = window.arguments[0].wrappedJSObject as IO;
+  const arg = unwrapDialogIO<IO>(window.arguments?.[0]);
+  if (!arg) {
+    log.warn("bibliographyDialog: window IO is missing");
+    return;
+  }
+  io = arg;
   workingLine = io.data.line;
   extraCitation = io.data.extraSource;
   editorEl = document.getElementById("line-editor") as HTMLDivElement | null;
@@ -144,7 +153,7 @@ async function initUncitedItemsTree(): Promise<void> {
     });
     await refreshUncitedItems();
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("Failed to initialize uncited item list", e);
   }
 }
 
@@ -155,7 +164,7 @@ async function refreshUncitedItems(): Promise<void> {
   try {
     await uncitedItemsView.changeCollectionTreeRow(row);
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("Failed to initialize uncited item list", e);
   }
 }
 

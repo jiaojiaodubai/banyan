@@ -1,6 +1,12 @@
 import { useL10n } from "../utils/locale";
+import { unwrapDialogIO } from "../utils/window";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("create-output-dialog");
 
 const t = useL10n(["createOutputDialog.ftl"]);
+
+type XULMenulistElement = Element & { value: string };
 
 export type IO = {
   result: {
@@ -28,7 +34,12 @@ window.addEventListener("unload", () => {
 });
 
 async function initCreateOutputDialog(): Promise<void> {
-  io = window.arguments[0].wrappedJSObject as IO;
+  const arg = unwrapDialogIO<IO>(window.arguments?.[0]);
+  if (!arg) {
+    log.warn("createOutputDialog: window IO is missing");
+    return;
+  }
+  io = arg;
 
   updateItemCount();
   populateStyleSelector();
@@ -49,36 +60,34 @@ function updateItemCount(): void {
 }
 
 function populateStyleSelector(): void {
-  const select = document.getElementById(
+  const menulist = document.getElementById(
     "style-select",
-  ) as HTMLSelectElement | null;
-  if (!select) return;
+  ) as XULMenulistElement | null;
+  const popup = document.getElementById("style-popup");
+  if (!menulist || !popup) return;
 
-  select.replaceChildren();
+  popup.replaceChildren();
 
   const styles = Array.from(addon.data.styles.files.values()).sort((a, b) =>
     a.title.localeCompare(b.title),
   );
 
   if (styles.length === 0) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = t("create-output-no-styles");
-    option.disabled = true;
-    select.appendChild(option);
+    const menuitem = document.createXULElement("menuitem");
+    menuitem.setAttribute("label", t("create-output-no-styles"));
+    menuitem.setAttribute("disabled", "true");
+    popup.appendChild(menuitem);
     return;
   }
 
   for (const style of styles) {
-    const option = document.createElement("option");
-    option.value = style.id;
-    option.textContent = style.title;
-    select.appendChild(option);
+    const menuitem = document.createXULElement("menuitem");
+    menuitem.setAttribute("label", style.title);
+    menuitem.setAttribute("value", style.id);
+    popup.appendChild(menuitem);
   }
 
-  if (select.options.length > 0) {
-    select.selectedIndex = 0;
-  }
+  menulist.value = styles[0].id;
 }
 
 function restoreSavedSettings(): void {
@@ -92,7 +101,7 @@ function restoreSavedSettings(): void {
     setRadioValue("output-format", settings.outputFormat);
     setRadioValue("output-method", settings.outputMethod);
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("Failed to restore previous output settings", e);
   }
 }
 
@@ -109,9 +118,10 @@ function setRadioValue(name: string, value: unknown): void {
 function bindEvents(): void {
   document.getElementById("accept-button")?.addEventListener("click", onAccept);
   document.getElementById("cancel-button")?.addEventListener("click", onCancel);
+  // A XUL menulist fires `command`, not `change`.
   document
     .getElementById("style-select")
-    ?.addEventListener("change", () => updateCitationLabel());
+    ?.addEventListener("command", () => updateCitationLabel());
   document.addEventListener("keydown", onKeydown);
 }
 
@@ -128,13 +138,13 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 function updateCitationLabel(): void {
-  const select = document.getElementById(
+  const menulist = document.getElementById(
     "style-select",
-  ) as HTMLSelectElement | null;
+  ) as XULMenulistElement | null;
   const label = document.getElementById("output-type-citation-label");
-  if (!select || !label || !select.value) return;
+  if (!menulist || !label || !menulist.value) return;
 
-  const styleFile = addon.data.styles.files.get(select.value);
+  const styleFile = addon.data.styles.files.get(menulist.value);
   if (!styleFile) return;
 
   label.textContent =
@@ -153,10 +163,10 @@ function getCheckedValue<T extends string>(name: string): T | null {
 function onAccept(): void {
   if (!io) return;
 
-  const select = document.getElementById(
+  const menulist = document.getElementById(
     "style-select",
-  ) as HTMLSelectElement | null;
-  if (!select || !select.value) {
+  ) as XULMenulistElement | null;
+  if (!menulist || !menulist.value) {
     ztoolkit.getGlobal("alert")(t("create-output-error-no-style"));
     return;
   }
@@ -173,7 +183,7 @@ function onAccept(): void {
   }
 
   io.result = {
-    styleId: select.value,
+    styleId: menulist.value,
     outputType,
     outputFormat,
     outputMethod,
@@ -185,7 +195,7 @@ function onAccept(): void {
       JSON.stringify({ outputType, outputFormat, outputMethod }),
     );
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("Failed to restore previous output settings", e);
   }
 
   resolved = true;

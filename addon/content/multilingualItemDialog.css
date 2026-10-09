@@ -570,20 +570,7 @@ body {
   padding: 0;
 }
 
-footer {
-  display: flex;
-  flex: 0 0 auto;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 8px 12px;
-  border-top: var(--material-panedivider);
-  background: var(--material-sidepane);
-}
-
-footer button {
-  min-width: 80px;
-  padding: 4px 12px;
-}
+/* Buttons sit in the shared `.dialog-footer` box (dialogFooter.css). */
 
 /* Zotero's `open-link.svg`, at the 20px of every other toolbar icon. */
 #open-source-button {

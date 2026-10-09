@@ -8,13 +8,21 @@ html {
 
 body {
   display: flex;
-  flex-direction: column;
   flex: 1;
+  flex-direction: column;
+  min-height: 0;
   margin: 0;
+}
+
+/* Only the content scrolls, so the footer stays pinned. */
+.dialog-content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   gap: 16px;
+  min-height: 0;
   padding: 8px 10px 8px 10px;
   overflow: auto;
-  min-height: 0;
 }
 
 section {
@@ -83,17 +91,4 @@ section {
   -moz-user-select: none;
 }
 
-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 8px 10px 8px 10px;
-  flex-shrink: 0;
-  border-top: var(--material-panedivider);
-  background: var(--material-background);
-}
-
-footer button {
-  min-width: 6.3em;
-}
+/* Buttons sit in the shared `.dialog-footer` box (dialogFooter.css). */

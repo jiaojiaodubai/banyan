@@ -1,6 +1,12 @@
 import { useL10n } from "../utils/locale";
+import { unwrapDialogIO } from "../utils/window";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("extra-field-dialog");
 
 const t = useL10n(["extraFieldDialog.ftl"]);
+
+type XULMenulistElement = Element & { value: string };
 
 type PresetKey = "custom" | "type" | "genre" | "status";
 
@@ -10,7 +16,6 @@ type DialogResult = {
 };
 
 export type IO = {
-  itemCount: number;
   result: DialogResult | null;
   deferred: {
     promise: Promise<void>;
@@ -18,11 +23,15 @@ export type IO = {
   };
 };
 
-const PRESET_KEYS: ReadonlyArray<{ preset: PresetKey; key: string }> = [
-  { preset: "custom", key: "" },
-  { preset: "type", key: "Type" },
-  { preset: "genre", key: "Genre" },
-  { preset: "status", key: "Status" },
+const PRESET_KEYS: ReadonlyArray<{
+  preset: PresetKey;
+  key: string;
+  labelId: string;
+}> = [
+  { preset: "custom", key: "", labelId: "extra-field-key-preset-custom" },
+  { preset: "type", key: "Type", labelId: "extra-field-key-preset-type" },
+  { preset: "genre", key: "Genre", labelId: "extra-field-key-preset-genre" },
+  { preset: "status", key: "Status", labelId: "extra-field-key-preset-status" },
 ];
 
 let io: IO | null = null;
@@ -37,38 +46,55 @@ window.addEventListener("unload", () => {
 });
 
 function initExtraFieldDialog(): void {
-  io = window.arguments[0].wrappedJSObject as IO;
+  const arg = unwrapDialogIO<IO>(window.arguments?.[0]);
+  if (!arg) {
+    log.warn("extraFieldDialog: window IO is missing");
+    return;
+  }
+  io = arg;
 
+  fillPresetMenu();
   bindEvents();
-  updateItemCount();
   syncKeyInputByPreset();
+}
+
+/**
+ * Build the preset items here rather than in the markup, the way Zotero fills
+ * its menulists (`exportOptions.js`): the menulist renders the selected item's
+ * label, so the items must exist before the selection is made.
+ */
+function fillPresetMenu(): void {
+  const menulist = document.getElementById(
+    "key-preset-select",
+  ) as XULMenulistElement | null;
+  const popup = document.getElementById("key-preset-popup");
+  if (!menulist || !popup) return;
+
+  popup.replaceChildren();
+  for (const { preset, labelId } of PRESET_KEYS) {
+    const menuitem = document.createXULElement("menuitem");
+    menuitem.setAttribute("value", preset);
+    menuitem.setAttribute("label", t(labelId));
+    popup.appendChild(menuitem);
+  }
+  menulist.value = "custom";
 }
 
 function bindEvents(): void {
   document.getElementById("accept-button")?.addEventListener("click", onAccept);
   document.getElementById("cancel-button")?.addEventListener("click", onCancel);
+  // A XUL menulist fires `command`, not `change`.
   document
     .getElementById("key-preset-select")
-    ?.addEventListener("change", () => syncKeyInputByPreset());
+    ?.addEventListener("command", () => syncKeyInputByPreset());
   document.addEventListener("keydown", onKeydown);
 }
 
-function updateItemCount(): void {
-  const info = document.getElementById("item-count-info");
-  if (!info || !io) return;
-
-  const count = io.itemCount;
-  info.textContent =
-    count === 1
-      ? t("extra-field-item-count-single")
-      : t("extra-field-item-count-multiple", { args: { count } });
-}
-
 function getSelectedPreset(): PresetKey {
-  const select = document.getElementById(
+  const menulist = document.getElementById(
     "key-preset-select",
-  ) as HTMLSelectElement | null;
-  const value = select?.value;
+  ) as XULMenulistElement | null;
+  const value = menulist?.value;
   return value === "type" || value === "genre" || value === "status"
     ? value
     : "custom";
@@ -90,7 +116,9 @@ function syncKeyInputByPreset(): void {
       keyInput.value = "";
     }
     keyInput.disabled = false;
-    keyInput.placeholder = t("extra-field-key-placeholder");
+    keyInput.placeholder = t("extra-field-key-placeholder", {
+      branch: "placeholder",
+    });
     keyInput.focus();
     return;
   }

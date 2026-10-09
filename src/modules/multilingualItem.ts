@@ -1,4 +1,3 @@
-import { openDialogWindow } from "./server";
 import {
   collectRelatableItems,
   getMultilingualUris,
@@ -18,7 +17,11 @@ import {
   snapshotItemContent,
   type LanguageItemCandidate,
 } from "../utils/multilingualDraft";
-import { findWindowByName, isWindowAlive } from "../utils/window";
+import {
+  findWindowByName,
+  isWindowAlive,
+  openMainWindowDialog,
+} from "../utils/window";
 import type { ItemContentSnapshot } from "../../typings/multilingualItem";
 import type {
   MultilingualCommitResult,
@@ -230,18 +233,15 @@ export async function openCreateMultilingualItemDialog(
   await new Promise<void>((resolve) => {
     io.deferred.resolve = resolve;
     const url = `chrome://${addon.data.config.addonRef}/content/multilingualItemDialog.xhtml`;
-    // Zotero's recipe for resizable utility windows: open with `dialog=no` to
-    // keep native controls; `openDialogWindow` covers a missing main window.
-    // The window name makes the dialog findable before its document is parsed,
-    // so a second trigger cannot open a second editor.
-    const features = "chrome,dialog=no,resizable=yes";
-    const win =
-      Zotero.getMainWindow()?.openDialog(
-        url,
-        DIALOG_WINDOW_NAME,
-        features,
-        io,
-      ) ?? openDialogWindow(url, "dialog=no,resizable", io, DIALOG_WINDOW_NAME);
+    // Zotero's recipe for a resizable utility window: `dialog=no` keeps the
+    // native controls, and the fixed name makes the window findable while it
+    // is still loading, so a second trigger cannot open a second editor.
+    const win = openMainWindowDialog(
+      url,
+      "chrome,dialog=no,resizable=yes",
+      io,
+      DIALOG_WINDOW_NAME,
+    );
     // The window unloads its initial `about:blank` document while it navigates
     // to the dialog, long before the dialog script installs `io.reload`; only
     // an unload after that means the dialog is really gone. Settling there

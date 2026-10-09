@@ -21,7 +21,11 @@ import type {
 import { getPref, setPref } from "../../utils/prefs";
 import { getStyle } from "../styles";
 import { ProgressBar } from "../../utils/progressBar";
-import { isWindowAlive } from "../../utils/window";
+import {
+  getDialogRaiseFeature,
+  isWindowAlive,
+  openDialogWindow,
+} from "../../utils/window";
 import { syncContextsWithLiveItems } from "../../utils/item";
 import {
   scanInaccessibleItems,
@@ -451,40 +455,6 @@ function buildRefreshFailureResult(
       "Failed to refresh citations and bibliography",
     ),
   );
-}
-
-function getDialogRaiseFeature(): string {
-  if (
-    !Zotero.isMac &&
-    Zotero.Prefs.get("integration.keepAddCitationDialogRaised")
-  ) {
-    return ",popup";
-  }
-  return ",alwaysRaised";
-}
-
-function getCommonDialogFeatures(): string {
-  let features = "chrome,centerscreen";
-  if (Zotero.isLinux) {
-    features += ",dialog=no";
-  }
-  return features;
-}
-
-export function openDialogWindow<T extends object>(
-  url: string,
-  features: string,
-  io: T,
-  name = "",
-): Window {
-  return Services.ww.openWindow(
-    // @ts-expect-error Services.ww.openWindow has incomplete type definitions
-    null,
-    url,
-    name,
-    `${getCommonDialogFeatures()},${features}`,
-    { wrappedJSObject: io },
-  ) as Window;
 }
 
 function responseOk<P extends HttpPath>(

@@ -47,6 +47,8 @@ declare namespace _ZoteroTypes {
 interface Document {
   createXULElement(name: "editable-text"): _ZoteroTypes.EditableText;
   createXULElement(name: "toolbarbutton"): XULToolBarButtonElement;
+  createXULElement(name: "menupopup"): XULMenuPopupElement;
+  createXULElement(name: "menuitem"): XULMenuItemElement;
 }
 
 /**

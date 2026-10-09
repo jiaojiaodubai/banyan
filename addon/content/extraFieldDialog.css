@@ -9,10 +9,20 @@ body {
   color: var(--fill-primary, FieldText);
 }
 
+/*
+ * Window sizing: `min-*` on the root is what bounds how small the window can
+ * be dragged, as in Zotero's own dialogs (`_selectItemsDialog.scss`,
+ * `bibliography.scss`). The width floor just clears the footer's buttons;
+ * the upper bound is the screen.
+ */
+html {
+  min-width: 210px;
+  min-height: 180px;
+}
+
 body {
   display: flex;
   flex-direction: column;
-  min-width: 420px;
 }
 
 .dialog-container {
@@ -21,11 +31,9 @@ body {
   flex-direction: column;
   gap: 10px;
   padding: 16px;
-}
-
-/* Top descriptive text, matching native Zotero dialog <description> */
-.info-row {
-  margin: 0;
+  /* Shrinking below the fields' height scrolls instead of clipping them. */
+  min-height: 0;
+  overflow: auto;
 }
 
 .form-row {
@@ -40,42 +48,18 @@ body {
   gap: 6px;
 }
 
-/* Field label, styled like a native Zotero dialog label (not a heading) */
-.form-row-stack > label {
-  margin: 0;
-}
-
+/*
+ * Fields are Zotero's native form controls, the way `newCollectionDialog.xhtml`
+ * and `exportOptions.xhtml` pair a `<menulist>` with text fields. Their default
+ * margin would offset them against `width: 100%` (Zotero resets it too, e.g.
+ * `scss/components/_csledit.scss`), so only the width is ours.
+ */
 #key-preset-select,
 #key-input,
 #value-input {
-  width: 100%;
   box-sizing: border-box;
-  padding: 4px 6px;
-  background-color: var(--material-background, Field);
-  color: var(--fill-primary, FieldText);
-  border: 1px solid var(--fill-quinary, ButtonBorder);
-  border-radius: 4px;
+  margin: 0;
+  width: 100%;
 }
 
-#key-input:disabled {
-  opacity: 0.75;
-}
-
-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--fill-quinary, ButtonBorder);
-  background-color: var(--material-sidepane, Field);
-}
-
-footer button {
-  min-width: 80px;
-  padding: 4px 14px;
-  cursor: pointer;
-}
-
-footer button[default="true"] {
-  font-weight: 600;
-}
+/* Buttons sit in the shared `.dialog-footer` box (dialogFooter.css). */

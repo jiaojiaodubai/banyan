@@ -1,0 +1,29 @@
+/*
+ * Footer shared by this Add-on's own dialogs. Metrics follow Zotero's
+ * `.dialog-button-box` (8px gap, no button margin, quarternary divider, 16px
+ * padding), and the button order matches what its `<dialog
+ * buttons="cancel,accept">` windows get for free: markup keeps cancel before
+ * accept (auxiliary actions go between them), and Windows flips the row.
+ */
+.dialog-footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: var(--material-border-quarternary);
+  background: var(--material-background);
+}
+
+.dialog-footer button {
+  margin: 0;
+  min-width: 6.3em;
+}
+
+@media (-moz-platform: windows) {
+  .dialog-footer {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+  }
+}

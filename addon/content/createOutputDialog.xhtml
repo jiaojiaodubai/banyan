@@ -17,6 +17,10 @@
     <link rel="stylesheet" href="chrome://zotero-platform/content/zotero.css" />
     <link
       rel="stylesheet"
+      href="chrome://__addonRef__/content/dialogFooter.css"
+    />
+    <link
+      rel="stylesheet"
       href="chrome://__addonRef__/content/createOutputDialog.css"
     />
 
@@ -34,10 +38,16 @@
       <!-- Style Selection -->
       <div class="form-row form-row-stack">
         <label
-          for="style-select"
+          id="style-select-label"
           data-l10n-id="create-output-style-label"
         ></label>
-        <select id="style-select"></select>
+        <xul:menulist
+          id="style-select"
+          native="true"
+          aria-labelledby="style-select-label"
+        >
+          <xul:menupopup id="style-popup" />
+        </xul:menulist>
       </div>
 
       <!-- Item Count Info -->
@@ -106,7 +116,7 @@
         </div>
       </div>
     </div>
-    <footer>
+    <footer class="dialog-footer">
       <button
         id="cancel-button"
         type="button"

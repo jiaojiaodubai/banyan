@@ -13,6 +13,7 @@ import { renderStyleComponentOptions } from "../components/styleComponentOptions
 import { toBanyanItem } from "../utils/item";
 import { useL10n } from "../utils/locale";
 import { getPref, setPref } from "../utils/prefs";
+import { unwrapDialogIO } from "../utils/window";
 
 export type IO = {
   data: CitationDialogRequestData;
@@ -179,7 +180,10 @@ window.addEventListener("unload", () => {
 
 async function initCitationDialog(): Promise<void> {
   try {
-    io = window.arguments[0].wrappedJSObject as IO;
+    io = unwrapDialogIO<IO>(window.arguments?.[0]);
+    if (!io) {
+      throw new Error("citationDialog: window IO is missing");
+    }
     if (io?.mode === "uncited") {
       document.title = t("citation-dialog-uncited-title");
     }
