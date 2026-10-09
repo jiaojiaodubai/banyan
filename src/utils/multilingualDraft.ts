@@ -279,37 +279,6 @@ function escapeDoi(doi: string): string {
   return doi.replace(DOI_ESCAPE_PATTERN, (char) => DOI_ESCAPES[char]);
 }
 
-export type CreatorName = {
-  /** 0 = separate last/first name, 1 = a single field. */
-  fieldMode: 0 | 1;
-  firstName: string;
-  lastName: string;
-};
-
-/**
- * Change how a creator's name is stored, keeping the text the user sees.
- * Mirrors `itemBox.switchCreatorMode()`; the last word stays the last name.
- */
-export function switchCreatorNameMode(
-  name: CreatorName,
-  fieldMode: 0 | 1,
-): CreatorName {
-  if (fieldMode === name.fieldMode) {
-    return { ...name };
-  }
-  if (fieldMode === 1) {
-    const combined = name.firstName
-      ? `${name.firstName} ${name.lastName}`
-      : name.lastName;
-    return { fieldMode: 1, firstName: "", lastName: combined };
-  }
-  const parts = /(.*?)[ ]*([^ ]+[ ]*)$/.exec(name.lastName);
-  if (parts?.[2] && parts[2] !== name.lastName) {
-    return { fieldMode: 0, firstName: parts[1], lastName: parts[2] };
-  }
-  return { fieldMode: 0, firstName: "", lastName: name.lastName };
-}
-
 export function hasNonLanguageChanges(
   sourceFields: Readonly<Record<string, string>>,
   draftFields: Readonly<Record<string, string>>,

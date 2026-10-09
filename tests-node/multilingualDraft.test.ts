@@ -8,7 +8,6 @@ import {
   isSameItemContent,
   normalizeLanguageCode,
   normalizeStyleLanguageTag,
-  switchCreatorNameMode,
 } from "../src/utils/multilingualDraft";
 import type {
   CreatorSnapshot,
@@ -281,58 +280,6 @@ describe("multilingual item draft validation", function () {
     assert.isNull(doiToUrl("not-a-doi"));
     assert.isNull(doiToUrl(undefined));
     assert.isNull(doiToUrl("https://example.com/10.1000/xyz123"));
-  });
-
-  it("converts a creator name between one and two fields", function () {
-    // Two fields -> one: first name goes in front, as it is read.
-    assert.deepEqual(
-      switchCreatorNameMode(
-        { fieldMode: 0, firstName: "Dejan", lastName: "Iliev" },
-        1,
-      ),
-      { fieldMode: 1, firstName: "", lastName: "Dejan Iliev" },
-    );
-    // One field -> two: all but the last word becomes the first name.
-    assert.deepEqual(
-      switchCreatorNameMode(
-        { fieldMode: 1, firstName: "", lastName: "Dejan Iliev" },
-        0,
-      ),
-      { fieldMode: 0, firstName: "Dejan", lastName: "Iliev" },
-    );
-    assert.deepEqual(
-      switchCreatorNameMode(
-        { fieldMode: 1, firstName: "", lastName: "Ludwig van Beethoven" },
-        0,
-      ),
-      { fieldMode: 0, firstName: "Ludwig van", lastName: "Beethoven" },
-    );
-  });
-
-  it("keeps a name without spaces whole when splitting to two fields", function () {
-    // Chinese names have no word break to split on.
-    assert.deepEqual(
-      switchCreatorNameMode(
-        { fieldMode: 1, firstName: "", lastName: "洪卓民" },
-        0,
-      ),
-      { fieldMode: 0, firstName: "", lastName: "洪卓民" },
-    );
-    // Only a last name: nothing to put in front when merging.
-    assert.deepEqual(
-      switchCreatorNameMode(
-        { fieldMode: 0, firstName: "", lastName: "洪卓民" },
-        1,
-      ),
-      { fieldMode: 1, firstName: "", lastName: "洪卓民" },
-    );
-  });
-
-  it("returns a copy when the name is already in the requested mode", function () {
-    const name = { fieldMode: 0 as const, firstName: "A", lastName: "B" };
-    const same = switchCreatorNameMode(name, 0);
-    assert.deepEqual(same, name);
-    assert.notStrictEqual(same, name);
   });
 
   it("escapes DOI characters that would truncate the resolver URL", function () {

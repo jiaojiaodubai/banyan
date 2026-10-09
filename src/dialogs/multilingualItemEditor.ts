@@ -1,4 +1,4 @@
-import { switchCreatorNameMode } from "../utils/multilingualDraft";
+import { switchCreatorNameMode } from "../utils/creatorName";
 
 /**
  * Own element instead of the item pane's `<info-box>`, whose affordances (item

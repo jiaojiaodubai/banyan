@@ -15,6 +15,8 @@ menuitem-write-extra-field =
     .label = Write “Extra” Field
 menuitem-create-multilingual-item =
     .label = Create Multilingual Item…
+menuitem-creators-ext =
+    .label = Extend Creator Information…
 item-tree-citation-column = Citation
 
 item-section-multilingual-head-text =
@@ -36,6 +38,8 @@ relate-multilingual-item-warning-skipped = { $count ->
 }
 
 extra-field-write-failed = Failed to write extra field: { $message }
+creators-ext-open-failed = Could not open creator information: { $message }
+creators-ext-already-open = The creator information window is already open, so it was brought to the front.
 extra-field-error-invalid-key = Invalid field key. Please enter a valid key.
 extra-field-conflict-title = Field value conflict
 extra-field-conflict-message = “{ $key }” on “{ $item }” already has the value “{ $existing }”. Overwrite it with “{ $newValue }”?

@@ -1,6 +1,7 @@
 import { createOutputItemMenu } from "./createOutput";
 import { writeExtraFieldItemMenu } from "./extraFieldWrite";
 import { createMultilingualItemItemMenu } from "./multilingualItem";
+import { creatorsExtItemMenu, registerCreatorsExtRowMenu } from "./creatorsExt";
 import { relateItemsItemMenu } from "./relations";
 import { openStyleEditorWindow } from "./styleEditor";
 import { onStyleIndexChanged } from "./styles";
@@ -42,6 +43,7 @@ let itemMenuKey: string | false = false;
  * the actions are used: creators first, rendering last.
  */
 const ITEM_MENU_CONTRIBUTIONS: readonly ItemMenuContribution[] = [
+  creatorsExtItemMenu,
   writeExtraFieldItemMenu,
   createMultilingualItemItemMenu,
   relateItemsItemMenu,
@@ -135,4 +137,5 @@ export function refreshItemMenu(): void {
 export function registerContextMenu(): void {
   onStyleIndexChanged(refreshItemMenu);
   refreshItemMenu();
+  registerCreatorsExtRowMenu();
 }
