@@ -12,7 +12,7 @@ menuitem-style-editor =
 menuitem-create-output =
     .label = Create Citation/Bibliography
 menuitem-write-extra-field =
-    .label = Write Extra Field
+    .label = Write “Extra” Field
 menuitem-create-multilingual-item =
     .label = Create Multilingual Item…
 item-tree-citation-column = Citation
@@ -37,15 +37,19 @@ relate-multilingual-item-warning-skipped = { $count ->
 
 extra-field-write-failed = Failed to write extra field: { $message }
 extra-field-error-invalid-key = Invalid field key. Please enter a valid key.
-extra-field-conflict-title = Extra Field Already Exists
-extra-field-conflict-message = Item "{ $item }" already has "{ $key }" with value: { $existing }
+extra-field-conflict-title = Field value conflict
+extra-field-conflict-message = “{ $key }” on “{ $item }” already has the value “{ $existing }”. Overwrite it with “{ $newValue }”?
 extra-field-conflict-skip = Skip
 extra-field-conflict-overwrite = Overwrite
+extra-field-conflict-cancel = Cancel
 extra-field-conflict-apply-to-remaining = Apply this choice to the remaining items in this session
-extra-field-write-summary = Completed: updated { $updated }, skipped { $skipped }{ $aborted ->
-    [1] , then canceled the remaining items.
-   *[0] .
-}
+extra-field-write-summary = Completed: updated { $updated }, skipped { $skipped }{ $failed ->
+        [0] {""}
+       *[other] , { $failed } failed to save
+    }{ $aborted ->
+        [1] , then canceled the remaining items.
+       *[0] .
+    }
 
 multilingual-retype-title = Multilingual Items
 multilingual-retype-message = "{ $item }" is now { $type }. { $count ->

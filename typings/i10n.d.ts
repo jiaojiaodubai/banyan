@@ -46,6 +46,7 @@ export type FluentMessageId =
   | 'extra-field-accept'
   | 'extra-field-cancel'
   | 'extra-field-conflict-apply-to-remaining'
+  | 'extra-field-conflict-cancel'
   | 'extra-field-conflict-message'
   | 'extra-field-conflict-overwrite'
   | 'extra-field-conflict-skip'

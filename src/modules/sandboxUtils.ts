@@ -313,6 +313,8 @@ function runtimeGetExtraValue(
   key: string,
   mode?: "string" | "array",
 ): string | string[] {
+  // The `"array"` mode exposes repeated `extra` keys: a community convention
+  // Banyan reads but never writes.
   const safeString = (value: unknown): string => {
     switch (typeof value) {
       case "string":

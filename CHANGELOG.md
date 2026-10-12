@@ -5,6 +5,16 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit this
 "Unreleased" section as needed; `pnpm release` will then cut the version.
 -->
 
+## Unreleased
+
+### 🩹 Fixes
+
+- **extra field:** Keep key/value lines at the top of `extra` and sort them by key, as Zotero's own documentation requires and citeproc reads them contiguously
+
+### 💅 Styles
+
+- **breaking:** Keys of `item.extra` follow Zotero's own variable-line syntax now, so lines such as `tex.shorttitle: Foo` or `see:` stay prose and are no longer read as keys
+
 ## v0.4.0 (2026-10-07)
 
 [compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.3.0...v0.4.0)
