@@ -55,6 +55,23 @@
       "$0"
     ]
   },
+  "ITEM_FIELD_PRESETS: Basic Entry": {
+    "prefix": ["preset", "item-field-presets", "quick-mark"],
+    "description": "Insert an ITEM_FIELD_PRESETS entry (item context menu \"Quick Marks\")",
+    "body": [
+      "{",
+      "  id: \"${1:classic}\",",
+      "  // Menu text; a single plain string, since styles have no locale concept",
+      "  label: \"${2:古籍}\",",
+      "  // Evaluated in the sandbox; only a strict true counts as visible",
+      "  visible: (item) => item.itemType === \"${3:book}\",",
+      "  // Written as a real field when valid for the item type, otherwise as an",
+      "  // \"extra\" line (values must be non-empty strings)",
+      "  fields: { ${4:type}: \"${5:classic}\" },",
+      "},",
+      "$0"
+    ]
+  },
   "UI: Citation Checkbox": {
     "prefix": ["ui-citation-checkbox", "citation-checkbox"],
     "description": "Insert a checkbox component for UI.citation",

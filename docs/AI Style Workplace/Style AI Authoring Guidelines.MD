@@ -12,6 +12,11 @@
 - 只输出脚本代码。
 - 文件保持精简：注释只解释本样式的独有决策，通用能力交给沙箱工具。
 - 推荐内部顺序：常量与辅助函数 → `INFO` → `UI` → `generate()`。
+  `ITEM_FIELD_PRESETS`（可选），放入 banyan 数据目录即可被插件加载执行。
+
+- 只输出脚本代码。
+- 文件保持精简：注释只解释本样式的独有决策，通用能力交给沙箱工具。
+- 推荐内部顺序：常量与辅助函数 → `INFO` → `UI` → `ITEM_FIELD_PRESETS` → `generate()`。
 
 ## 2. 工作环境：沙箱
 
@@ -106,6 +111,17 @@ const label = fallback([
 - `UI.cite` 控件可用 `visible(item)`（弹窗展开时评估一次，须返回布尔值）与
   `disabled(cite)`（随参数变化评估，省略默认为 `false`）。
 
+### 写 `ITEM_FIELD_PRESETS`（按需）
+
+当格式要求“某类条目必须把某个字段写成某个值”时（用户难以自行得知键与值），用 `ITEM_FIELD_PRESETS` 声明条目右键菜单里的“快捷标记”：
+
+- 应用时把 `fields` 逐条写进选中条目：键在条目类型上是合法字段就写该字段，否则写进 `extra`（`status` 对 `journalArticle` 走 `extra`）。
+- 取值由用户按条目决定时写 `null`：应用时逐条询问，菜单文本以 `…` 结尾。
+- 非 `itemData` 的键（`extra`、`id`、`itemType`、`creators` 等）会被拒绝。
+- CSL name 变量不会被 citeproc 当作 creators，`type: <条目类型>` 会改掉条目类型：宿主只记日志，不拦截。
+- `visible(item)` 只决定菜单项在哪些条目上出现，也限定写入对象，与 `UI.cite` 的 `visible` 同语义。
+- 样式编辑器会校验该声明（`banyanStyle/validate-field-presets`），写错会立刻报出。
+
 ## 4. 提示词模板
 
 把“需求区”替换为具体的格式要求，与本说明一起提交：
@@ -127,7 +143,7 @@ const label = fallback([
 
 【输出要求】
 - 只输出脚本代码。
-- 实现 INFO、generate（需要时加 UI），输出统一使用 content。
+- 实现 INFO、generate（需要时加 UI 与 ITEM_FIELD_PRESETS），输出统一使用 content。
 - 精简：复用沙箱工具，只写样式特有逻辑。
 ```
 

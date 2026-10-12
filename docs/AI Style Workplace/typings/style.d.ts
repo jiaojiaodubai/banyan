@@ -45,6 +45,8 @@ export type ScriptSafe<T> = T extends undefined
 export interface Style<T extends CitationType = CitationType> {
   INFO: StyleInfo<T>;
   UI?: StyleUI;
+  /** Declared marks for the item context menu (write item field / `extra`). */
+  ITEM_FIELD_PRESETS?: FieldPreset[];
   generate: (contexts: CitationContext[]) => MaybePromise<StyleResult<T>>;
 }
 
@@ -55,6 +57,7 @@ export interface Style<T extends CitationType = CitationType> {
 export interface StyleScript<T extends CitationType = CitationType> {
   INFO: StyleInfo<T>;
   UI?: StyleUI;
+  ITEM_FIELD_PRESETS?: FieldPreset[];
   generate: () => MaybePromise<ScriptResult<T>>;
 }
 
@@ -122,6 +125,28 @@ export type StyleComponent = CitationStyleComponent | CiteStyleComponent;
 export type StyleUI = {
   cite: CiteStyleComponent[];
   citation: CitationStyleComponent[];
+};
+
+/** Same contract as {@link CiteVisibilityPredicate}: evaluated in the style sandbox, `true` only when strict. */
+export type FieldPresetVisible = (item: Readonly<Item>) => boolean;
+
+/**
+ * A style-declared shortcut shown in the item context menu ("Quick Marks").
+ * Applying it writes each `fields` entry onto the selected items: a real item
+ * field when the key is valid for the item type, otherwise an `extra` line.
+ */
+export type FieldPreset = {
+  /** Unique within the style; used for logs and menu keys. */
+  id: string;
+  /** Menu text shown to users; a single string, since styles have no locale concept. */
+  label: string;
+  /** Limits the menu entry (and the write target) to matching items. */
+  visible?: FieldPresetVisible;
+  /**
+   * Field name (or extra key) to target value. `null` leaves the value to the
+   * user and makes the menu label end with an ellipsis.
+   */
+  fields: Record<string, string | null>;
 };
 
 export type CitationContext = CitationSource & {

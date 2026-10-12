@@ -1,6 +1,7 @@
 import { StyleIdentifier } from "../../typings/server";
 import type { CitationContext, Style, StyleUI } from "../../typings/style";
 import { useL10n } from "../utils/locale";
+import { getPref, setPref } from "../utils/prefs";
 import { createStyle } from "./sandbox";
 import presetsManifest from "../../addon/content/styleEditor/presets/presets-manifest.json";
 import { createLogger } from "../utils/logger";
@@ -87,6 +88,24 @@ export async function generateStyle(
 }
 
 /**
+ * Style id of the last style parsed for rendering (document refresh, citation
+ * dialog, "Create Output"), not counting an edit in the style editor.
+ */
+export const LAST_USED_STYLE_PREF = "lastUsedStyleId" as const;
+
+function recordLastUsedStyle(styleId: string): void {
+  try {
+    if (getPref(LAST_USED_STYLE_PREF) === styleId) {
+      return;
+    }
+    setPref(LAST_USED_STYLE_PREF, styleId);
+    notifyStyleIndexChanged();
+  } catch (e) {
+    log.error("Failed to create styles data directory", e);
+  }
+}
+
+/**
  * Get style from plugin styles index by id
  * @throws Error if:
  *  - Data directory cannot be ensured
@@ -97,6 +116,7 @@ export async function getStyle(style: StyleIdentifier): Promise<Style> {
   const epoch = addon.data.styles.epoch;
   const cached = styleInstances.get(style.id, epoch);
   if (cached) {
+    recordLastUsedStyle(style.id);
     return cached;
   }
 
@@ -125,6 +145,7 @@ export async function getStyle(style: StyleIdentifier): Promise<Style> {
   if (addon.data.styles.epoch === epoch) {
     styleInstances.set(style.id, instant, epoch);
   }
+  recordLastUsedStyle(style.id);
 
   return instant;
 }
@@ -160,10 +181,10 @@ async function readStylePresetFile(fileName: string): Promise<string> {
 }
 
 /**
- * Index one style. Bumping the shared epoch invalidates the executable
- * instances cached by every window, and announcing the change keeps every path
- * (startup, import, overwrite, preset install, style-editor save) in sync with
- * the item menu.
+ * Index one style. Bumping the shared epoch invalidates the executable instance
+ * caches of every window, and announcing the change keeps every path (startup,
+ * import, overwrite, preset install, style-editor save) in sync with the item
+ * menu and the preference list.
  */
 function indexLoadedStyle(style: Style, filename: string): void {
   addon.data.styles.epoch += 1;
@@ -181,7 +202,31 @@ function indexLoadedStyle(style: Style, filename: string): void {
     hasFieldPresets: declarations.hasFieldPresets,
     itemFieldValidatorTypes: declarations.itemFieldValidatorTypes,
   });
+  indexStyleFieldPresets(style);
   notifyStyleIndexChanged();
+}
+
+/**
+ * Keep the presets of the styles that declare them. Their `visible` closures hold
+ * the style's sandbox alive, so only styles using the feature pay for it.
+ */
+function indexStyleFieldPresets(style: Style): void {
+  const styleId = style.INFO.id;
+  const presets = style.ITEM_FIELD_PRESETS;
+  if (!presets?.length) {
+    addon.data.styles.fieldPresets.delete(styleId);
+    return;
+  }
+  const styleTitle = style.INFO.title || styleId;
+  addon.data.styles.fieldPresets.set(
+    styleId,
+    presets.map((preset) => ({
+      ...preset,
+      key: `${styleId}:${preset.id}`,
+      styleId,
+      styleTitle,
+    })),
+  );
 }
 
 type StyleIndexListener = () => void;
@@ -214,6 +259,21 @@ export async function withStyleIndexBatch<T>(
       notifyStyleIndexChanged();
     }
   }
+}
+
+/** Styles that declare `ITEM_FIELD_PRESETS`, sorted by title. */
+export function getFieldPresetStyles(): { id: string; title: string }[] {
+  return Array.from(addon.data.styles.fieldPresets.values())
+    .map((presets) => ({
+      id: presets[0].styleId,
+      title: presets[0].styleTitle,
+    }))
+    .sort((a, b) => a.title.localeCompare(b.title));
+}
+
+/** Whether a style currently contributes quick marks. */
+export function hasFieldPresets(styleId: string): boolean {
+  return addon.data.styles.fieldPresets.has(styleId);
 }
 
 function notifyStyleIndexChanged(): void {
@@ -299,6 +359,7 @@ export async function loadStyles(reset?: boolean): Promise<void> {
   if (reset) {
     addon.data.styles.files.clear();
     addon.data.styles.epoch += 1;
+    addon.data.styles.fieldPresets.clear();
     // The index stays empty when the directory has no readable style left, so
     // the menu has to hear about the cleared index before the files are read.
     notifyStyleIndexChanged();
@@ -509,6 +570,7 @@ export async function deleteStylesById(ids: string[]): Promise<boolean> {
       }
     }
     addon.data.styles.files.delete(id);
+    addon.data.styles.fieldPresets.delete(id);
     removed = true;
   }
   if (removed) {

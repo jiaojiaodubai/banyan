@@ -6,7 +6,7 @@ const log = createLogger("extra-field-dialog");
 
 const t = useL10n(["extraFieldDialog.ftl"]);
 
-type XULMenulistElement = Element & { value: string };
+type XULMenulistElement = Element & { value: string; disabled: boolean };
 
 type PresetKey = "custom" | "type" | "genre" | "status";
 
@@ -16,6 +16,14 @@ type DialogResult = {
 };
 
 export type IO = {
+  /** Prefills the key field; a known preset key selects its preset entry. */
+  initialKey?: string;
+  /** Prefills the value field. */
+  initialValue?: string;
+  /** Keeps the key fixed, for callers that already know which field they need. */
+  lockKey?: boolean;
+  /** Extra explanation shown above the form; the caller localizes it. */
+  hint?: string;
   result: DialogResult | null;
   deferred: {
     promise: Promise<void>;
@@ -55,7 +63,61 @@ function initExtraFieldDialog(): void {
 
   fillPresetMenu();
   bindEvents();
+  updateHint();
+  applyInitialValues();
   syncKeyInputByPreset();
+}
+
+/** Key fixed by the caller, or `""` when the user may edit it. */
+function getLockedKey(): string {
+  if (!io?.lockKey) {
+    return "";
+  }
+  return String(io.initialKey ?? "").trim();
+}
+
+function updateHint(): void {
+  const hint = document.getElementById("hint-info") as HTMLElement | null;
+  if (!hint) return;
+  const text = String(io?.hint ?? "").trim();
+  hint.textContent = text;
+  hint.hidden = !text;
+}
+
+function findPresetForKey(key: unknown): PresetKey | null {
+  const normalized = String(key ?? "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) return null;
+  const match = PRESET_KEYS.find(
+    (entry) =>
+      entry.preset !== "custom" && entry.key.toLowerCase() === normalized,
+  );
+  return match?.preset ?? null;
+}
+
+function applyInitialValues(): void {
+  if (!io) return;
+  const menulist = document.getElementById(
+    "key-preset-select",
+  ) as XULMenulistElement | null;
+  const keyInput = document.getElementById(
+    "key-input",
+  ) as HTMLInputElement | null;
+  const valueInput = document.getElementById(
+    "value-input",
+  ) as HTMLInputElement | null;
+
+  const presetForInitialKey = findPresetForKey(io.initialKey);
+  if (menulist && presetForInitialKey) {
+    menulist.value = presetForInitialKey;
+  } else if (keyInput) {
+    keyInput.value = String(io.initialKey ?? "");
+  }
+
+  if (valueInput) {
+    valueInput.value = String(io.initialValue ?? "");
+  }
 }
 
 /**
@@ -108,7 +170,24 @@ function syncKeyInputByPreset(): void {
   const keyInput = document.getElementById(
     "key-input",
   ) as HTMLInputElement | null;
+  const select = document.getElementById(
+    "key-preset-select",
+  ) as XULMenulistElement | null;
   if (!keyInput) return;
+
+  const lockedKey = getLockedKey();
+  if (lockedKey) {
+    if (select) {
+      select.disabled = true;
+    }
+    keyInput.disabled = true;
+    keyInput.value = lockedKey;
+    keyInput.placeholder = "";
+    (
+      document.getElementById("value-input") as HTMLInputElement | null
+    )?.focus();
+    return;
+  }
 
   const preset = getSelectedPreset();
   if (preset === "custom") {

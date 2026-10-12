@@ -2,6 +2,7 @@ import { createOutputItemMenu } from "./createOutput";
 import { writeExtraFieldItemMenu } from "./extraFieldWrite";
 import { createMultilingualItemItemMenu } from "./multilingualItem";
 import { creatorsExtItemMenu, registerCreatorsExtRowMenu } from "./creatorsExt";
+import { fieldPresetsItemMenu } from "./itemFieldPresets";
 import { relateItemsItemMenu } from "./relations";
 import { openStyleEditorWindow } from "./styleEditor";
 import { onStyleIndexChanged } from "./styles";
@@ -45,6 +46,7 @@ let itemMenuKey: string | false = false;
 const ITEM_MENU_CONTRIBUTIONS: readonly ItemMenuContribution[] = [
   creatorsExtItemMenu,
   writeExtraFieldItemMenu,
+  fieldPresetsItemMenu,
   createMultilingualItemItemMenu,
   relateItemsItemMenu,
   createOutputItemMenu,

@@ -1,4 +1,4 @@
-import type { Style } from "../../typings/style";
+import type { FieldPreset, Style } from "../../typings/style";
 import { registerStyleIndexHooks } from "./styles";
 
 /**
@@ -15,12 +15,7 @@ import { registerStyleIndexHooks } from "./styles";
 /** The item-menu declarations a style may expose; structural until the style
  * contract gains the dedicated author types later in the history. */
 type ItemMenuStyle = Style & {
-  ITEM_FIELD_PRESETS?: readonly {
-    id: string;
-    label: string;
-    fields: Record<string, string | null>;
-    visible?: (item: unknown) => boolean;
-  }[];
+  ITEM_FIELD_PRESETS?: FieldPreset[];
   ITEM_FIELD_VALIDATORS?: Record<
     string,
     readonly {

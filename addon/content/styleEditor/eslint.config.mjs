@@ -29,6 +29,7 @@ export default [
       "no-unused-vars": "off",
       "banyanStyle/require-style-contract": "error",
       "banyanStyle/warn-risky-runtime-pattern": "warn",
+      "banyanStyle/validate-field-presets": "error",
     },
   },
   {

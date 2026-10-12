@@ -7,6 +7,13 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit this
 
 ## Unreleased
 
+### 🚀 Enhancements
+
+- **field presets:** Styles can declare an `ITEM_FIELD_PRESETS` array to add "Quick Marks" to the item context menu; applying a mark writes its declared key/value pairs onto the selected items — as real fields when the key is valid for the item type, otherwise as `extra` lines
+- A mark can leave a value to the user by declaring `null`: applying it opens the write dialog with the key fixed and asks for the value
+- Only one style feeds the menu at a time, chosen in the preferences (by default the style last used for rendering)
+- Conflicting values are never overwritten silently: applying a mark asks whether to skip or overwrite, with an option to apply the answer to the remaining items
+
 ### 🩹 Fixes
 
 - **extra field:** Keep key/value lines at the top of `extra` and sort them by key, as Zotero's own documentation requires and citeproc reads them contiguously
@@ -15,6 +22,7 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit this
 
 - **breaking:** Keys of `item.extra` follow Zotero's own variable-line syntax now, so lines such as `tex.shorttitle: Foo` or `see:` stay prose and are no longer read as keys
 - **preferences:** Give each setting its own heading (for example "Citation window") with its description underneath, instead of one "General settings" section whose labels were crowded by the help text
+- The style editor validates `ITEM_FIELD_PRESETS` (`banyanStyle/validate-field-presets`)
 
 ## v0.4.0 (2026-10-07)
 

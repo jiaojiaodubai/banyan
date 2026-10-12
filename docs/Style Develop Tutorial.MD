@@ -100,7 +100,7 @@ JavaScript 是文本脚本，理论上你可以用任意文本编辑器编写脚
 
 ## 样式结构
 
-Banyan Style 是一个 JavaScript 文件，它要求你必需声明 `INFO` 对象和 `generate()` 函数，此外你还可以声明 `UI` 对象用于定义输入控件。
+Banyan Style 是一个 JavaScript 文件，它要求你必需声明 `INFO` 对象和 `generate()` 函数，此外你还可以声明 `UI` 对象用于定义输入控件，以及 `ITEM_FIELD_PRESETS`（条目快捷标记）。
 
 ### INFO 对象
 
@@ -189,9 +189,46 @@ disabled: (cite) => cite.params?.locatorType !== "custom",
 
 `type` 属性取不同的值时，相应可取的组件属性不同：
 
-- `checkbox`：`value` 属性表示控件的默认值，默认为 `false`。`r`n- `select`：`options` 属性是一个对象，对象中的键是选项的 ID，值是选项的标签。`value` 属性取其中一个键表示默认选中的选项。- `input`：`value` 属性表示控件的默认值，默认为空字符串。
+- `checkbox`：`value` 属性表示控件的默认值，默认为 `false`。
+- `select`：`options` 属性是一个对象，对象中的键是选项的 ID，值是选项的标签。`value` 属性取其中一个键表示默认选中的选项。
+- `input`：`value` 属性表示控件的默认值，默认为空字符串。
 
 在 `UI.citation` 和 `UI.cite` 中指定的控件，其获取的值会被分别存储到 `CitationContext` 和 `Cite` 对象的 `params` 属性。
+
+### ITEM_FIELD_PRESETS 对象
+
+有时格式要求"某类条目必须写到某个字段的某个值"（例如把古籍标记为 `type: classic`、把网络首发标记为 `status: advance online publication`），而这属于样式层面的约定，用户通常不知道要写哪个键、写什么值。`ITEM_FIELD_PRESETS` 让样式把这些约定声明成条目右键菜单里的“快捷标记”：
+
+```javascript
+const ITEM_FIELD_PRESETS = [
+  {
+    id: "classic", // 样式内唯一
+    // 菜单文本：单字符串（Banyan 样式没有 locale 概念，不做多语言 label）
+    label: "古籍",
+    // 可选：只在匹配的条目上出现（与 `UI.cite` 的 `visible` 同语义，须严格返回布尔值）
+    visible: (item) => item.itemType === "book",
+    // 要写入的键值对：键在条目类型上是合法字段就写字段，否则写进 extra
+    fields: { type: "classic" },
+  },
+  {
+    id: "foreign-law",
+    label: "外国法（补法域）",
+    visible: (item) => item.itemType === "statute" || item.itemType === "case",
+    // 值写成 null：应用时打开窗口让你填写（菜单文本会自动加 …）
+    fields: { jurisdiction: null },
+  },
+];
+```
+
+规则与注意：
+
+- **只声明，不执行**：`fields` 只接受"键 → 非空字符串值"的单值对，或"键 → `null`"（见下条）；不能写 name 变量（creators），也不能写主字段（`id`／`key`／`itemType` 等）或 `extra` 本身。
+- **值可以留给用户**：把值写成 `null`，表示"应用时再问"。应用该标记时会打开"写入其他字段"的窗口，键已锁定、只填值，窗口顶部会说明是哪个样式在要求什么；菜单项文本会自动加 `…`。**值按条目逐个询问**（同一个标记应用到多个条目时会逐条弹出），因此适合"值随条目而异"的键，例如 `jurisdiction`。
+- **写入位置是自动判定的**：例如 `status` 对 `standard` 是真实字段、对 `journalArticle` 则写进 `extra`；`type` 在 `book` 上写进 `extra`，在 `document` 上会写成字段。
+- **`type` 要小心**：`type: classic` 这类 CSL 类型名是安全的；若值写成 Zotero 的条目类型名（如 `book`），Zotero 会把它当作"改条目类型"，插件会在加载时提醒。
+- **生效样式只有一个**：用户在首选项里选择把哪个样式的快捷标记挂到菜单上（默认跟随"上次使用"的样式，也可选择“禁用”）。因此样式不必为跨样式的键名或取值冲突做设计。
+- **覆盖有确认**：目标已经有不同的值时，插件会询问"跳过／覆盖／取消"，可勾选"应用到剩余"，不会静默覆盖用户数据。
+- **编辑器会检查声明**：样式编辑器用 ESLint 规则 `banyanStyle/validate-field-presets` 检查 `ITEM_FIELD_PRESETS` 的形状、危险键与 name 变量，写错时在编辑器里直接提示。
 
 ## Unit工具
 
@@ -329,7 +366,7 @@ Bnayan 还提供了其他实用的工具：
 
 文件读取不设置大小硬限制；建议只读取来源明确、格式固定、已经预清洗的小型数据文件，避免把过大的文本、JSON 或二进制内容一次性读入。
 
-- `getExtraValue(item, key, mode)`：读取条目的 `item.extra` 字段中的值，返回字符串。可选参数 `mode` 指定为 `"array"` 时返回字符串数组。`item.extra` 的键在条目转换时统一归一化为 kebab-case（如 `My Key`/`AuthorID` → `my-key`/`author-id`），`key` 需使用归一化后的形式。
+- `getExtraValue(item, key, mode)`：读取条目的 `item.extra` 字段中的值，返回字符串。可选参数 `mode` 指定为 `"array"` 时返回字符串数组。`item.extra` 的键在条目转换时统一归一化为 kebab-case（如 `My Key`/`AuthorID` → `my-key`/`author-id`），`key` 需使用归一化后的形式。只有符合变量行格式的行才会成为键：键以字母开头，其余为字母／数字／空格／连字符／下划线，且值非空——与 Zotero 自身的解析一致，因此 `tex.shorttitle: Foo` 这类带点的行、空值行都是普通文本，`item.extra` 里取不到。
 - `debug(...values)`：脚本被执行的时候在 Zotero 控制台中打印调试信息。
 - `safeRecord(object)`：返回一个只读对象，取不存在的属性时返回空字符串 `""`，而不是 `undefined`。
 - `safeString(value)`：返回一个字符串，字符串和数字返回字面值，其他返回空字符串 `""`。
@@ -433,7 +470,7 @@ function generate() {
 
 ### 接口与导出
 
-- 样式只需声明 `INFO` 与 `generate()`（必需）、`UI`（可选）；其他辅助函数与常量在脚本内部自由定义即可，不需要（也无法）导出。
+- 样式只需声明 `INFO` 与 `generate()`（必需）、`UI` 与 `ITEM_FIELD_PRESETS`（可选）；其他辅助函数与常量在脚本内部自由定义即可，不需要（也无法）导出。
 - 不要向全局对象（如 `window`、`globalThis`）挂载新属性，也不要依赖宿主之外的外部环境变量；脚本可能被重复执行，请保持脚本幂等。
 
 ### 语法与兼容性

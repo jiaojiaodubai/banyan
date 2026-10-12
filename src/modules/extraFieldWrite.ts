@@ -26,6 +26,10 @@ type ExtraFieldDialogResult = {
 
 /** What the write dialog reads from `window.arguments[0]`. */
 type ExtraFieldDialogIO = {
+  initialKey?: string;
+  initialValue?: string;
+  lockKey?: boolean;
+  hint?: string;
   result: ExtraFieldDialogResult | null;
   deferred: {
     promise: Promise<void>;
@@ -120,6 +124,29 @@ async function openWriteExtraFieldDialog(): Promise<void> {
             }
           }
           resolve();
+        },
+      },
+    };
+
+    openExtraFieldDialog(io);
+  });
+}
+
+/** Ask for one field's value with its key fixed, reusing the write dialog. */
+export async function promptExtraFieldValue(options: {
+  key: string;
+  hint: string;
+}): Promise<string | null> {
+  return new Promise((resolve) => {
+    const io: ExtraFieldDialogIO = {
+      initialKey: options.key,
+      lockKey: true,
+      hint: options.hint,
+      result: null,
+      deferred: {
+        promise: Promise.resolve(),
+        resolve: () => {
+          resolve(io.result?.value ?? null);
         },
       },
     };

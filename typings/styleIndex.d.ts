@@ -1,5 +1,5 @@
 /** Host-side shapes of the styles the plugin indexes (`addon.data.styles`). */
-import type { StyleInfo } from "./style";
+import type { FieldPreset, StyleInfo } from "./style";
 
 /** Metadata shown for one style in the style manager and the server list. */
 export type StyleSummary = Pick<
@@ -15,4 +15,12 @@ export type StyleFile = StyleSummary & {
   hasFieldPresets?: boolean;
   /** Item types with at least one declared field check. */
   itemFieldValidatorTypes?: string[];
+};
+
+/** A preset kept in the plugin index, tagged with its owning style. */
+export type IndexedFieldPreset = FieldPreset & {
+  /** `<styleId>:<presetId>` — stable identifier for logs and menu keys. */
+  key: string;
+  styleId: string;
+  styleTitle: string;
 };

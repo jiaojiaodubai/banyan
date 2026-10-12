@@ -403,9 +403,298 @@ const requireStyleContractRule = {
   },
 };
 
+/**
+ * CSL name variables: a preset writes one value, so creators never land. Mirrors
+ * `CSL_NAME_VARIABLES` in `src/modules/sandbox/fieldPresets.ts`; the parity test
+ * keeps them in step.
+ */
+export const CSL_NAME_VARIABLES = new Set([
+  "author",
+  "chair",
+  "collection-editor",
+  "compiler",
+  "composer",
+  "container-author",
+  "contributor",
+  "curator",
+  "director",
+  "editor",
+  "editorial-director",
+  "executive-producer",
+  "guest",
+  "host",
+  "illustrator",
+  "interviewer",
+  "narrator",
+  "organizer",
+  "original-author",
+  "performer",
+  "presenter",
+  "producer",
+  "recipient",
+  "reviewed-author",
+  "script-writer",
+  "series-creator",
+  "translator",
+]);
+
+/**
+ * Keys a preset must never target, in normalized form. Mirrors `DENIED_KEYS` in
+ * `src/modules/sandbox/fieldPresets.ts`; the parity test keeps them in step.
+ */
+export const PRESET_DENIED_KEYS = new Set(
+  [
+    "collections",
+    "createdByUserID",
+    "creators",
+    "dateAdded",
+    "dateModified",
+    "deleted",
+    "extra",
+    "id",
+    "itemType",
+    "itemTypeID",
+    "key",
+    "lastModifiedByUserID",
+    "libraryID",
+    "notes",
+    "parentItem",
+    "relations",
+    "synced",
+    "tags",
+    "version",
+  ].map(normalizePresetKey),
+);
+
+/**
+ * `extra` keys are matched case-insensitively after kebab normalization, as
+ * `normalizeExtraKey()` in `src/utils/item.ts` does.
+ */
+function normalizePresetKey(key) {
+  return String(key ?? "")
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/([A-Z]+)(?=[A-Z][a-z])/g, "$1-")
+    .replace(/[\s_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
+/**
+ * Key syntax of an `extra` variable line: a letter followed by letters, digits,
+ * spaces, hyphens or underscores.
+ */
+const EXTRA_KEY_PATTERN = /^[\p{L}][\p{L}\p{N} _-]*$/u;
+
+function validatePresetFields(context, presetId, fieldsNode) {
+  if (!fieldsNode) {
+    context.report({
+      node: fieldsNode ?? context.getSourceCode().ast,
+      messageId: "fieldsMissing",
+      data: { id: presetId },
+    });
+    return;
+  }
+  if (fieldsNode.type !== "ObjectExpression" || !fieldsNode.properties.length) {
+    context.report({
+      node: fieldsNode,
+      messageId: "fieldsMustBeNonEmptyObject",
+      data: { id: presetId },
+    });
+    return;
+  }
+
+  for (const property of fieldsNode.properties) {
+    if (property.type !== "Property" || property.kind !== "init") {
+      continue;
+    }
+    const key = getPropertyName(property.key);
+    if (!key) continue;
+
+    const normalized = normalizePresetKey(key);
+    if (PRESET_DENIED_KEYS.has(normalized)) {
+      context.report({
+        node: property,
+        messageId: "fieldKeyDenied",
+        data: { key },
+      });
+      continue;
+    }
+    // Keys outside the variable-line syntax cannot be read back from `extra`
+    // (mirrors `isValidExtraKey()` in src/utils/item.ts), so the runtime drops
+    // them at apply time. Every Zotero field name satisfies the pattern.
+    if (!EXTRA_KEY_PATTERN.test(key.trim())) {
+      context.report({
+        node: property,
+        messageId: "fieldKeyInvalidSyntax",
+        data: { key },
+      });
+      continue;
+    }
+    if (CSL_NAME_VARIABLES.has(normalized)) {
+      context.report({
+        node: property,
+        messageId: "fieldKeyIsNameVariable",
+        data: { key },
+      });
+      continue;
+    }
+
+    const value = property.value;
+    if (value.type === "Literal" && value.value === null) {
+      // `null` means "ask the user at apply time", which is allowed.
+      continue;
+    }
+    if (
+      value.type !== "Literal" ||
+      typeof value.value !== "string" ||
+      !value.value.trim()
+    ) {
+      context.report({
+        node: value,
+        messageId: "fieldValueInvalid",
+        data: { key },
+      });
+    }
+  }
+}
+
+function validateFieldPresetEntry(context, entry, seenIds) {
+  if (!entry || entry.type !== "ObjectExpression") {
+    context.report({ node: entry, messageId: "presetMustBeObject" });
+    return;
+  }
+
+  const props = toObjectPropertyMap(entry);
+  const idNode = props.get("id");
+  const id =
+    idNode?.type === "Literal" && typeof idNode.value === "string"
+      ? idNode.value.trim()
+      : "";
+  if (!id) {
+    context.report({
+      node: idNode ?? entry,
+      messageId: "presetIdInvalid",
+    });
+  } else if (seenIds.has(id)) {
+    context.report({
+      node: idNode,
+      messageId: "presetIdDuplicate",
+      data: { id },
+    });
+  } else {
+    seenIds.add(id);
+  }
+
+  const labelNode = props.get("label");
+  if (labelNode) {
+    const isUsableLabel =
+      labelNode.type === "Literal" &&
+      typeof labelNode.value === "string" &&
+      Boolean(labelNode.value.trim());
+    if (!isUsableLabel) {
+      context.report({ node: labelNode, messageId: "presetLabelInvalid" });
+    }
+  }
+
+  const visibleNode = props.get("visible");
+  if (visibleNode && !isFunctionLike(visibleNode)) {
+    context.report({ node: visibleNode, messageId: "presetVisibleInvalid" });
+  }
+
+  validatePresetFields(context, id || "(unnamed)", props.get("fields"));
+}
+
+const validateFieldPresetsRule = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Validate the ITEM_FIELD_PRESETS declaration of a style (shape, writable keys)",
+    },
+    schema: [],
+    messages: {
+      presetsMustBeArray:
+        "ITEM_FIELD_PRESETS should be an array of preset objects, or an object map of them.",
+      presetMustBeObject:
+        "Each ITEM_FIELD_PRESETS item should be an object literal.",
+      presetIdInvalid:
+        "Each ITEM_FIELD_PRESETS item needs a non-empty string 'id'.",
+      presetIdDuplicate: "Duplicate ITEM_FIELD_PRESETS id '{{id}}'.",
+      presetLabelInvalid:
+        "ITEM_FIELD_PRESETS 'label' should be a non-empty plain string; styles have no locale concept, so a locale map is not supported.",
+      presetVisibleInvalid:
+        "ITEM_FIELD_PRESETS 'visible' should be a function returning a boolean.",
+      fieldsMissing:
+        "ITEM_FIELD_PRESETS item '{{id}}' needs a 'fields' object.",
+      fieldsMustBeNonEmptyObject:
+        "ITEM_FIELD_PRESETS item '{{id}}' 'fields' should be a non-empty object of key/value pairs.",
+      fieldValueInvalid:
+        "ITEM_FIELD_PRESETS '{{key}}' should be a non-empty string, or null to ask the user when the mark is applied.",
+      fieldKeyDenied:
+        "'{{key}}' cannot be written by a preset (it is a primary or identity field, or 'extra' itself).",
+      fieldKeyIsNameVariable:
+        "'{{key}}' is a CSL name variable; a preset writes a single value, so creators are not applied.",
+      fieldKeyInvalidSyntax:
+        "'{{key}}' is not a valid extra field key; a key starts with a letter and continues with letters, digits, spaces, hyphens or underscores.",
+    },
+  },
+  create(context) {
+    return {
+      Program(node) {
+        const bindings = new Map();
+        const styleMembers = new Map();
+
+        for (const statement of node.body) {
+          if (statement.type === "VariableDeclaration") {
+            collectFromVariableDeclaration(statement, bindings, styleMembers);
+            continue;
+          }
+          if (statement.type === "ExpressionStatement") {
+            collectFromAssignment(statement.expression, bindings, styleMembers);
+          }
+        }
+
+        const presetsNode = getEntryNode(
+          "ITEM_FIELD_PRESETS",
+          bindings,
+          styleMembers,
+        );
+        if (!presetsNode) {
+          return;
+        }
+
+        // Both shapes the runtime accepts: an array of preset objects, or an
+        // object map of them (`Object.values()`).
+        let entries;
+        if (presetsNode.type === "ArrayExpression") {
+          entries = presetsNode.elements.filter(Boolean);
+        } else if (presetsNode.type === "ObjectExpression") {
+          entries = presetsNode.properties
+            .filter((property) => property.type === "Property")
+            .map((property) => property.value);
+        } else {
+          context.report({
+            node: presetsNode,
+            messageId: "presetsMustBeArray",
+          });
+          return;
+        }
+
+        const seenIds = new Set();
+        for (const entry of entries) {
+          validateFieldPresetEntry(context, entry, seenIds);
+        }
+      },
+    };
+  },
+};
+
 export default {
   rules: {
     "require-style-contract": requireStyleContractRule,
     "warn-risky-runtime-pattern": warnRiskyRuntimePatternRule,
+    "validate-field-presets": validateFieldPresetsRule,
   },
 };

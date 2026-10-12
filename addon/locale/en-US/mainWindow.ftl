@@ -17,6 +17,8 @@ menuitem-create-multilingual-item =
     .label = Create Multilingual Item…
 menuitem-creators-ext =
     .label = Extend Creator Information…
+menuitem-field-presets =
+    .label = Quick Marks
 item-tree-citation-column = Citation
 
 item-section-multilingual-head-text =
@@ -41,6 +43,7 @@ extra-field-write-failed = Failed to write extra field: { $message }
 creators-ext-open-failed = Could not open creator information: { $message }
 creators-ext-already-open = The creator information window is already open, so it was brought to the front.
 extra-field-error-invalid-key = Invalid field key. Please enter a valid key.
+field-preset-value-hint = This quick mark asks you to fill in “{ $key }” — enter the value that fits “{ $item }”.
 extra-field-conflict-title = Field value conflict
 extra-field-conflict-message = “{ $key }” on “{ $item }” already has the value “{ $existing }”. Overwrite it with “{ $newValue }”?
 extra-field-conflict-skip = Skip

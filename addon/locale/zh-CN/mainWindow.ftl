@@ -17,6 +17,8 @@ menuitem-create-multilingual-item =
     .label = 创建多语言条目…
 menuitem-creators-ext =
     .label = 扩展创建者信息…
+menuitem-field-presets =
+    .label = 快捷标记
 item-tree-citation-column = 引注
 
 item-section-multilingual-head-text =
@@ -38,6 +40,7 @@ extra-field-write-failed = 写入其他字段失败：{ $message }
 creators-ext-open-failed = 无法打开创建者信息窗口：{ $message }
 creators-ext-already-open = 已有一个「扩展创建者信息」窗口打开，已切换到该窗口。
 extra-field-error-invalid-key = 字段名无效，请重新输入。
+field-preset-value-hint = 这条快捷标记要求为“{ $key }”填写具体值，请按条目“{ $item }”的实际情况填写。
 extra-field-conflict-title = 字段值冲突
 extra-field-conflict-message = 条目“{ $item }”的“{ $key }”字段已有值“{ $existing }”，是否用“{ $newValue }”覆盖它？
 extra-field-conflict-skip = 跳过

@@ -42,6 +42,14 @@ body {
   gap: 8px;
 }
 
+/*
+ * Secondary explanatory row, as in the create-output dialog's item count.
+ */
+.info-row {
+  font-size: 0.9em;
+  color: var(--fill-secondary, GrayText);
+}
+
 .form-row-stack {
   flex-direction: column;
   align-items: stretch;
