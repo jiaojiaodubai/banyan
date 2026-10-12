@@ -1,4 +1,8 @@
-import { parseExtraLines, type ParsedExtraLine } from "./item";
+import {
+  normalizeExtraKey,
+  parseExtraLines,
+  type ParsedExtraLine,
+} from "./item";
 
 /**
  * Pure helpers for reading and writing the `extra` field, free of host globals
@@ -41,6 +45,22 @@ export function needsConflictDecision(
     return true;
   }
   return existingValues[0] !== value;
+}
+
+/**
+ * Text one `extra` key contributes to a reading-oriented surface (an item-tree
+ * column): every line of that key, joined, or `""` when the key is unset. The
+ * input key is normalized here, so callers may pass what the user typed.
+ */
+export function getExtraValueForDisplay(
+  extraText: string,
+  key: string,
+): string {
+  const normalizedKey = normalizeExtraKey(key);
+  if (!normalizedKey) {
+    return "";
+  }
+  return analyzeExtraField(extraText, normalizedKey).values.join("; ");
 }
 
 function isPair(line: ParsedExtraLine): boolean {

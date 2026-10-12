@@ -17,6 +17,7 @@ declare namespace _ZoteroTypes {
       "httpsProxyState": string;
       "itemMenuStyleId": string;
       "lastUsedStyleId": string;
+      "extraValueColumnKey": string;
     };
   }
 }

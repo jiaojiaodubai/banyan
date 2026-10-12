@@ -20,6 +20,7 @@ import {
   unpatchCollectionsView,
 } from "./modules/citedItemsSearch";
 import { registerToolsMenu, registerContextMenu } from "./modules/menu";
+import { registerExtraValueColumn } from "./modules/extraValueColumn";
 import {
   registerRetypeObserver,
   unregisterRetypeObserver,
@@ -71,6 +72,7 @@ async function onStartup() {
       { name: "menu:tools", run: registerToolsMenu },
       { name: "menu:context", run: registerContextMenu },
       { name: "observer:retype", run: registerRetypeObserver },
+      { name: "column:extra-value", run: registerExtraValueColumn },
       // The style index is the plugin's core data and the style table reads it
       // directly, so it loads before the optional style-editor runtime assets:
       // a missing editor asset must not leave the table empty.

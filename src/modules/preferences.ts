@@ -10,6 +10,10 @@ import {
 } from "./styles";
 import { refreshItemMenu } from "./menu";
 import {
+  EXTRA_VALUE_COLUMN_KEY_PREF,
+  refreshExtraValueColumn,
+} from "./extraValueColumn";
+import {
   ITEM_MENU_DISABLED,
   ITEM_MENU_STYLE_PREF,
   getItemMenuSourceSelection,
@@ -83,8 +87,8 @@ function getPrefsWindow(): Window | null {
 }
 
 /**
- * Fill the "Quick Marks" menu source list: the two fixed options plus one entry
- * per style that declares `ITEM_FIELD_PRESETS`.
+ * Fill the item-menu source list: the two fixed options plus one entry per
+ * style that declares quick marks or field checks.
  */
 function updateItemMenuStyleOptions(): void {
   const win = getPrefsWindow();
@@ -122,8 +126,9 @@ function updateItemMenuStyleOptions(): void {
   }
 
   // A stored style that is not in the list (deleted, or no longer declaring
-  // marks) falls back to "Last used" here; the stored preference is left alone,
-  // so a choice survives the moments when the index is empty while styles load.
+  // anything) falls back to "Last used" here; the stored preference is left
+  // alone, so a choice survives the moments when the index is empty while
+  // styles load.
   const current = String(getPref(ITEM_MENU_STYLE_PREF) ?? "");
   const selected = getItemMenuSourceSelection(
     current,
@@ -151,6 +156,36 @@ function updateItemMenuStyleOptions(): void {
   }
 }
 
+/**
+ * The item-tree column reads one extra key, so the key is edited here and the
+ * column is (re)registered on every change: Zotero's own column settings can
+ * only toggle columns, not configure what a plugin column shows.
+ */
+function bindExtraValueColumnKey(): void {
+  const win = addon.data.prefs?.window;
+  if (!win) return;
+  const input = win.document.querySelector(
+    `#${config.addonRef}-extraValueColumnKey`,
+  ) as HTMLInputElement | null;
+  if (!input) return;
+
+  input.value = String(getPref(EXTRA_VALUE_COLUMN_KEY_PREF) ?? "");
+  if (input.hasAttribute("data-extra-value-bound")) return;
+  input.setAttribute("data-extra-value-bound", "true");
+
+  const commit = () => {
+    const value = input.value.trim();
+    if (String(getPref(EXTRA_VALUE_COLUMN_KEY_PREF) ?? "") === value) {
+      return;
+    }
+    setPref(EXTRA_VALUE_COLUMN_KEY_PREF, value);
+    refreshExtraValueColumn();
+  };
+  // `change` fires on blur/Enter, so the column is rebuilt once per edit
+  // instead of on every keystroke.
+  input.addEventListener("change", commit);
+}
+
 export function registerPrefs() {
   Zotero.PreferencePanes.register({
     pluginID: addon.data.config.addonID,
@@ -158,15 +193,13 @@ export function registerPrefs() {
     label: t("prefs-title"),
     image: `chrome://${addon.data.config.addonRef}/content/icons/favicon.svg`,
   });
-  // Keep the mark-source list in step with the style index while the pane
-  // is open (a style imported, saved, deleted elsewhere, or losing its marks).
+  // The item-menu source list follows the style index while the pane is open
+  // (a style imported, saved, deleted elsewhere, or losing its declarations).
   // `updateItemMenuStyleOptions()` returns early when the window is closed.
   onStyleIndexChanged(updateItemMenuStyleOptions);
 }
 
 export async function onPrefsWindowLoad(_window: Window) {
-  // This function is called when the prefs window is opened
-  // See addon/content/preferences.xhtml onpaneload
   if (!addon.data.prefs) {
     addon.data.prefs = {
       window: _window,
@@ -201,6 +234,7 @@ export async function onPrefsWindowLoad(_window: Window) {
   }
   bindCitationDialogInitialCollectionMode();
   updateItemMenuStyleOptions();
+  bindExtraValueColumnKey();
   await updatePrefsUI();
   bindPrefEvents();
   bindIntegrationButtons();
@@ -223,8 +257,7 @@ async function updatePrefsUI() {
       .setContainerId(`${config.addonRef}-table-container`)
       .setProp({
         id: `${config.addonRef}-prefs-table`,
-        // Do not use setLocale, as it modifies the Zotero.Intl.strings
-        // Set locales directly to columns
+        // `setLocale` mutates Zotero.Intl.strings; set column locales directly.
         columns: addon.data.prefs?.columns,
         showHeader: true,
         multiSelect: true,
@@ -238,8 +271,7 @@ async function updatePrefsUI() {
           ? { name: r.name, updated: r.updated }
           : { name: "no data", updated: "" };
       })
-      // When pressing delete, delete selected line and refresh table.
-      // Returning false to prevent default event.
+      // Returning false prevents the table's default key handling.
       .setProp("onKeyDown", (event: KeyboardEvent) => {
         if (
           event.key == "Delete" ||
@@ -250,16 +282,15 @@ async function updatePrefsUI() {
         }
         return true;
       })
-      // For find-as-you-type
+      // Row text used by type-ahead.
       .setProp(
         "getRowString",
         (index) => addon.data.prefs?.rows[index].name || "",
       )
       // Render the table.
       .render(-1, () => {
-        // Fix: table may show partially blank until scrolled.
-        // Delay invalidate to ensure DOM layout is complete
-        // (matching Zotero's setTimeout approach in preferences_cite.jsx).
+        // Zotero's own preferences table also invalidates after layout;
+        // without the delay the first render can stay partially blank.
         setTimeout(() => {
           tableHelper.treeInstance?.invalidate();
         });
@@ -267,7 +298,7 @@ async function updatePrefsUI() {
       });
     addon.data.prefs.tableHelper = tableHelper;
     bindStyleButtons(tableHelper);
-    // The style list drives both the table and the mark-source options.
+    // The style list drives both the table and the item-menu source options.
     updateItemMenuStyleOptions();
   });
 }

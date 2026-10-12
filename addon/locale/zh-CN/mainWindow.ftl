@@ -22,6 +22,7 @@ menuitem-field-presets =
 menuitem-check-item-fields =
     .label = 检查字段
 item-tree-citation-column = 引注
+item-tree-extra-value-column = 额外字段
 
 item-section-multilingual-head-text =
     .label = 榕树：多语关联

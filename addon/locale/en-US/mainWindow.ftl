@@ -22,6 +22,7 @@ menuitem-field-presets =
 menuitem-check-item-fields =
     .label = Check Fields
 item-tree-citation-column = Citation
+item-tree-extra-value-column = Extra value
 
 item-section-multilingual-head-text =
     .label = Banyan: Multilingual Relations

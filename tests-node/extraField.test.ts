@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import {
   analyzeExtraField,
+  getExtraValueForDisplay,
   mergeExtraField,
   needsConflictDecision,
 } from "../src/utils/extraField";
@@ -253,6 +254,29 @@ describe("extra field helpers", function () {
         mergeExtraField(extra, "Type", "type", "classic"),
         "Type: classic\nReprinted.",
       );
+    });
+  });
+
+  describe("getExtraValueForDisplay", function () {
+    const extra =
+      "Type: classic\n版本说明: 影印本\nstatus: advance online publication";
+
+    it("reads the value for a key as the user typed it", function () {
+      assert.equal(getExtraValueForDisplay(extra, "type"), "classic");
+      assert.equal(getExtraValueForDisplay(extra, "Type"), "classic");
+    });
+
+    it("joins repeated lines of the same key", function () {
+      assert.equal(
+        getExtraValueForDisplay("Author: B\nAuthor: A", "author"),
+        "B; A",
+      );
+    });
+
+    it("returns an empty string for an unset or unusable key", function () {
+      assert.equal(getExtraValueForDisplay(extra, "genre"), "");
+      assert.equal(getExtraValueForDisplay(extra, "   "), "");
+      assert.equal(getExtraValueForDisplay("", "type"), "");
     });
   });
 });

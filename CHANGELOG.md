@@ -16,6 +16,7 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit this
 - **field validation:** Styles can declare an `ITEM_FIELD_VALIDATORS` object to add "Check Fields" to the item context menu; checks may be synchronous or async (10-second per-check timeout), run on each selected editable item, and open a non-modal report tree grouped by item, showing every checker's description and result
 - Only one style feeds the item menu at a time; quick marks and field checks share the same style preference
 - **style chooser:** When no style is supplied, preselect the style chosen for the item menu (or the last used style) before falling back to the first entry
+- **item list:** Show one `extra` key's value as its own item-list column, chosen in a new "Item list" section of the preferences (the column appears in Zotero's column settings once a key is set)
 
 ### 🩹 Fixes
 
