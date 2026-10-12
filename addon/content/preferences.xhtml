@@ -6,8 +6,14 @@
   />
 </linkset>
 <vbox onload="Zotero.__addonInstance__.hooks.onPrefsWindowLoad(window)">
-  <groupbox id="prefs-general-settings">
-    <label><html:h2 data-l10n-id="prefs-settings-title"></html:h2></label>
+  <groupbox id="prefs-citation-dialog">
+    <label
+      ><html:h2 data-l10n-id="prefs-citation-dialog-title"></html:h2
+    ></label>
+    <description
+      width="45em"
+      data-l10n-id="prefs-citation-dialog-initial-collection-mode-help"
+    ></description>
 
     <hbox align="center">
       <label
@@ -35,11 +41,6 @@
         />
       </radiogroup>
     </hbox>
-    <label
-      id="__addonRef__-citationDialogInitialCollectionMode-help"
-      width="45em"
-      data-l10n-id="prefs-citation-dialog-initial-collection-mode-help"
-    ></label>
   </groupbox>
 
   <groupbox id="prefs-style-manager">
@@ -74,11 +75,7 @@
     <separator class="thin"></separator>
     <vbox>
       <label data-l10n-id="prefs-wps-addon-title"></label>
-      <label
-        id="__addonRef__-wps-addon-help"
-        width="45em"
-        data-l10n-id="prefs-wps-addon-help"
-      ></label>
+      <description data-l10n-id="prefs-wps-addon-help"></description>
       <hbox id="__addonRef__-wps-addon-actions" align="center">
         <button
           id="__addonRef__-wps-addon-install"
@@ -93,11 +90,7 @@
     <separator class="thin"></separator>
     <vbox>
       <label data-l10n-id="prefs-word-addon-title"></label>
-      <label
-        id="__addonRef__-word-addon-help"
-        width="45em"
-        data-l10n-id="prefs-word-addon-help"
-      ></label>
+      <description data-l10n-id="prefs-word-addon-help"></description>
       <hbox id="__addonRef__-word-addon-actions" align="center">
         <button
           id="__addonRef__-word-addon-install"

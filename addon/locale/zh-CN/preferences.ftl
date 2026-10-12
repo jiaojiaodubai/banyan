@@ -1,6 +1,6 @@
 prefs-title = 榕树
-prefs-settings-title = 常规设置
-prefs-citation-dialog-initial-collection-mode = 引注窗口打开时默认选中
+prefs-citation-dialog-title = 引注窗口
+prefs-citation-dialog-initial-collection-mode = 打开时默认选中：
 prefs-citation-dialog-initial-collection-mode-main-library =
     .label = 主文库
 prefs-citation-dialog-initial-collection-mode-follow-app-selection =

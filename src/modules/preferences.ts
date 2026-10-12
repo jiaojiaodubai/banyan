@@ -11,6 +11,9 @@ import {
   installWordTemplate,
   uninstallWordTemplate,
 } from "./integration";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("preferences");
 
 type PrefStyleRow = {
   id: string;
@@ -247,7 +250,7 @@ function bindIntegrationButtons() {
           }),
         );
       } catch (error) {
-        ztoolkit.logError(error);
+        log.error("Failed to install WPS add-on", error);
         Services.prompt.alert(
           promptWindow,
           t("prefs-wps-addon-title"),
@@ -293,7 +296,7 @@ function bindIntegrationButtons() {
           }),
         );
       } catch (error) {
-        ztoolkit.logError(error);
+        log.error("Failed to uninstall WPS add-on", error);
         Services.prompt.alert(
           promptWindow,
           t("prefs-wps-addon-title"),
@@ -355,7 +358,7 @@ function bindIntegrationButtons() {
           }),
         );
       } catch (error) {
-        ztoolkit.logError(error);
+        log.error("Failed to install Word template", error);
         Services.prompt.alert(
           promptWindow,
           t("prefs-word-addon-title"),
@@ -401,7 +404,7 @@ function bindIntegrationButtons() {
           }),
         );
       } catch (error) {
-        ztoolkit.logError(error);
+        log.error("Failed to uninstall Word template", error);
         Services.prompt.alert(
           promptWindow,
           t("prefs-word-addon-title"),

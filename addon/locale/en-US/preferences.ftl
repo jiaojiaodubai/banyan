@@ -1,6 +1,6 @@
 prefs-title = Banyan
-prefs-settings-title = General settings
-prefs-citation-dialog-initial-collection-mode = Default selection when opening citation dialog
+prefs-citation-dialog-title = Citation window
+prefs-citation-dialog-initial-collection-mode = Default selection:
 prefs-citation-dialog-initial-collection-mode-main-library =
     .label = Main library
 prefs-citation-dialog-initial-collection-mode-follow-app-selection =
