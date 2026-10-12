@@ -76,20 +76,7 @@ export type StyleInfo<T extends CitationType = CitationType> = {
   [key: string]: unknown;
 };
 
-type StyleSummary = Pick<
-  StyleInfo,
-  "id" | "title" | "citationType" | "description" | "updated"
->;
-
-export type StyleFile = StyleSummary & {
-  filename: string;
-  /** Whether the style declares item-menu presets (executable declarations
-   * live in the main-window bundle). */
-  hasFieldPresets?: boolean;
-  /** Item types with at least one declared field check. */
-  itemFieldValidatorTypes?: string[];
-};
-
+/** One declared control; the host renders it and owns its behavior. */
 type ComponentBase = {
   id: string;
   label: string;

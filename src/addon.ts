@@ -6,7 +6,7 @@ import {
 } from "zotero-plugin-toolkit";
 import hooks from "./hooks";
 import { createZToolkit } from "./utils/ztoolkit";
-import { StyleFile } from "../typings/style";
+import { StyleFile } from "../typings/styleIndex";
 import { createLocale } from "./utils/locale";
 import { generateStyle, getStyleUI, loadStyles } from "./modules/styles";
 

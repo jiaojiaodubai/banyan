@@ -4,7 +4,7 @@ import { useL10n } from "../utils/locale";
 import { formatStyleUpdatedDate } from "../utils/styleUpdated";
 import { deleteStylesById, promptImportStyle } from "./styles";
 import { VirtualizedTableHelper } from "zotero-plugin-toolkit";
-import type { StyleFile } from "../../typings/style";
+import type { StyleFile } from "../../typings/styleIndex";
 import {
   installWPSAddin,
   uninstallWPSAddin,

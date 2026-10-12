@@ -5,7 +5,7 @@ import { useL10n } from "../utils/locale";
 import { formatStyleUpdatedDate } from "../utils/styleUpdated";
 import { unwrapDialogIO } from "../utils/window";
 import type { StyleIdentifier, StyleResponseData } from "../../typings/server";
-import { StyleSummary } from "../../typings/style";
+import { StyleSummary } from "../../typings/styleIndex";
 import { createLogger } from "../utils/logger";
 
 const log = createLogger("style-dialog");

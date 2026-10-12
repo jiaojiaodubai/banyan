@@ -5,8 +5,8 @@ import type {
   IntextCitation,
   NoteCitation,
   StyleInfo,
-  StyleSummary,
 } from "./style";
+import type { StyleSummary } from "./styleIndex";
 
 /**
  * Route-to-payload mapping used by the local HTTP server.
