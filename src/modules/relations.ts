@@ -1,8 +1,35 @@
-import { useL10n } from "../utils/locale";
+import { getLocaleID, useL10n } from "../utils/locale";
+import { getRegularSelection } from "../utils/selection";
+import type { ItemMenuContribution } from "../../typings/menu";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("relations");
 
 const t = useL10n(["mainWindow.ftl"]);
 // Relation prefix must match pattern /^[a-z]+:[a-z]+$/
 export const prefix = "banyan:multilingual";
+
+export const relateItemsItemMenu: ItemMenuContribution = {
+  id: "relate-items",
+  build() {
+    return [
+      {
+        menuType: "menuitem",
+        l10nID: getLocaleID("menuitem-relate-items"),
+        onShowing: (_event, context) => {
+          const { canEdit, items } = getRegularSelection();
+          context.setVisible(canEdit && items.length >= 2);
+        },
+        onCommand: () => {
+          const { items } = getRegularSelection();
+          void relateItems(items).catch((error) =>
+            log.error("Failed to create item relation", error),
+          );
+        },
+      },
+    ];
+  },
+};
 
 /**
  * The dialog throws instead of alerting: a plugin-realm alert is parented to
@@ -149,8 +176,7 @@ export async function relateItemsWithinTransaction(
     return { relatedItems: [], skippedPairs: 0 };
   }
 
-  /* Compare to ZoteroPane.relateItems, we add deep relations between all items
-   */
+  // Unlike ZoteroPane.relateItems, linking covers every pair of members.
   const relatableItems = await collectRelatableItems(items);
   if (relatableItems.length < 2) {
     return { relatedItems: [], skippedPairs: 0 };
@@ -167,7 +193,7 @@ export async function relateItemsWithinTransaction(
       if (!item1 || !item2) {
         continue;
       }
-      // Keep the rest of the group connected when one member cannot be.
+      // Skip only this pair when the two members cannot be related.
       if (!canRelate(item1, item2)) {
         skippedPairs++;
         continue;

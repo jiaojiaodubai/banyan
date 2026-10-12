@@ -62,7 +62,7 @@ export async function ensureDataDir(): Promise<string> {
       ignoreExisting: true,
     });
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("Failed to create the styles data directory", e);
     throw e;
   }
   return dirPath;
@@ -114,7 +114,7 @@ export async function getStyle(style: StyleIdentifier): Promise<Style> {
   try {
     code = await IOUtils.readUTF8(fullPath);
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("Failed to read the style file", e);
     throw e;
   }
 
@@ -133,7 +133,7 @@ export async function readStyleFile(path: string): Promise<string> {
   try {
     return await IOUtils.readUTF8(path);
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("Failed to create styles data directory", e);
     throw e;
   }
 }
@@ -160,9 +160,10 @@ async function readStylePresetFile(fileName: string): Promise<string> {
 }
 
 /**
- * Index one style. Bumping the shared epoch is what invalidates the executable
- * instances cached by every window, so a rewritten style is never served from
- * an older copy.
+ * Index one style. Bumping the shared epoch invalidates the executable
+ * instances cached by every window, and announcing the change keeps every path
+ * (startup, import, overwrite, preset install, style-editor save) in sync with
+ * the item menu.
  */
 function indexLoadedStyle(style: Style, filename: string): void {
   addon.data.styles.epoch += 1;
@@ -180,6 +181,53 @@ function indexLoadedStyle(style: Style, filename: string): void {
     hasFieldPresets: declarations.hasFieldPresets,
     itemFieldValidatorTypes: declarations.itemFieldValidatorTypes,
   });
+  notifyStyleIndexChanged();
+}
+
+type StyleIndexListener = () => void;
+
+const styleIndexListeners = new Set<StyleIndexListener>();
+
+/** Depth of the index updates running; a batch notifies once when it ends. */
+let styleIndexBatchDepth = 0;
+let styleIndexNotifyPending = false;
+
+/**
+ * Register a callback invoked after the style index changes (load/import/
+ * install/delete). The item menu rebuilds itself from it.
+ */
+export function onStyleIndexChanged(listener: StyleIndexListener): void {
+  styleIndexListeners.add(listener);
+}
+
+/** Run several index updates as one notification (see `styleIndexBatchDepth`). */
+export async function withStyleIndexBatch<T>(
+  run: () => Promise<T>,
+): Promise<T> {
+  styleIndexBatchDepth++;
+  try {
+    return await run();
+  } finally {
+    styleIndexBatchDepth--;
+    if (!styleIndexBatchDepth && styleIndexNotifyPending) {
+      styleIndexNotifyPending = false;
+      notifyStyleIndexChanged();
+    }
+  }
+}
+
+function notifyStyleIndexChanged(): void {
+  if (styleIndexBatchDepth) {
+    styleIndexNotifyPending = true;
+    return;
+  }
+  for (const listener of styleIndexListeners) {
+    try {
+      listener();
+    } catch (e) {
+      log.error("Failed to create styles data directory", e);
+    }
+  }
 }
 
 /** Directory operations the write-target resolver needs in the data dir. */
@@ -251,98 +299,108 @@ export async function loadStyles(reset?: boolean): Promise<void> {
   if (reset) {
     addon.data.styles.files.clear();
     addon.data.styles.epoch += 1;
+    // The index stays empty when the directory has no readable style left, so
+    // the menu has to hear about the cleared index before the files are read.
+    notifyStyleIndexChanged();
   }
-  const paths = (await IOUtils.getChildren(dirPath))
-    .filter((path) => path.endsWith(STYLE_FILE_EXTENSION))
-    .toSorted();
-  const loaded = new Map<string, LoadedStyleFile>();
-  const duplicates: Array<{
-    keeper: LoadedStyleFile;
-    discarded: LoadedStyleFile;
-  }> = [];
+  await withStyleIndexBatch(async () => {
+    const paths = (await IOUtils.getChildren(dirPath))
+      .filter((path) => path.endsWith(STYLE_FILE_EXTENSION))
+      .toSorted();
+    const loaded = new Map<string, LoadedStyleFile>();
+    const duplicates: Array<{
+      keeper: LoadedStyleFile;
+      discarded: LoadedStyleFile;
+    }> = [];
 
-  for (const path of paths) {
-    try {
-      const style = await createStyle(await readStyleFile(path));
-      const id = style.INFO?.id;
-      if (!id) {
-        // A one-off style may omit INFO.id, but a file in the data directory
-        // needs one so it can be indexed.
-        log.error(`Style file is missing INFO.id: ${path}`);
+    for (const path of paths) {
+      try {
+        const style = await createStyle(await readStyleFile(path));
+        const id = style.INFO?.id;
+        if (!id) {
+          // A one-off style may omit INFO.id, but a file in the data directory
+          // needs one so it can be indexed.
+          log.error(`Style file is missing INFO.id: ${path}`);
+          continue;
+        }
+
+        const candidate: LoadedStyleFile = {
+          id,
+          filename: PathUtils.filename(path),
+          path,
+          updated: parseStyleUpdatedTime(style.INFO.updated),
+          style,
+        };
+        const existing = loaded.get(id);
+        if (!existing) {
+          loaded.set(id, candidate);
+          continue;
+        }
+
+        const keeper = pickStyleDuplicateKeeper(existing, candidate);
+        const discarded = keeper === existing ? candidate : existing;
+        loaded.set(id, keeper);
+        duplicates.push({ keeper, discarded });
+        log.warn(
+          `样式 ID“${id}”重复：保留“${keeper.filename}”（updated: ${keeper.updated}），删除“${discarded.filename}”（updated: ${discarded.updated}）`,
+        );
+      } catch (e) {
+        log.error(`Failed to load style: ${path}`, e);
+      }
+    }
+
+    for (const { discarded } of duplicates) {
+      try {
+        await IOUtils.remove(discarded.path);
+      } catch (e) {
+        log.error(
+          `Failed to remove duplicate style file: ${discarded.path}`,
+          e,
+        );
+      }
+    }
+
+    for (const entry of loaded.values()) {
+      // A non-reset reload (after an import) only has to pick up new or moved
+      // files; re-indexing unchanged styles would evict their executable cache.
+      const indexed = addon.data.styles.files.get(entry.id);
+      if (!reset && indexed?.filename === entry.filename) {
         continue;
       }
-
-      const candidate: LoadedStyleFile = {
-        id,
-        filename: PathUtils.filename(path),
-        path,
-        updated: parseStyleUpdatedTime(style.INFO.updated),
-        style,
-      };
-      const existing = loaded.get(id);
-      if (!existing) {
-        loaded.set(id, candidate);
-        continue;
-      }
-
-      const keeper = pickStyleDuplicateKeeper(existing, candidate);
-      const discarded = keeper === existing ? candidate : existing;
-      loaded.set(id, keeper);
-      duplicates.push({ keeper, discarded });
-      log.warn(
-        `样式 ID“${id}”重复：保留“${keeper.filename}”（updated: ${keeper.updated}），删除“${discarded.filename}”（updated: ${discarded.updated}）`,
-      );
-    } catch (e) {
-      log.error(`Failed to load style: ${path}`, e);
+      indexLoadedStyle(entry.style, entry.filename);
     }
-  }
-
-  for (const { discarded } of duplicates) {
-    try {
-      await IOUtils.remove(discarded.path);
-    } catch (e) {
-      log.error(`Failed to remove duplicate style file: ${discarded.path}`, e);
-    }
-  }
-
-  for (const entry of loaded.values()) {
-    // A non-reset reload (after an import) only has to pick up new or moved
-    // files; re-indexing unchanged styles would evict their executable cache.
-    const indexed = addon.data.styles.files.get(entry.id);
-    if (!reset && indexed?.filename === entry.filename) {
-      continue;
-    }
-    indexLoadedStyle(entry.style, entry.filename);
-  }
+  });
 }
 
 export async function installPresetStyles(): Promise<void> {
   const dirPath = await ensureDataDir();
 
-  for (const fileName of STYLE_PRESET_FILES) {
-    try {
-      const code = await readStylePresetFile(fileName);
-      const style = await createStyle(code);
-      const styleId = style.INFO?.id;
-      if (!styleId) {
-        throw new Error(`Preset style ${fileName} missing INFO.id`);
-      }
+  await withStyleIndexBatch(async () => {
+    for (const fileName of STYLE_PRESET_FILES) {
+      try {
+        const code = await readStylePresetFile(fileName);
+        const style = await createStyle(code);
+        const styleId = style.INFO?.id;
+        if (!styleId) {
+          throw new Error(`Preset style ${fileName} missing INFO.id`);
+        }
 
-      if (addon.data.styles.files.has(styleId)) {
-        continue;
-      }
+        if (addon.data.styles.files.has(styleId)) {
+          continue;
+        }
 
-      const destPath = PathUtils.join(dirPath, fileName);
-      if (await IOUtils.exists(destPath)) {
-        continue;
-      }
+        const destPath = PathUtils.join(dirPath, fileName);
+        if (await IOUtils.exists(destPath)) {
+          continue;
+        }
 
-      await IOUtils.writeUTF8(destPath, code);
-      indexLoadedStyle(style, fileName);
-    } catch (e) {
-      ztoolkit.logError(e);
+        await IOUtils.writeUTF8(destPath, code);
+        indexLoadedStyle(style, fileName);
+      } catch (e) {
+        log.error("Failed to create styles data directory", e);
+      }
     }
-  }
+  });
 }
 
 /**
@@ -455,6 +513,7 @@ export async function deleteStylesById(ids: string[]): Promise<boolean> {
   }
   if (removed) {
     addon.data.styles.epoch += 1;
+    notifyStyleIndexChanged();
   }
   return removed;
 }

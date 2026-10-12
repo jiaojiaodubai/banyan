@@ -1,14 +1,20 @@
 import { assert } from "chai";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 // Menu items registered through `Zotero.MenuManager` are localized by the
 // Fluent DOM overlay. When a message has a plain string value, Fluent replaces
 // the element's children with a text node, which wipes the rendered
 // `.menu-icon` (no icon) and the nested <menupopup> (submenu can no longer
-// open). Every `l10nID` passed to `Zotero.MenuManager` in `src/modules/menu.ts`
-// must therefore resolve to an attribute-only message (`.label = ...`).
+// open). Every id passed as `l10nID` must therefore resolve to an
+// attribute-only message. The entries live in the feature modules that
+// contribute them (`typings/menu.d.ts`), so the ids are collected from every
+// `l10nID: getLocaleID("...")` call in `src`.
 const LOCALES = ["en-US", "zh-CN"];
+
+const L10N_ID_CALL = /l10nID:\s*getLocaleID\(\s*"([^"]+)"\s*\)/g;
+/** Ids that render a menu or menu-item label, which must be a `.label`. */
+const NEEDS_LABEL = /^(?:addon-name|menuitem-)/;
 
 function readFtl(locale: string): string {
   return readFileSync(
@@ -35,20 +41,30 @@ function messageBlock(ftl: string, id: string): string[] | null {
   return block;
 }
 
-/** Collect the literal `getLocaleID("...")` calls used for menu items. */
+function sourceFiles(): string[] {
+  const srcDir = path.resolve("src");
+  return readdirSync(srcDir, { recursive: true })
+    .map((entry) => String(entry))
+    .filter((entry) => entry.endsWith(".ts"))
+    .map((entry) => path.join(srcDir, entry));
+}
+
+/** Collect the literal `l10nID: getLocaleID("...")` ids used across `src`. */
 function menuL10nIds(): string[] {
-  const source = readFileSync(path.resolve("src/modules/menu.ts"), "utf8");
   const ids = new Set<string>();
-  for (const match of source.matchAll(/getLocaleID\(\s*"([^"]+)"\s*\)/g)) {
-    ids.add(match[1]);
+  for (const file of sourceFiles()) {
+    const source = readFileSync(file, "utf8");
+    for (const match of source.matchAll(L10N_ID_CALL)) {
+      ids.add(match[1]);
+    }
   }
   return [...ids];
 }
 
 describe("menu l10n messages", function () {
-  it("uses attribute-only .label messages for every MenuManager l10nID", function () {
+  it("uses attribute-only messages for every MenuManager l10nID", function () {
     const ids = menuL10nIds();
-    assert.isNotEmpty(ids, "expected menu l10n ids in src/modules/menu.ts");
+    assert.isNotEmpty(ids, "expected l10nID calls in src");
 
     for (const locale of LOCALES) {
       const ftl = readFtl(locale);
@@ -62,12 +78,14 @@ describe("menu l10n messages", function () {
           block[0],
           new RegExp(`^${id} =\\s*$`),
           `${locale}: '${id}' must not have a plain value; ` +
-            "use an attribute-only `.label = ...` message",
+            "use an attribute-only message",
         );
-        assert.isTrue(
-          block.some((line) => /^\s+\.label\s*=/.test(line)),
-          `${locale}: '${id}' must define a '.label' attribute`,
-        );
+        if (NEEDS_LABEL.test(id)) {
+          assert.isTrue(
+            block.some((line) => /^\s+\.label\s*=/.test(line)),
+            `${locale}: '${id}' must define a '.label' attribute`,
+          );
+        }
       }
     }
   });

@@ -76,6 +76,7 @@ type StyleInfo<T extends CitationType = CitationType> = {
   [key: string]: unknown;
 };
 
+/** One declared control; the host renders it and owns its behavior. */
 type ComponentBase = {
   id: string;
   label: string;

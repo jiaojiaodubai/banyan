@@ -3,7 +3,7 @@ import {
   getMultilingualUris,
   relateItemsWithinTransaction,
 } from "./relations";
-import { useL10n } from "../utils/locale";
+import { getLocaleID, useL10n } from "../utils/locale";
 import {
   createKeyedQueue,
   runMultilingualCommit,
@@ -22,16 +22,68 @@ import {
   isWindowAlive,
   openMainWindowDialog,
 } from "../utils/window";
+import { getRegularSelection } from "../utils/selection";
+import type { ItemMenuContribution } from "../../typings/menu";
 import type { ItemContentSnapshot } from "../../typings/multilingualItem";
 import type {
   MultilingualCommitResult,
   MultilingualItemDialogIO,
 } from "../../typings/multilingualItemDialog";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("multilingual-item");
 
 const t = useL10n(["multilingualItemDialog.ftl"]);
 
 // Must match the dialog's root element id in `multilingualItemDialog.xhtml`.
 export const DIALOG_WINDOW_NAME = "banyan-multilingual-item-dialog";
+
+export const createMultilingualItemItemMenu: ItemMenuContribution = {
+  id: "create-multilingual-item",
+  build() {
+    return [
+      {
+        menuType: "menuitem",
+        l10nID: getLocaleID("menuitem-create-multilingual-item"),
+        onShowing: (_event, context) => {
+          context.setVisible(getMultilingualSourceItem() !== null);
+        },
+        onCommand: () => {
+          const item = getMultilingualSourceItem();
+          if (item) {
+            void openCreateMultilingualItemDialog(item);
+          }
+        },
+      },
+    ];
+  },
+};
+
+/**
+ * The source item for "Create Multilingual Item", or null when the entry does
+ * not apply. The item's own `isEditable()` is checked as well as the view's
+ * `canEdit()`: for a library tab the latter reports the collection row, not the
+ * selected item, so a read-only item would otherwise show a dead entry.
+ */
+function getMultilingualSourceItem(): Zotero.Item | null {
+  const { canEdit, items, selectedCount } = getRegularSelection();
+  if (
+    !canEdit ||
+    items.length !== 1 ||
+    selectedCount !== 1 ||
+    !items[0].isEditable()
+  ) {
+    return null;
+  }
+  const languageFieldID = Zotero.ItemFields.getID("language");
+  if (
+    languageFieldID === false ||
+    !Zotero.ItemFields.isValidForType(languageFieldID, items[0].itemTypeID)
+  ) {
+    return null;
+  }
+  return items[0];
+}
 
 // Serialize commits per source and language: a copy is linked only in
 // `relate()`, after its save, so a parallel check could create a twin.
@@ -102,7 +154,8 @@ export async function commitMultilingualDraft(
             : {}),
         };
       },
-      logError: (error) => ztoolkit.logError(error),
+      logError: (error) =>
+        log.error("Failed to save the multilingual item", error),
       fallbackMessage: t("multilingual-item-error-save"),
     }),
   );
@@ -123,7 +176,7 @@ async function restoreStoredState(items: Zotero.Item[]): Promise<void> {
       await item.loadDataType("relations");
       await reloadItemContent(item);
     } catch (error) {
-      ztoolkit.logError(error);
+      log.warn("Failed to restore item storage state", error);
     }
   }
 }
@@ -144,7 +197,7 @@ async function requireCurrentSource(
   try {
     await reloadItemContent(stored);
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("Failed to reload source item", error);
     throw new Error(t("multilingual-item-error-source-changed"), {
       cause: error,
     });
@@ -325,7 +378,7 @@ async function handleDialogResult(
         );
       }
     } catch (error) {
-      ztoolkit.logError(error);
+      log.warn("Failed to restore item storage state", error);
     }
   }
 }
