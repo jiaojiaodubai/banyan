@@ -22,11 +22,6 @@
   - [写作工作流](#写作工作流)
   - [编写与安装样式](#编写与安装样式)
 - [贡献指南](#贡献指南)
-  - [环境要求](#环境要求)
-  - [克隆与预配置](#克隆与预配置)
-  - [开发](#开发)
-  - [测试](#测试)
-  - [发布](#发布)
 - [许可](#许可)
 
 ## 简介
@@ -143,67 +138,7 @@ Banyan 的样式是一个实现固定接口的 JavaScript 文件（接口说明�
 
 ## 贡献指南
 
-本仓库的插件骨架来自
-[zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template)；
-开发/构建/发布流程由
-[zotero-plugin-scaffold](https://github.com/northword/zotero-plugin-scaffold)
-驱动，Zotero API 类型来自 [zotero-types](https://github.com/windingwind/zotero-types)，
-UI 封装来自
-[zotero-plugin-toolkit](https://github.com/windingwind/zotero-plugin-toolkit)。
-
-### 环境要求
-
-- Node.js ≥ 20 与 [pnpm](https://pnpm.io/)
-- 一个可用的 [Zotero](https://www.zotero.org/download/)（本地开发调试，建议
-  使用最新稳定版）
-- Git（仓库使用 submodule 管理字处理器前端源码）
-
-### 克隆与预配置
-
-```powershell
-git clone https://github.com/jiaojiaodubai/Banyan.git
-cd Banyan
-pnpm install                 # 安装本仓库依赖
-git submodule update --init --recursive   # 或 pnpm submodules:init
-pnpm integrations:build     # 从子模块装配 addon/content/integration 产物
-```
-
-`integrations/` 下是只读的构建输入（子模块）；`addon/content/integration/`
-中的打包产物**不提交**，由 `integrations:build` 生成。
-
-### 开发
-
-```powershell
-pnpm start        # 构建并启动 Zotero（zotero-plugin serve），改码即热重载
-pnpm build        # 产物校验：构建 + tsc --noEmit
-pnpm lint:fix     # prettier + eslint（含 styleEditor）自动修复
-pnpm lint:check   # 校验格式与规则
-```
-
-代码约定与结构请参考 `AGENTS.md`（及 `.github/copilot-instructions.md`）：
-小函数与纯函数优先、公共 API 放 `src/modules`、工具放 `src/utils`、跨模块
-基础类型放 `typings/`。
-
-### 测试
-
-```powershell
-pnpm test          # 在 Zotero 内运行的 mocha 单元测试（zotero-plugin test）
-pnpm test:node     # 纯 Node 测试（样式 lint 规则，mocha + tsx）
-```
-
-### 发布
-
-发布采用“**本地推进 → CI 出资产**”的两段式（详见
-[Release Workflow](docs/Release%20Workflow.MD)）：
-
-```powershell
-pnpm release:prepare   # 更新依赖/子模块 → 装配前端产物 → 构建 → 刷新 CHANGELOG
-# 人工 review git status / CHANGELOG.md 后：
-pnpm release           # 选择版本号：自动提交+打 tag+推送
-```
-
-推送 `v**` tag 后，CI（`.github/workflows/release.yml`）会自动从锁定的子模块
-commit 装配字处理器前端、构建，并把 XPI 与 update 清单发布到 GitHub Release。
+开发、测试与发布流程见 [贡献指南](docs/CONTRIBUTING.md)。
 
 ## 许可
 

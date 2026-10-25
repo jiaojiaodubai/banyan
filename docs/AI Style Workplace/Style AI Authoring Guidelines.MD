@@ -4,14 +4,13 @@
 > （`style.d.ts`/`unit.d.ts`/`styleUtils.d.ts`/`item.d.ts`）；这里只补充类型无法
 > 表达的内容：运行语义、写作要点与成文结构。
 
-## 1. 任务目标
+## 1. 样式文件要求
 
 产出一个**单文件 JavaScript** 样式脚本：顶层提供 `INFO`、`generate()`（必需）与
-`UI`（可选）、`ITEM_FIELD_PRESETS` 与 `ITEM_FIELD_VALIDATORS`（可选），放入 banyan 数据目录即可被插件加载执行。
+`STYLE_OPTIONS` / `CITATION_PARAMS` / `CITE_PARAMS`、`ITEM_FIELD_PRESETS`、`ITEM_FIELD_VALIDATORS`（可选），放入 banyan 数据目录即可被插件加载执行。
 
-- 只输出脚本代码。
 - 文件保持精简：注释只解释本样式的独有决策，通用能力交给沙箱工具。
-- 推荐内部顺序：常量与辅助函数 → `INFO` → `UI` → `ITEM_FIELD_PRESETS` → `ITEM_FIELD_VALIDATORS` → `generate()`。
+- 推荐内部顺序：常量与辅助函数 → `INFO` → `STYLE_OPTIONS` → `CITATION_PARAMS` / `CITE_PARAMS` → `ITEM_FIELD_PRESETS` → `ITEM_FIELD_VALIDATORS` → `generate()`。
 
 ## 2. 工作环境：沙箱
 
@@ -23,7 +22,7 @@
   `window`/`globalThis`、顶层 `await`；不用 `this` 组织逻辑。
 - `readText`/`readBytes`/`readJSON` 只能读取 banyan 数据目录内的相对路径文件。
 
-### 便利一：数据是只读“安全视图”
+### 数据视图
 
 `contexts` 及其内部一切对象（`ctx`、`ctx.cites[i]`、`cite.item`、
 `cite.item.extra`、`ctx.params`、`cite.params`）都被宿主递归包装成安全视图：
@@ -42,9 +41,9 @@ const label = fallback([
 ]);
 ```
 
-### 便利二：全局工具函数
+### 全局工具函数
 
-沙箱把工具注入为全局函数，遇到下面的需求直接对号入座；只有工具覆盖不到的样式
+沙箱以全局函数提供下列工具。只有当工具无法表达特定格式规则时，才编写专用逻辑。
 特有规则（如某刊的著录顺序、编号合并）才自己写函数。
 
 | 需求                   | 用                                                               |
@@ -55,6 +54,7 @@ const label = fallback([
 | 解析/规整日期          | `formatDate(value, ({ year, month, day }) => …)`                 |
 | 多语言条目             | `getMultilingualItem(item, "en")` / `getMultilingualItems(item)` |
 | 读小数据文件           | `readText` / `readJSON` / `readBytes`                            |
+| 报告问题（不中断）     | `console.warn(...)` / `console.error(...)`（见下）               |
 | 随机 id                | `uuid()`                                                         |
 | Unit → 纯文本          | `plainText(unit)`                                                |
 | 文本叶子               | `text(str, style?)`                                              |
@@ -74,37 +74,70 @@ const label = fallback([
   `false` 与空文本候选被跳过）。多数分支与判空可由 `when`/`fallback`/`group`
   表达。
 - 排版用工具参数表达（`text`/`withStyle`/`textCase`/`link`），不要手拼富文本或
-  `RichText { text, marks }`——marks 由宿主在渲染前统一生成。
+  手写 `RichText { text, marks }` 的 mark 区间；rich 参数返回的是标记字符串，需要时用
+  `htmlToUnit` 转换；不要手写结构或 mark 区间。
 - `read*` 与 `getMultilingual*` 返回 Promise，用到时把 `generate` 写成 `async`
   并 `await`。
 
+### 日志与诊断：`console`
+
+沙箱提供标准的 `console`，用它既能调试，也能**报告问题而不中断**：
+
+- `console.log`/`debug`/`trace`（以及 `dir`、`table`）是调试输出：单次有裁剪、每次
+  运行有行数上限，随时可被丢弃，不会保留。
+- `console.info`/`warn`/`error` 是“发现”：会随样式保留并交给宿主显示，因此遇到
+  “这个条目缺字段”“这条数据格式不认识”这类**可以继续**的情况，用
+  `console.warn`，不要为了让用户知道而抛异常。
+- `console.assert(condition, ...)` 在条件为假时按 `error` 报告。
+- 其余常见方法（`count`、`time`、`group`、`clear` 等）存在但什么也不做：熟悉的
+  写法不会因为方法缺失而抛错。
+
+只有**无法继续**时才 `throw`。
+
 ## 3. 关键环节
 
-### 写 `INFO`
+### `INFO` 元数据
 
 `id` 用英文小写短横线且稳定唯一；`title` 用英文；`updated` 填 `YYYY-MM-DD`；其余
 字段按需填写。
 
-### 写 `generate()`
+### `generate()` 实现
 
 - 读取全局 `contexts`（与要输出的 `citations` 一一对应），返回
   `{ citations, bibliography }`。
 - 每条 `content` 是**单个** `Unit`：多片段经工具组合，不要手写 `RichText`/mark
   索引、不要把数组直接赋给 `content`。
 - `citations.length === contexts.length`，每条 `id` 沿用 `context.id`。
-- `bibliography` 一般按被引条目去重；重复引用合并、序号连排等属于样式策略，自行
-  实现。
-- 主流程用 `try/catch` 包裹，异常时返回空结果。
+- `bibliography` 一般按被引条目去重；条目身份使用核心字段 `item.id`。不要读取
+  `key` / `uri` / `relations`，也不要依赖 `z:*` 等宿主私有扩展键。
+- 主流程用 `try/catch` 包裹，异常时返回空结果；可以继续的问题用 `console.warn`
+  报告，不要为了提示而中断整次生成。
 
-### 写 `UI`（按需）
+### 写参数声明（按需）
 
 需要用户输入时才提供：
 
-- `UI.citation` 控制整条引用；`UI.cite` 控制单个被引项。
-- 控件类型：`checkbox` / `select` / `input`，`id` 用 camelCase。
-- 控件值在 `ctx.params` / `cite.params` 中读取。
-- `UI.cite` 控件可用 `visible(item)`（弹窗展开时评估一次，须返回布尔值）与
-  `disabled(cite)`（随参数变化评估，省略默认为 `false`）。
+- `STYLE_OPTIONS` 控制整篇文档统一的参数，值写入只读全局 `options`；
+  `CITATION_PARAMS` 控制整条引用，`CITE_PARAMS` 控制单个被引项；
+  三个数组都可选。
+- 参数只有两类语义：`state`（封闭状态）与 `value`（开放字符串）；
+  `CITE_PARAMS` 另有 `list` 重复行（`fields` 只能是 value，值是行对象数组）。
+- `state` 用布尔或 `states: { key: "标签" }`；没有 validator。
+- `value` 始终是字符串；`format: "rich"` 表示受限标记字符串；`presets` 只是
+  推荐值，不限制输入。
+- `defaultValue` 是初始值，也是 `applicable=false` 时的有效值。
+- `applicable(scope)` 返回 `false` 时参数不适用；`forcedValue` 返回 `T` 时锁定，
+  返回 `null` 时自由；不要返回 `undefined`。
+- `validate(value, ...scope)` 只校验自由值，返回 `true` / `false` / 错误字符串。
+- `description` 是可选的静态说明。
+- 引注级回调参数：`applicable(citation, options)` / `forcedValue(citation, options)` /
+  `validate(value, citation, options)`；引用级为 `(cite, citation, options)`；
+  `list` 字段的 validate 额外拿到当前 `row`。
+- 输入阶段不传全文 `contexts`：引用对话框只编辑本条引用，输出由刷新阶段在全文上生成。
+  `ibid`、前注号、首引等全文判断写在 `generate()` 里，用全局 `contexts` 扫描；
+  参数回调只读这条 citation 内的 `cites`。
+- 参数值在 `options` / `ctx.params` / `cite.params` 中读取；`list` 按行对象字段读。
+- 依赖按声明顺序从前至后求值；依赖应写在被依赖参数之后。
 
 ### 写 `ITEM_FIELD_PRESETS`（按需）
 
@@ -114,45 +147,22 @@ const label = fallback([
 - 取值由用户按条目决定时写 `null`：应用时逐条询问，菜单文本以 `…` 结尾。
 - 非 `itemData` 的键（`extra`、`id`、`itemType`、`creators` 等）会被拒绝。
 - CSL name 变量不会被 citeproc 当作 creators，`type: <条目类型>` 会改掉条目类型：宿主只记日志，不拦截。
-- `visible(item)` 只决定菜单项在哪些条目上出现，也限定写入对象，与 `UI.cite` 的 `visible` 同语义。
+- `visible(item)` 只决定菜单项在哪些条目上出现，也限定写入对象，与参数级 `applicable` 不是同一层语义：它只控制菜单项是否出现。
 - 样式编辑器会校验该声明（`banyanStyle/validate-field-presets`），写错会立刻报出。
+- 读取条目字段时用 Zotero 的**内部字段名**，不要用界面标签：Software 的“Version”是 `item.versionNumber`（`item.version` 是记录版本，不在 Banyan 条目里），"Publication" 是 `item.publicationTitle`。样式编辑器用 `banyanStyle/warn-item-field-misuse` 提示这类误用，以及 `abstractNote`／`dateAdded`／`dateModified`／`collections`／`notes` 这些 Banyan 条目不携带的键。
 
 ### 写 `ITEM_FIELD_VALIDATORS`（按需）
 
-当格式要求“某类条目应满足什么字段条件”时，用 `ITEM_FIELD_VALIDATORS` 声明只读检查器：
+当格式要求“某类条目应满足哪些字段条件”时，用 `ITEM_FIELD_VALIDATORS` 声明条目右键菜单里的「检查字段」：
 
-- 按 Zotero 条目类型分组，每项是 `{ description, check }`；`description` 是报告里的检查项名称，单字符串。
-- `check(item)` 返回 `true`（通过）、`false`、字符串或字符串数组（失败说明），也可以返回 Promise。空数组视为通过；超时、reject、空字符串、数字、对象等视为检查器出错。
-- 检查器只读、无副作用、不开窗、不写条目；可以使用已有的异步读取函数（如 `getMultilingualItems()`），每项检查最多 10 秒。
-- 不适用时返回 `true`；它不知道其他选中条目，也不校验渲染结果或整库。
-- 样式编辑器会校验该声明（`banyanStyle/validate-item-field-validators`）。
+- 顶层按 Zotero 条目类型分组，每类是一个检查器数组；类型名用 `book`、`journalArticle` 这样的精确内部名。
+- 每个检查器只含 `description`（报告中的名称）与 `check(item)`；返回 `true`（通过）、`false`（未通过）、字符串或字符串数组（失败说明），也可以返回 Promise。空数组视为通过；超时、reject、空字符串、数字、对象等视为检查器出错。
+- 通用规则用普通数组展开复用，例如 `book: [...commonChecks, bookCheck]`；不要期待宿主提供继承、通配符或 `common` 键。
+- 检查器只读、无副作用、不开窗、不写条目；可以使用已有的异步读取函数（如 `getMultilingualItems()`），每项检查最多 10 秒。不适用时返回 `true`。它不知道其他选中条目，也不校验渲染结果或整库。
+- 报告窗口按条目展开检查器行，非模态，方便边看边改；样式未声明时菜单项不出现。
+- 样式编辑器会校验声明形状（`banyanStyle/validate-item-field-validators`）；运行时不因单个检查器出错而中断整轮检查。
 
-## 4. 提示词模板
-
-把“需求区”替换为具体的格式要求，与本说明一起提交：
-
-```text
-为 Banyan 生成一个单文件 JavaScript 样式脚本。
-
-【需求区】
-1) 引注样式要求：
-- ...
-2) 参考文献样式要求：
-- ...
-3) 排序/去重规则：
-- ...
-4) 可选参数（如需要）：
-- ...
-5) 特殊边界条件：
-- ...
-
-【输出要求】
-- 只输出脚本代码。
-- 实现 INFO、generate（需要时加 UI、ITEM_FIELD_PRESETS 与 ITEM_FIELD_VALIDATORS），输出统一使用 content。
-- 精简：复用沙箱工具，只写样式特有逻辑。
-```
-
-## 5. 示例
+## 4. 示例
 
 最小可运行骨架（作者缺失时回退到标题，再回退到默认名；`fallback` 会跳过空文本
 候选）：
@@ -170,7 +180,10 @@ const INFO = {
   updated: "2026-05-20",
 };
 
-const UI = { citation: [], cite: [] };
+// 需要参数时再声明：
+// const STYLE_OPTIONS = [...];
+// const CITATION_PARAMS = [...];
+// const CITE_PARAMS = [...];
 
 function author(item) {
   return fallback([
