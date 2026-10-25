@@ -1,0 +1,286 @@
+{
+  "version": 1,
+  "collection": {
+    "key": "BNYMANUL",
+    "name": "Banyan Manual Tests"
+  },
+  "subcollections": [
+    {
+      "key": "BNYPARAM",
+      "name": "Parameters",
+      "parent": "BNYMANUL"
+    },
+    {
+      "key": "BNYCITAT",
+      "name": "Citation",
+      "parent": "BNYMANUL"
+    },
+    {
+      "key": "BNYITEMS",
+      "name": "Item Dialogs",
+      "parent": "BNYMANUL"
+    },
+    {
+      "key": "BNYMAIN2",
+      "name": "Main Window",
+      "parent": "BNYMANUL"
+    },
+    {
+      "key": "BNYMIGR2",
+      "name": "Migration",
+      "parent": "BNYMANUL"
+    },
+    {
+      "key": "BNYMERGE",
+      "name": "Merge",
+      "parent": "BNYMANUL"
+    }
+  ],
+  "items": [
+    {
+      "citationKey": "MT-01-BOOK-ZH",
+      "itemType": "book",
+      "collections": ["BNYPARAM", "BNYCITAT"],
+      "title": "MT-01 Chinese Fixture Book",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "Zhang San"
+        }
+      ],
+      "date": "2024",
+      "language": "zh-CN",
+      "publisher": "Fixture Press",
+      "tags": ["banyan-manual-fixture"]
+    },
+    {
+      "citationKey": "MT-02-BOOK-EN",
+      "itemType": "book",
+      "collections": ["BNYPARAM", "BNYCITAT"],
+      "title": "MT-02 English Fixture Book",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "Doe",
+          "firstName": "Jane"
+        }
+      ],
+      "date": "2023",
+      "language": "en-US",
+      "publisher": "Fixture Press",
+      "tags": ["banyan-manual-fixture"]
+    },
+    {
+      "citationKey": "MT-03-ARTICLE",
+      "itemType": "journalArticle",
+      "collections": ["BNYCITAT"],
+      "title": "MT-03 Journal Article Fixture",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "Lee",
+          "firstName": "Alex"
+        }
+      ],
+      "date": "2022",
+      "publicationTitle": "Journal of Fixtures",
+      "volume": "12",
+      "issue": "3",
+      "pages": "45-67",
+      "tags": ["banyan-manual-fixture"]
+    },
+    {
+      "citationKey": "MT-04-CHAPTER",
+      "itemType": "bookSection",
+      "collections": ["BNYCITAT"],
+      "title": "MT-04 Book Section Fixture",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "Chen"
+        }
+      ],
+      "date": "2021",
+      "bookTitle": "Fixture Collection",
+      "pages": "10-20",
+      "tags": ["banyan-manual-fixture"]
+    },
+    {
+      "citationKey": "MT-05-REGULATION",
+      "itemType": "statute",
+      "collections": ["BNYITEMS"],
+      "title": "MT-05 Statute Fixture",
+      "creators": [],
+      "date": "2020",
+      "nameOfAct": "MT-05 Statute Fixture",
+      "code": "FX-2020",
+      "tags": ["banyan-manual-fixture"]
+    },
+    {
+      "citationKey": "MT-06-MERGED-OLD",
+      "itemType": "book",
+      "collections": ["BNYITEMS"],
+      "title": "MT-06 Old Duplicate",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "Old"
+        }
+      ],
+      "date": "2019",
+      "tags": ["banyan-manual-fixture"]
+    },
+    {
+      "citationKey": "MT-07-MERGED-NEW",
+      "itemType": "book",
+      "collections": ["BNYITEMS"],
+      "title": "MT-07 Surviving Book",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "New"
+        }
+      ],
+      "date": "2020",
+      "tags": ["banyan-manual-fixture"],
+      "relations": {
+        "dc:replaces": ["MT-06-MERGED-OLD"]
+      }
+    },
+    {
+      "citationKey": "MT-08-MLING-ZH",
+      "itemType": "book",
+      "collections": ["BNYMAIN2"],
+      "title": "MT-08 Multilingual Chinese Item",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "Wang Wu"
+        }
+      ],
+      "date": "2018",
+      "language": "zh-CN",
+      "tags": ["banyan-manual-fixture"],
+      "relations": {
+        "banyan:multilingual": ["MT-09-MLING-EN"]
+      }
+    },
+    {
+      "citationKey": "MT-09-MLING-EN",
+      "itemType": "book",
+      "collections": ["BNYMAIN2"],
+      "title": "MT-09 Multilingual English Item",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "Wang",
+          "firstName": "Wu"
+        }
+      ],
+      "date": "2018",
+      "language": "en-US",
+      "tags": ["banyan-manual-fixture"],
+      "relations": {
+        "banyan:multilingual": ["MT-08-MLING-ZH"]
+      }
+    },
+    {
+      "citationKey": "MT-10-MERGE-SOURCE",
+      "itemType": "book",
+      "collections": ["BNYMERGE"],
+      "title": "MT-10 Merge Source Book",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "Old"
+        }
+      ],
+      "date": "2017",
+      "language": "zh-CN",
+      "publisher": "Fixture Press",
+      "tags": ["banyan-manual-fixture"],
+      "relations": {
+        "banyan:multilingual": ["MT-11-MERGE-LANG"]
+      }
+    },
+    {
+      "citationKey": "MT-11-MERGE-LANG",
+      "itemType": "book",
+      "collections": ["BNYMERGE"],
+      "title": "MT-11 Merge Language Book",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "Lang"
+        }
+      ],
+      "date": "2017",
+      "language": "en-US",
+      "publisher": "Fixture Press",
+      "tags": ["banyan-manual-fixture"],
+      "relations": {
+        "banyan:multilingual": ["MT-10-MERGE-SOURCE"]
+      }
+    },
+    {
+      "citationKey": "MT-12-MERGE-SURVIVOR",
+      "itemType": "book",
+      "collections": ["BNYMERGE"],
+      "title": "MT-12 Merge Survivor Book",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "New"
+        }
+      ],
+      "date": "2017",
+      "language": "zh-CN",
+      "publisher": "Fixture Press",
+      "tags": ["banyan-manual-fixture"],
+      "relations": {
+        "dc:replaces": ["MT-10-MERGE-SOURCE"],
+        "banyan:multilingual": ["MT-11-MERGE-LANG"]
+      }
+    },
+    {
+      "citationKey": "MT-13-MIGR-BOOK",
+      "itemType": "book",
+      "collections": ["BNYMIGR2"],
+      "title": "MT-13 Migration Chinese Book",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "Migr"
+        }
+      ],
+      "date": "2016",
+      "language": "zh-CN",
+      "publisher": "Fixture Press",
+      "numPages": "120",
+      "tags": ["banyan-manual-fixture"],
+      "relations": {
+        "banyan:multilingual": ["MT-14-MIGR-BOOK"]
+      }
+    },
+    {
+      "citationKey": "MT-14-MIGR-BOOK",
+      "itemType": "book",
+      "collections": ["BNYMIGR2"],
+      "title": "MT-14 Migration English Book",
+      "creators": [
+        {
+          "creatorType": "author",
+          "lastName": "Migr"
+        }
+      ],
+      "date": "2016",
+      "language": "en-US",
+      "publisher": "Fixture Press",
+      "numPages": "240",
+      "tags": ["banyan-manual-fixture"],
+      "relations": {
+        "banyan:multilingual": ["MT-13-MIGR-BOOK"]
+      }
+    }
+  ]
+}
