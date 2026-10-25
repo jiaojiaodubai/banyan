@@ -1,7 +1,7 @@
 import { relateItems, prefix, getVisibleMultilingualItems } from "./relations";
 import { openMainWindowDialog } from "../utils/window";
 import { useL10n, getLocaleID } from "../utils/locale";
-import { renderMultilingualItemsList } from "../components/multilingualBox";
+import { renderMultilingualItemsList } from "../ui/multilingualBox";
 
 const t = useL10n(["mainWindow.ftl"]);
 
@@ -242,7 +242,7 @@ export function registerItemPaneSection() {
     },
   });
 
-  // Keep the flag false when the registration failed (e.g. the pane is still
-  // registered by a previous load) so the next window load can retry.
+  // Leave the flag false on failure (e.g. a previous load still owns the
+  // pane), so a later window load can retry.
   itemPaneSectionRegistered = registeredKey !== false;
 }

@@ -1,8 +1,8 @@
 import {
   CREATOR_EXT_FIELDS,
   CREATORS_EXT_KEY,
-  replaceExtraFieldBlock,
-} from "../utils/item";
+} from "@banyan/core/items/creatorsExt";
+import { replaceExtraFieldBlock } from "@banyan/core/items/extra";
 import { switchCreatorNameMode } from "../utils/creatorName";
 import {
   buildCreatorsExtWrite,
@@ -18,9 +18,12 @@ import {
 import { useL10n } from "../utils/locale";
 import { unwrapCreatorExtDialogIO } from "../utils/creatorsExtDialogIO";
 import type { CreatorExtDialogIO } from "../../typings/creatorsExtDialog";
-import type { Creator, CreatorExtField } from "../../typings/item";
+import type { Creator, CreatorExtField } from "@banyan/core/types/item";
 import type { CreatorSnapshot } from "../../typings/multilingualItem";
 import type { FluentMessageId } from "../../typings/i10n";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("creators-ext-dialog");
 
 type ZoteroCreatorType = _ZoteroTypes.Item.CreatorJSON["creatorType"];
 
@@ -124,7 +127,7 @@ async function init(): Promise<void> {
       setReadOnly();
     }
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("初始化合作者扩展对话框失败", error);
     showErrorDialog(error instanceof Error ? error.message : String(error));
     setButtonDisabled("save-button", true);
   }
@@ -176,13 +179,12 @@ async function loadSession(
   );
   orphanLines = loaded.orphanLines;
   for (const issue of loaded.issues) {
-    ztoolkit.log(`creators-ext: ${issue}`);
+    log.warn(issue);
   }
   // Unmatched lines are dropped on save; logging here is their only trace.
   if (orphanLines.length) {
-    ztoolkit.log(
-      `creators-ext: ${orphanLines.length} record(s) match no creator and will be dropped on save: ` +
-        orphanLines.join(" "),
+    log.warn(
+      `${orphanLines.length} record(s) match no creator and will be dropped on save: ${orphanLines.join(" ")}`,
     );
   }
   const carried = carryOverCreatorExtensions(previous, creatorRecords);
@@ -1093,7 +1095,7 @@ async function save(): Promise<void> {
     await latest.saveTx({ undoAction: "undo-action-edit-creator" });
     finish();
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("保存合作者扩展信息失败", error);
     showErrorDialog(
       error instanceof Error ? error.message : t("creators-ext-save-failed"),
     );

@@ -1,23 +1,43 @@
-import type { CitationContext } from "../../../typings/style";
-import type { CitationSource, Cite } from "../../../typings/style";
-import type { RichText } from "../../../typings/unit";
+import type {
+  CitationContext,
+  CitationSource,
+  Cite,
+  ParamDeclarations,
+  StyleOptionParam,
+  StyleOptionValues,
+} from "@banyan/core/types/style";
+import type { RichText } from "@banyan/core/types/unit";
+import {
+  resolveStyleOptionState,
+  type StyleOptionState,
+} from "@banyan/core/validation/paramValues";
 import type {
   CitationDialogRequestData,
   CitationResponseData,
 } from "../../../typings/server";
 import type { IO as CitationDialogIO } from "../citationDialog";
 import { VirtualizedTableHelper } from "zotero-plugin-toolkit";
-import { createStyle } from "../../modules/sandbox";
+import { createStyle, formatStyleMessageLocation } from "../../modules/sandbox";
+import type { StyleMessage, StyleInstance } from "../../modules/sandbox";
+import {
+  createXULElementCompat,
+  ParameterPanel,
+  parameterDefaultValue,
+} from "../../ui/parameterPanel";
 import {
   getStyleEditorAssets,
   parseStyleEditorJSCompilerOptions,
   type StyleEditorAssets,
 } from "../../modules/styleEditor";
-import { renderRichTextToFragment } from "../../utils/richTextHtml";
-import { emptyRichText, normalizeRichText } from "../../utils/richText";
+import { renderRichTextToFragment } from "../../ui/richTextFragment";
+import {
+  emptyRichText,
+  normalizeRichText,
+} from "@banyan/core/richText/richText";
 import { useL10n } from "../../utils/locale";
-import { parseBanyanEntryLink } from "../../utils/html";
-import { getItemDisplayLabel, syncCitesWithLiveItems } from "../../utils/item";
+import { parseBanyanEntryLink } from "@banyan/core/richText/html";
+import { getItemDisplayLabel } from "@banyan/core/items/fields";
+import { syncCitesWithLiveItems } from "../../modules/sandbox/items";
 import { updateStyleCodeUpdatedTimestamp } from "../../utils/styleUpdated";
 import {
   ensureDataDir,
@@ -32,6 +52,9 @@ import {
   getErrorDebugString,
   type FormattedRuntimeError,
 } from "./runtimeErrors";
+import { createLogger } from "../../utils/logger";
+
+const log = createLogger("style-editor");
 
 type MonacoEditor = {
   getValue: () => string;
@@ -240,6 +263,10 @@ let editor: MonacoEditor | null = null;
 let helpDocEditor: MonacoEditor | null = null;
 let lintTimer: number | null = null;
 let lintRunId = 0;
+/** Coalesce a burst of option edits into one preview run. */
+let previewRefreshTimer: number | null = null;
+/** The latest preview run; an earlier run must not touch shared preview state. */
+let previewRunId = 0;
 let styleEditorAssets: StyleEditorAssets | null = null;
 let eslintCommandCandidatesCache: string[] | null | undefined;
 let eslintConfigPathCache: string | null | undefined;
@@ -249,7 +276,15 @@ let itemTypeHelpMenuItems: ItemTypeHelpMenuItem[] = [];
 let helpDocEditorInitPromise: Promise<boolean> | null = null;
 let helpDocRenderId = 0;
 let styleSnippetItemsCache: SnippetItem[] | null = null;
-let previewDebugLogs: string[] = [];
+let previewConsoleLines: string[] = [];
+/** What the last preview run reported: the load's findings plus the run's. */
+let sandboxFindings: StyleMessage[] = [];
+/** Preview-only global option values; kept across code changes. */
+let previewOptionValues: StyleOptionValues = {};
+let previewOptionParams: StyleOptionParam[] = [];
+let previewOptionState: StyleOptionState = resolveStyleOptionState([], {});
+let previewOptionPanel: ParameterPanel<StyleOptionParam> | null = null;
+let previewOptionSignature = "";
 
 const MIN_EDITOR_PANE_WIDTH = 280;
 const MIN_PREVIEW_PANE_WIDTH = 260;
@@ -260,7 +295,9 @@ const MAX_BOTTOM_PREVIEW_RATIO = 0.5;
 const MIN_CITATION_PAGE = 1;
 const DEFAULT_LINT_STDIN_FILENAME = "addon/content/styleEditor/banyan-style.js";
 const STYLE_SNIPPETS_FILE_NAME = "snippets.jsonc";
-const MAX_PREVIEW_DEBUG_LOG_LINES = 120;
+const MAX_PREVIEW_CONSOLE_LINES = 120;
+/** Text options emit `input` per keystroke; wait for the value to settle. */
+const PREVIEW_OPTION_DEBOUNCE_MS = 180;
 let lintStdinFilename = DEFAULT_LINT_STDIN_FILENAME;
 
 const { Subprocess } = ChromeUtils.importESModule(
@@ -280,7 +317,7 @@ async function initStyleEditor(): Promise<void> {
   try {
     await getStyleSnippetItems();
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("snippet items: load failed", e);
   }
   localizeMenuLabels();
   await initMenuPlaceholders();
@@ -605,31 +642,17 @@ function resolveShortcutAction(event: KeyboardEvent): string | null {
   }
 
   if (!accel || event.altKey) {
-    if (!accel && !event.altKey && !event.metaKey && !event.ctrlKey) {
-      return event.key === "Delete" ? "edit.delete" : null;
-    }
     return null;
   }
 
+  // Editing shortcuts belong to whatever has focus: the Monaco iframe handles
+  // its own, and text selected in the output pane must reach the platform's
+  // native copy instead of the editor's (empty) selection.
   switch (key) {
     case "n":
       return "file.new";
     case "s":
       return event.shiftKey ? null : "file.saveAs";
-    case "z":
-      return event.shiftKey ? null : "edit.undo";
-    case "y":
-      return event.shiftKey ? null : "edit.redo";
-    case "x":
-      return event.shiftKey ? null : "edit.cut";
-    case "c":
-      return event.shiftKey ? null : "edit.copy";
-    case "v":
-      return event.shiftKey ? null : "edit.paste";
-    case "a":
-      return event.shiftKey ? null : "edit.selectAll";
-    case "f":
-      return event.shiftKey ? null : "edit.find";
     case "0":
       return event.shiftKey ? null : "view.font.reset";
     case "=":
@@ -824,8 +847,7 @@ async function addCitationRowAndOpenDialog(): Promise<void> {
   const rowId = addCitationRow({ render: false });
   const committed = await openCitationDialogForRow(rowId);
   if (!committed) {
-    // The dialog did not produce valid citation data (e.g. it was closed
-    // early or left empty), so do not keep the placeholder row.
+    // The dialog produced no citation; drop the provisional row.
     removeCitationRow(rowId);
   }
   void renderCitationRowsTable();
@@ -1072,12 +1094,19 @@ async function openCitationDialogForRow(rowId: string): Promise<boolean> {
     }
 
     const parsedStyle = await createStyle(code);
-    const styleUI = parsedStyle.UI;
+    const controls: ParamDeclarations = {
+      style: parsedStyle.STYLE_OPTIONS ?? [],
+      citation: parsedStyle.CITATION_PARAMS ?? [],
+      cite: parsedStyle.CITE_PARAMS ?? [],
+    };
 
     const result = await openCitationDialog({
       documentId: "style-editor",
-      style: styleUI ?? { cite: [], citation: [] },
+      style: controls,
       source: row.source,
+      // The dialog resolves these stored values against the freshly parsed
+      // style declarations, the same way `generate()` does for the document.
+      options: previewOptionState.storedValues,
     });
     if (!result || getCitationSourceCites(result).length === 0) {
       // No valid citation data was committed (window closed early or left
@@ -1092,7 +1121,7 @@ async function openCitationDialogForRow(rowId: string): Promise<boolean> {
     return true;
   } catch (e) {
     setStatus(`${t("style-editor-error-prefix")}: ${String(e)}`);
-    ztoolkit.logError(e);
+    log.error("citation row: save failed", e);
     return false;
   }
 }
@@ -1519,13 +1548,14 @@ async function handleMenuAction(action: string): Promise<void> {
     return;
   }
 
-  ztoolkit.log(`[style-editor:menu] unhandled action: ${action}`);
+  log.warn(`unhandled menu action: ${action}`);
 }
 
 async function runRuntimeAction(action: string): Promise<void> {
   if (action === "run.refreshPreview") {
     applyPanelVisibility("output", true);
     setOutputMode("preview");
+    cancelScheduledPreviewRefresh();
     await refreshPreview();
     return;
   }
@@ -1698,11 +1728,11 @@ function runEditMenuAction(action: string): void {
       document.execCommand(fallback);
       return;
     } catch (e) {
-      ztoolkit.logError(e);
+      log.warn("edit action: command failed", e);
     }
   }
 
-  ztoolkit.log(`[style-editor:menu] unsupported edit action: ${action}`);
+  log.warn(`unsupported edit action: ${action}`);
 }
 
 function triggerEditorAction(commandId: string): boolean {
@@ -1879,6 +1909,8 @@ function bindPaneResizer(): void {
 
 function onNewStyle(): void {
   if (!editor) return;
+  cancelScheduledPreviewRefresh();
+  previewRunId++;
   lintStdinFilename = DEFAULT_LINT_STDIN_FILENAME;
   applyEditorValue("");
   markEditorPersistedState("", undefined);
@@ -1910,10 +1942,17 @@ async function openStyleFromPath(fullPath: string): Promise<void> {
 
 function applyLoadedCode(code: string, sourcePath?: string): void {
   if (!editor) return;
+  // A run for the previous document must not paint into this one.
+  cancelScheduledPreviewRefresh();
+  previewRunId++;
   lintStdinFilename = normalizeLintStdinFilename(sourcePath);
   applyEditorValue(code);
   markEditorPersistedState(code, sourcePath);
   setOutputMode("preview");
+  // Another document: the previous run's report and output do not belong here.
+  clearPreviewConsoleLines();
+  clearSandboxFindings();
+  clearPreviewOptions();
   renderPreviewPlaceholder();
 }
 
@@ -2059,7 +2098,7 @@ async function onOpenStyle(): Promise<void> {
     setStatus(t("style-editor-status-opened", { args: { path: fullPath } }));
   } catch (e) {
     setStatus(`${t("style-editor-error-prefix")}: ${String(e)}`);
-    ztoolkit.logError(e);
+    log.error("style file: open failed", e);
   }
 }
 
@@ -2068,7 +2107,7 @@ function showInvalidStyleFileAlert(path: string, error: unknown): void {
     args: { path },
   });
   setStatus(`${t("style-editor-error-prefix")}: ${message}`);
-  ztoolkit.logError(error);
+  log.error(`invalid style file: ${path}`, error);
   try {
     Services.prompt.alert(
       window as unknown as mozIDOMWindowProxy,
@@ -2113,7 +2152,7 @@ async function onApplyTemplate(): Promise<void> {
     setStatus(`${t("style-editor-status-template")}: ${template.title}`);
   } catch (e) {
     setStatus(`${t("style-editor-error-prefix")}: ${String(e)}`);
-    ztoolkit.logError(e);
+    log.error("template: load failed", e);
   }
 }
 
@@ -2148,8 +2187,8 @@ async function runLint(): Promise<void> {
 
   const output = await runESLint(code);
   if (currentRunId !== lintRunId) {
-    ztoolkit.log(
-      `[style-editor:lint] stale lint result ignored (run=${currentRunId}, latest=${lintRunId})`,
+    log.debug(
+      `lint: stale result ignored (run=${currentRunId}, latest=${lintRunId})`,
     );
     return;
   }
@@ -2192,8 +2231,8 @@ async function runESLint(code: string): Promise<ESLintResult[] | null> {
     }
 
     lastFailureMessage = attempt.errorMessage;
-    ztoolkit.log(
-      `[style-editor:lint] strategy failed (${strategy.reason}): ${attempt.errorMessage}`,
+    log.debug(
+      `lint: strategy failed (${strategy.reason}): ${attempt.errorMessage}`,
     );
   }
   return buildESLintExecutionErrorResult(lastFailureMessage);
@@ -2262,12 +2301,12 @@ async function runESLintWithStrategy(options: {
         ? waitResult.exitCode
         : getSubprocessExitCode(proc);
 
-    ztoolkit.log(
-      `[style-editor:lint] strategy=${strategy.reason} command=${strategy.commandPath} finished: exitCode=${String(exitCode)}, stdoutLength=${stdout.length}, stderrLength=${stderr.length}`,
+    log.debug(
+      `lint: strategy=${strategy.reason} command=${strategy.commandPath} finished: exitCode=${String(exitCode)}, stdoutLength=${stdout.length}, stderrLength=${stderr.length}`,
     );
 
     if (stderr.trim()) {
-      ztoolkit.log(`[style-editor:lint] subprocess stderr: ${stderr}`);
+      log.debug(`lint: subprocess stderr: ${stderr}`);
     }
 
     if (!stdout.trim()) {
@@ -2284,7 +2323,7 @@ async function runESLintWithStrategy(options: {
       };
     } catch (parseError) {
       const parseErrorText = getErrorDebugString(parseError);
-      ztoolkit.log(`[style-editor:lint] JSON parse error: ${parseErrorText}`);
+      log.error(`lint: JSON parse error: ${parseErrorText}`);
       return {
         ok: false,
         errorMessage: `Failed to parse ESLint JSON output: ${parseErrorText}.${stderr.trim() ? ` stderr: ${stderr.trim()}` : ""}`,
@@ -2392,11 +2431,11 @@ async function getESLintConfigPath(): Promise<string | null> {
       }
     }
 
-    ztoolkit.log(`[style-editor:lint] using ESLint config: ${configPath}`);
+    log.debug(`lint: using ESLint config: ${configPath}`);
     eslintConfigPathCache = configPath;
     return configPath;
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("lint: failed to resolve the ESLint config path", e);
     eslintConfigPathCache = null;
     return null;
   }
@@ -2464,9 +2503,7 @@ async function getESLintCommandCandidates(): Promise<string[] | null> {
 
     if (candidates.length > 0) {
       eslintCommandCandidatesCache = candidates;
-      ztoolkit.log(
-        `[style-editor:lint] using ESLint command: ${JSON.stringify(candidates)}`,
-      );
+      log.debug(`lint: using ESLint command: ${JSON.stringify(candidates)}`);
       return candidates;
     }
 
@@ -2572,14 +2609,22 @@ function appendLintGroup(
   container.appendChild(title);
 
   for (const item of items) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `lint-item lint-item-action ${severity}`;
-    button.textContent = `L${item.line}:${item.column} ${item.message}`;
-    button.addEventListener("click", () => {
+    // A native <button> keeps Zotero's fixed control height, so wrapped
+    // messages overlap. A focusable div grows with its content instead.
+    const action = document.createElement("div");
+    action.className = `lint-item lint-item-action ${severity}`;
+    action.setAttribute("role", "button");
+    action.tabIndex = 0;
+    action.textContent = `L${item.line}:${item.column} ${item.message}`;
+    action.addEventListener("click", () => {
       jumpToLintLocation(item);
     });
-    container.appendChild(button);
+    action.addEventListener("keydown", (event: KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      jumpToLintLocation(item);
+    });
+    container.appendChild(action);
   }
 }
 
@@ -2615,7 +2660,7 @@ async function renderInfoDocumentAsync(
       existingHelpEditor.setValue(content);
       return;
     } catch (e) {
-      ztoolkit.logError(e);
+      log.warn("help doc: editor setValue failed", e);
       helpDocEditor = null;
       helpDocEditorInitPromise = null;
     }
@@ -2710,7 +2755,7 @@ async function ensureHelpDocEditor(): Promise<boolean> {
 
       return true;
     } catch (e) {
-      ztoolkit.logError(e);
+      log.error("help doc: editor init failed", e);
       return false;
     }
   })();
@@ -2758,17 +2803,32 @@ async function waitForHelpFrameWindowReady(
 async function refreshPreview(): Promise<void> {
   if (!editor) return;
   const editorRef = editor;
+  const runId = ++previewRunId;
+  // Each run collects its own trace lines; a run that lost the race must not
+  // append to the output of the run that replaced it.
+  const consoleLines: string[] = [];
 
-  clearPreviewDebugLogs();
+  clearPreviewConsoleLines();
 
+  let style: StyleInstance | null = null;
   try {
-    const style = await createStyle(editorRef.getValue(), {
-      debugSink: recordPreviewDebugLog,
+    style = await createStyle(editorRef.getValue(), {
+      messageSink: (message) => recordPreviewMessage(message, consoleLines),
     });
+    if (runId !== previewRunId) return;
 
     const contexts = await createPreviewContexts();
+    if (runId !== previewRunId) return;
 
-    const result = await style.generate(contexts);
+    syncPreviewOptions(style);
+    const result = await style.generate(
+      contexts,
+      previewOptionState.storedValues,
+    );
+    if (runId !== previewRunId) return;
+
+    sandboxFindings = [...style.diagnostics];
+    previewConsoleLines = consoleLines;
 
     const safeCitations = Array.isArray(result.citations)
       ? result.citations
@@ -2779,43 +2839,218 @@ async function refreshPreview(): Promise<void> {
     renderPreview(safeCitations, safeBibliography);
     setStatus(t("style-editor-status-ready"));
   } catch (e) {
+    if (runId !== previewRunId) {
+      log.debug(
+        `preview: stale failure ignored (run=${runId}, latest=${previewRunId})`,
+      );
+      return;
+    }
+    // What the run reported is worth showing even when it failed.
+    sandboxFindings = style ? [...style.diagnostics] : [];
+    previewConsoleLines = consoleLines;
     const formattedError = formatRuntimeErrorDetails(e, {
       errorPrefix: t("style-editor-error-prefix"),
     });
-    ztoolkit.logError(e);
-    ztoolkit.log(
-      `[style-editor:preview] refresh failed: ${formattedError.summary}`,
-    );
+    log.error(`preview: refresh failed: ${formattedError.summary}`, e);
     renderPreviewError(formattedError);
     setStatus(`${t("style-editor-error-prefix")}: ${formattedError.summary}`);
   }
 }
 
-function clearPreviewDebugLogs(): void {
-  previewDebugLogs = [];
+/**
+ * Debounced refresh for the preview option panel. Option text fields emit one
+ * `input` event per keystroke, and every run re-parses the style and calls
+ * `generate()`, which the core serializes; without coalescing the preview falls
+ * seconds behind typing.
+ */
+function schedulePreviewRefresh(): void {
+  if (previewRefreshTimer !== null) {
+    window.clearTimeout(previewRefreshTimer);
+  }
+  previewRefreshTimer = window.setTimeout(() => {
+    previewRefreshTimer = null;
+    void refreshPreview();
+  }, PREVIEW_OPTION_DEBOUNCE_MS);
 }
 
-function recordPreviewDebugLog(message: string): void {
-  previewDebugLogs.push(message);
-  if (previewDebugLogs.length > MAX_PREVIEW_DEBUG_LOG_LINES) {
-    previewDebugLogs.splice(
-      0,
-      previewDebugLogs.length - MAX_PREVIEW_DEBUG_LOG_LINES,
-    );
+function cancelScheduledPreviewRefresh(): void {
+  if (previewRefreshTimer !== null) {
+    window.clearTimeout(previewRefreshTimer);
+    previewRefreshTimer = null;
   }
 }
 
-function renderPreviewDebugSection(container: HTMLElement): void {
-  if (!previewDebugLogs.length) {
+/**
+ * Keep the preview's global option panel in step with the parsed style.
+ *
+ * Values survive code edits; the DOM is rebuilt only when the declarations
+ * themselves changed, so editing one option does not steal focus from another.
+ */
+function syncPreviewOptions(style: StyleInstance): void {
+  const controls = style.STYLE_OPTIONS ?? [];
+  const signature = previewOptionParamsSignature(controls);
+  previewOptionParams = controls;
+
+  if (signature !== previewOptionSignature) {
+    previewOptionSignature = signature;
+    const next: StyleOptionValues = {};
+    for (const control of controls) {
+      const existing = previewOptionValues[control.id];
+      next[control.id] =
+        typeof existing === "boolean" || typeof existing === "string"
+          ? existing
+          : parameterDefaultValue(control);
+    }
+    previewOptionValues = next;
+    previewOptionState = resolveStyleOptionState(controls, next);
+    renderPreviewOptions();
+    return;
+  }
+
+  previewOptionState = resolveStyleOptionState(controls, previewOptionValues);
+  previewOptionPanel?.setControls(controls);
+}
+
+function previewOptionParamsSignature(
+  controls: readonly StyleOptionParam[],
+): string {
+  return JSON.stringify(
+    controls.map((control) => ({
+      id: control.id,
+      kind: control.kind,
+      label: control.label,
+      description: control.description,
+      defaultValue: control.defaultValue,
+      states: control.kind === "state" ? control.states : undefined,
+      presets: control.kind === "value" ? control.presets : undefined,
+      format: control.kind === "value" ? control.format : undefined,
+    })),
+  );
+}
+
+function renderPreviewOptions(): void {
+  const block = document.getElementById(
+    "preview-options-block",
+  ) as HTMLElement | null;
+  const container = document.getElementById(
+    "preview-options",
+  ) as HTMLElement | null;
+  if (!block || !container) {
+    previewOptionPanel = null;
+    return;
+  }
+
+  const hasOptions = previewOptionParams.length > 0;
+  block.hidden = !hasOptions;
+  if (!hasOptions) {
+    container.replaceChildren();
+    previewOptionPanel = null;
+    previewOptionState = resolveStyleOptionState([], {});
+    return;
+  }
+
+  previewOptionPanel = new ParameterPanel<StyleOptionParam>({
+    container,
+    controls: previewOptionParams,
+    values: { ...previewOptionState.storedValues },
+    // The same widgets as the style chooser, so a style's options do not change
+    // appearance between the two windows.
+    mode: "xul",
+    createXULElementCompat,
+    getState: (control) =>
+      previewOptionState.states[control.id] ?? {
+        mode: "free",
+        value: previewOptionState.effectiveValues[control.id] ?? "",
+      },
+    onChange: () => {
+      previewOptionState = resolveStyleOptionState(
+        previewOptionParams,
+        previewOptionValues,
+      );
+      schedulePreviewRefresh();
+    },
+  });
+  previewOptionValues = previewOptionPanel.values as Record<
+    string,
+    string | boolean
+  >;
+  previewOptionPanel.render();
+}
+
+function clearPreviewConsoleLines(): void {
+  previewConsoleLines = [];
+}
+
+function clearSandboxFindings(): void {
+  sandboxFindings = [];
+}
+
+/** Drop options from the previous document until the next run parses this one. */
+function clearPreviewOptions(): void {
+  previewOptionParams = [];
+  previewOptionValues = {};
+  previewOptionState = resolveStyleOptionState([], {});
+  previewOptionPanel = null;
+  previewOptionSignature = "";
+  const block = document.getElementById(
+    "preview-options-block",
+  ) as HTMLElement | null;
+  const container = document.getElementById(
+    "preview-options",
+  ) as HTMLElement | null;
+  if (block) block.hidden = true;
+  container?.replaceChildren();
+}
+
+function recordPreviewMessage(
+  message: StyleMessage,
+  target: string[] = previewConsoleLines,
+): void {
+  // Findings are read back from `style.diagnostics` (settled and deduplicated);
+  // this list carries only trace lines, which are not retained elsewhere.
+  if (message.severity !== "trace") {
+    return;
+  }
+  target.push(message.message);
+  if (target.length > MAX_PREVIEW_CONSOLE_LINES) {
+    target.splice(0, target.length - MAX_PREVIEW_CONSOLE_LINES);
+  }
+}
+
+function renderPreviewRuntimeSection(container: HTMLElement): void {
+  if (sandboxFindings.length) {
+    const issuesHeading = document.createElement("div");
+    issuesHeading.className = "preview-heading";
+    issuesHeading.textContent = t("style-editor-preview-findings", {
+      args: { count: sandboxFindings.length },
+    });
+    container.appendChild(issuesHeading);
+
+    for (const severity of ["error", "warning", "info"] as const) {
+      for (const finding of sandboxFindings) {
+        if (finding.severity !== severity) {
+          continue;
+        }
+        const row = document.createElement("div");
+        row.className = `preview-line ${severity}`;
+        const location = formatStyleMessageLocation(finding.detail);
+        const where = location ? `[${location}] ` : "";
+        row.textContent = `${where}${finding.source}: ${finding.message}`;
+        container.appendChild(row);
+      }
+    }
+  }
+
+  if (!previewConsoleLines.length) {
     return;
   }
 
   const heading = document.createElement("div");
   heading.className = "preview-heading";
-  heading.textContent = "Debug";
+  heading.textContent = t("style-editor-preview-console");
   container.appendChild(heading);
 
-  for (const line of previewDebugLogs) {
+  for (const line of previewConsoleLines) {
     const row = document.createElement("div");
     row.className = "preview-line";
     row.textContent = line;
@@ -2941,7 +3176,7 @@ function renderPreview(citations: unknown[], bibliography: unknown[]): void {
 
   if (!Array.isArray(citations) || citations.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "preview-line";
+    empty.className = "preview-line preview-empty-note";
     empty.textContent = t("style-editor-empty-citations");
     container.appendChild(empty);
   } else {
@@ -2994,7 +3229,7 @@ function renderPreview(citations: unknown[], bibliography: unknown[]): void {
 
   if (!Array.isArray(bibliography) || bibliography.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "preview-line";
+    empty.className = "preview-line preview-empty-note";
     empty.textContent = t("style-editor-empty-bibliography");
     container.appendChild(empty);
     return;
@@ -3015,7 +3250,7 @@ function renderPreview(citations: unknown[], bibliography: unknown[]): void {
     container.appendChild(row);
   }
 
-  renderPreviewDebugSection(container);
+  renderPreviewRuntimeSection(container);
 }
 
 function renderPreviewError(formattedError: FormattedRuntimeError): void {
@@ -3029,12 +3264,12 @@ function renderPreviewError(formattedError: FormattedRuntimeError): void {
   details.className = "preview-error-text";
   details.readOnly = true;
   details.spellcheck = false;
-  details.wrap = "off";
+  details.wrap = "soft";
   details.rows = Math.min(Math.max(formattedError.lines.length + 2, 8), 24);
   details.value = formattedError.copyText;
   container.appendChild(details);
 
-  renderPreviewDebugSection(container);
+  renderPreviewRuntimeSection(container);
 }
 
 function renderPreviewPlaceholder(): void {
@@ -3044,12 +3279,14 @@ function renderPreviewPlaceholder(): void {
   if (!container) return;
   container.replaceChildren();
 
+  // This text is a hint, not output: it uses the same empty-state typography
+  // and centering as the editor's and the input pane's hints.
   const row = document.createElement("div");
-  row.className = "preview-line";
+  row.className = "preview-empty-state";
   row.textContent = t("style-editor-empty-preview");
   container.appendChild(row);
 
-  renderPreviewDebugSection(container);
+  renderPreviewRuntimeSection(container);
 }
 
 async function saveStyle(): Promise<void> {
@@ -3107,7 +3344,7 @@ async function saveStyle(): Promise<void> {
     setStatus(t("style-editor-status-saved", { args: { path: fullPath } }));
   } catch (e) {
     setStatus(`${t("style-editor-error-prefix")}: ${String(e)}`);
-    ztoolkit.logError(e);
+    log.error("style: save failed", e);
   }
 }
 

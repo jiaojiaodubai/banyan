@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import type { CitationContext } from "../typings/style";
+import type { CitationContext } from "@banyan/core/types/style";
 
 type StubItem = {
   id: number;
@@ -21,6 +21,7 @@ type StubState = {
 
 const LOCAL_USER_KEY = "LocalKey1";
 const ACCOUNT_USER_ID = 7264;
+const ITEM_URI_KEY = "z:uri" as const;
 
 const accountURI = (key: string) =>
   `http://zotero.org/users/${ACCOUNT_USER_ID}/items/${key}`;
@@ -43,7 +44,7 @@ function createStubState(overrides: Partial<StubState> = {}): StubState {
 }
 
 /** Shape accepted by `toBanyanItem`, backed by a `StubItem`. */
-function createLiveItem(item: StubItem) {
+function createLiveItem(item: StubItem): Zotero.Item {
   return {
     id: item.id,
     deleted: item.deleted,
@@ -51,7 +52,7 @@ function createLiveItem(item: StubItem) {
     firstCreator: "Smith",
     toJSON: () => ({ itemType: "book", title: item.title }),
     getField: (field: string) => (field === "year" ? "2024" : ""),
-  };
+  } as unknown as Zotero.Item;
 }
 
 /**
@@ -117,7 +118,7 @@ function installZoteroStub(state: StubState): void {
 
 function createContext(
   id: string,
-  cites: Array<{ id: number; uri: string }>,
+  cites: Array<{ id: string; [ITEM_URI_KEY]?: string }>,
 ): CitationContext {
   return {
     id,
@@ -128,12 +129,14 @@ function createContext(
 }
 
 describe("refresh-side context handling", function () {
-  let syncContextsWithLiveItems: (typeof import("../src/utils/item"))["syncContextsWithLiveItems"];
+  let syncContextsWithLiveItems: (typeof import("../src/modules/sandbox/items"))["syncContextsWithLiveItems"];
   let scanInaccessibleItems: (typeof import("../src/modules/inaccessibleItems"))["scanInaccessibleItems"];
+  let toBanyanItem: (typeof import("../src/modules/sandbox/items"))["toBanyanItem"];
 
   before(async function () {
     installZoteroStub(createStubState());
-    ({ syncContextsWithLiveItems } = await import("../src/utils/item"));
+    ({ syncContextsWithLiveItems, toBanyanItem } =
+      await import("../src/modules/sandbox/items"));
     ({ scanInaccessibleItems } =
       await import("../src/modules/inaccessibleItems"));
   });
@@ -144,8 +147,32 @@ describe("refresh-side context handling", function () {
     delete global.ztoolkit;
   });
 
+  describe("toBanyanItem", function () {
+    it("keeps only id and the z:uri extension", function () {
+      const converted = toBanyanItem({
+        id: 7,
+        deleted: false,
+        uri: accountURI("ABCD1234"),
+        firstCreator: "Smith",
+        toJSON: () => ({
+          itemType: "book",
+          title: "A title",
+          key: "ABCD1234",
+          relations: { "dc:relation": [accountURI("OTHER")] },
+        }),
+        getField: (field: string) => (field === "year" ? "2024" : ""),
+      } as unknown as Zotero.Item);
+
+      assert.equal(converted.id, "7");
+      assert.equal(converted[ITEM_URI_KEY], accountURI("ABCD1234"));
+      assert.notProperty(converted, "key");
+      assert.notProperty(converted, "uri");
+      assert.notProperty(converted, "relations");
+    });
+  });
+
   describe("syncContextsWithLiveItems", function () {
-    it("replaces the URI of a cite whose item was merged away", async function () {
+    it("replaces the item reference of a cite whose item was merged away", async function () {
       const mergedAwayUri = localURI("MERGED01");
       const survivor: StubItem = {
         id: 2,
@@ -172,17 +199,42 @@ describe("refresh-side context handling", function () {
       installZoteroStub(state);
 
       const contexts = [
-        createContext("ctx-1", [{ id: 1, uri: mergedAwayUri }]),
+        createContext("ctx-1", [{ id: "1", "z:uri": mergedAwayUri }]),
       ];
       const [synced] = await syncContextsWithLiveItems(contexts);
 
-      assert.equal(synced.cites[0].item.id, 2);
-      assert.equal(synced.cites[0].item.uri, accountURI("SURVIVOR"));
+      assert.equal(synced.cites[0].item.id, "2");
+      assert.equal(synced.cites[0].item[ITEM_URI_KEY], accountURI("SURVIVOR"));
       assert.equal(synced.cites[0].item.title, "Surviving Copy");
       // The incoming contexts stay untouched: the endpoint owns the copy it
       // passes on to the sandbox.
-      assert.equal(contexts[0].cites[0].item.id, 1);
-      assert.equal(contexts[0].cites[0].item.uri, mergedAwayUri);
+      assert.equal(contexts[0].cites[0].item.id, "1");
+      assert.equal(contexts[0].cites[0].item[ITEM_URI_KEY], mergedAwayUri);
+    });
+
+    it("resolves a Word automation snapshot that has no numeric id", async function () {
+      const itemUri = accountURI("WORD0001");
+      const live: StubItem = {
+        id: 51,
+        key: "WORD0001",
+        uri: itemUri,
+        title: "Word Snapshot",
+        deleted: false,
+      };
+      installZoteroStub(
+        createStubState({ items: new Map([["WORD0001", live]]) }),
+      );
+
+      // Word's local API exposes no numeric item id; its snapshots carry the
+      // dedicated z:uri reference the backend resolves during refresh.
+      const contexts = [
+        createContext("ctx-1", [{ id: "0", [ITEM_URI_KEY]: itemUri }]),
+      ];
+      const [synced] = await syncContextsWithLiveItems(contexts);
+
+      assert.equal(synced.cites[0].item.id, "51");
+      assert.equal(synced.cites[0].item[ITEM_URI_KEY], itemUri);
+      assert.equal(synced.cites[0].item.title, "Word Snapshot");
     });
 
     it("prefers items imported during this refresh", async function () {
@@ -196,27 +248,59 @@ describe("refresh-side context handling", function () {
       installZoteroStub(createStubState());
 
       const contexts = [
-        createContext("ctx-1", [{ id: 1, uri: accountURI("MISSING01") }]),
+        createContext("ctx-1", [{ id: "1", "z:uri": accountURI("MISSING01") }]),
       ];
       const [synced] = await syncContextsWithLiveItems(
         contexts,
         new Map([[accountURI("MISSING01"), createLiveItem(imported)]]),
       );
 
-      assert.equal(synced.cites[0].item.id, 5);
-      assert.equal(synced.cites[0].item.uri, accountURI("IMPORTED"));
+      assert.equal(synced.cites[0].item.id, "5");
+      assert.equal(synced.cites[0].item[ITEM_URI_KEY], accountURI("IMPORTED"));
+    });
+
+    it("maps one durable URI to this device's local id", async function () {
+      const durableUri = accountURI("SHARED01");
+      const local: StubItem = {
+        id: 77,
+        key: "SHARED01",
+        uri: durableUri,
+        title: "Shared Group Item",
+        deleted: false,
+      };
+      installZoteroStub(
+        createStubState({ items: new Map([["SHARED01", local]]) }),
+      );
+
+      // The cached ids come from another device; both cites point at the
+      // same durable URI and must resolve to one local id here.
+      const contexts = [
+        createContext("ctx-1", [
+          { id: "123", [ITEM_URI_KEY]: durableUri },
+          { id: "123", [ITEM_URI_KEY]: durableUri },
+        ]),
+      ];
+      const [synced] = await syncContextsWithLiveItems(contexts);
+
+      assert.equal(synced.cites[0].item.id, "77");
+      assert.equal(synced.cites[1].item.id, "77");
+      assert.equal(synced.cites[0].item[ITEM_URI_KEY], durableUri);
+      assert.equal(synced.cites[1].item[ITEM_URI_KEY], durableUri);
     });
 
     it("keeps the cached snapshot when the item cannot be resolved", async function () {
       installZoteroStub(createStubState());
 
       const contexts = [
-        createContext("ctx-1", [{ id: 999, uri: accountURI("MISSING01") }]),
+        createContext("ctx-1", [
+          { id: "999", "z:uri": accountURI("MISSING01") },
+        ]),
       ];
       const [synced] = await syncContextsWithLiveItems(contexts);
 
-      assert.equal(synced.cites[0].item.id, 999);
-      assert.equal(synced.cites[0].item.uri, accountURI("MISSING01"));
+      assert.equal(synced.cites[0].item.id, "999");
+      // An unresolved cached snapshot keeps its URI.
+      assert.equal(synced.cites[0].item[ITEM_URI_KEY], accountURI("MISSING01"));
     });
 
     it("preserves the other context fields", async function () {
@@ -252,10 +336,10 @@ describe("refresh-side context handling", function () {
 
       const contexts = [
         createContext("ctx-1", [
-          { id: 1, uri: localURI("DELETED1") },
-          { id: 1, uri: localURI("DELETED1") },
+          { id: "1", "z:uri": localURI("DELETED1") },
+          { id: "1", "z:uri": localURI("DELETED1") },
         ]),
-        createContext("ctx-2", [{ id: 1, uri: localURI("DELETED1") }]),
+        createContext("ctx-2", [{ id: "1", "z:uri": localURI("DELETED1") }]),
       ];
       const inaccessible = await scanInaccessibleItems(contexts);
 
@@ -297,7 +381,7 @@ describe("refresh-side context handling", function () {
       installZoteroStub(state);
 
       const inaccessible = await scanInaccessibleItems([
-        createContext("ctx-1", [{ id: 1, uri: mergedAwayUri }]),
+        createContext("ctx-1", [{ id: "1", "z:uri": mergedAwayUri }]),
       ]);
 
       assert.lengthOf(inaccessible, 0);
@@ -308,8 +392,8 @@ describe("refresh-side context handling", function () {
 
       const inaccessible = await scanInaccessibleItems([
         createContext("ctx-1", [
-          { id: 1, uri: otherLocalURI("MISSING01") },
-          { id: 2, uri: accountURI("MISSING02") },
+          { id: "1", "z:uri": otherLocalURI("MISSING01") },
+          { id: "2", "z:uri": accountURI("MISSING02") },
         ]),
       ]);
 

@@ -10,17 +10,14 @@ const INFO = {
   updated: "2026-03-19",
 };
 
-const UI = {
-  citation: [
-    {
-      id: "show-url",
-      label: "Show URL",
-      type: "checkbox",
-      value: false,
-    },
-  ],
-  cite: [],
-};
+const CITATION_PARAMS = [
+  {
+    id: "show-url",
+    kind: "state",
+    label: "Show URL",
+    defaultValue: false,
+  },
+];
 
 /**
  * @returns {ScriptResult<typeof INFO.citationType>}
@@ -32,7 +29,7 @@ function generate() {
       "[" +
         ctx.page +
         "] " +
-        ctx.cites.map((c) => c.item.title || c.item.key).join("; "),
+        ctx.cites.map((c) => c.item.title || "Untitled").join("; "),
     ),
   }));
 
@@ -46,7 +43,10 @@ function generate() {
     id: String(item.id),
     type: "bibliography-entry",
     content: text(
-      (item.firstCreator || "Unknown") + ". " + (item.title || item.key) + ".",
+      (item.firstCreator || "Unknown") +
+        ". " +
+        (item.title || "Untitled") +
+        ".",
     ),
   }));
 

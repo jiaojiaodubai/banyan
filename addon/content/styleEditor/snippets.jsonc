@@ -37,45 +37,137 @@
       "$0"
     ]
   },
-  "UI: Basic Options": {
-    "prefix": ["ui", "ui-basic"],
-    "description": "Insert a basic UI declaration",
+  "STYLE_OPTIONS: Basic Options": {
+    "prefix": ["style-option", "style-options-basic"],
+    "description": "Insert a STYLE_OPTIONS declaration (document-wide parameters)",
     "body": [
-      "const UI = {",
-      "  citation: [",
-      "    {",
-      "      id: \"${1:show-url}\",",
-      "      label: \"${2:Show URL}\",",
-      "      type: \"checkbox\",",
-      "      value: ${3:false},",
-      "    },",
-      "  ],",
-      "  cite: [],",
-      "};",
-      "$0"
-    ]
-  },
-  "STYLE_OPTION_CONTROLS: Basic Options": {
-    "prefix": ["style-option-control", "style-option-control-basic"],
-    "description": "Insert a STYLE_OPTION_CONTROLS declaration (document-wide options)",
-    "body": [
-      "const STYLE_OPTION_CONTROLS = [",
+      "const STYLE_OPTIONS = [",
       "  {",
       "    id: \"${1:abbrevMode}\",",
+      "    kind: \"state\",",
       "    label: \"${2:再次引用}\",",
-      "    type: \"select\",",
-      "    value: \"${3:auto}\",",
-      "    options: { ${4:auto}: \"${5:自动略写}\", ${6:full}: \"${7:一律完整}\" },",
+      "    states: {",
+      "      ${3:auto}: \"${4:自动略写}\",",
+      "      ${5:full}: \"${6:一律完整}\",",
+      "    },",
+      "    defaultValue: \"${7:auto}\",",
       "  },",
       "  {",
       "    id: \"${8:maxNames}\",",
+      "    kind: \"value\",",
       "    label: \"${9:最多列作者数}\",",
-      "    type: \"input\",",
-      "    value: \"${10:3}\",",
+      "    defaultValue: \"${10:3}\",",
       "    description: \"${11:整数；留空按体例默认}\",",
       "    validate: (value) => value === \"\" || /^\\d+$/.test(value) || \"只能填数字\",",
       "  },",
       "];",
+      "$0"
+    ]
+  },
+  "CITATION_PARAMS: Basic State": {
+    "prefix": ["citation-param", "citation-param-state"],
+    "description": "Insert a basic CITATION_PARAMS state parameter",
+    "body": [
+      "const CITATION_PARAMS = [",
+      "  {",
+      "    id: \"${1:show-url}\",",
+      "    kind: \"state\",",
+      "    label: \"${2:Show URL}\",",
+      "    defaultValue: ${3:false},",
+      "  },",
+      "];",
+      "$0"
+    ]
+  },
+  "CITATION_PARAMS: Value": {
+    "prefix": ["citation-param-value", "citation-value"],
+    "description": "Insert a free value parameter for CITATION_PARAMS",
+    "body": [
+      "{",
+      "  id: \"${1:prefix}\",",
+      "  kind: \"value\",",
+      "  label: \"${2:Prefix}\",",
+      "  defaultValue: \"${3:}\",",
+      "  presets: [\"${4:参见}\"],",
+      "},",
+      "$0"
+    ]
+  },
+  "CITATION_PARAMS: Rich Value": {
+    "prefix": ["citation-param-richtext", "citation-richtext"],
+    "description": "Insert a rich-markup value parameter for CITATION_PARAMS",
+    "body": [
+      "{",
+      "  id: \"${1:comment}\",",
+      "  kind: \"value\",",
+      "  label: \"${2:Comment}\",",
+      "  format: \"rich\",",
+      "  defaultValue: \"${3:<em>参见</em>}\",",
+      "},",
+      "$0"
+    ]
+  },
+  "CITE_PARAMS: Basic State": {
+    "prefix": ["cite-param-state", "cite-state"],
+    "description": "Insert a state parameter for CITE_PARAMS",
+    "body": [
+      "{",
+      "  id: \"${1:suppress-author}\",",
+      "  kind: \"state\",",
+      "  label: \"${2:Suppress Author}\",",
+      "  defaultValue: ${3:false},",
+      "  applicable: (cite) => cite.item.itemType === \"${4:book}\",",
+      "},",
+      "$0"
+    ]
+  },
+  "CITE_PARAMS: Value": {
+    "prefix": ["cite-param-value", "cite-value"],
+    "description": "Insert a value parameter for CITE_PARAMS",
+    "body": [
+      "{",
+      "  id: \"${1:locator}\",",
+      "  kind: \"value\",",
+      "  label: \"${2:Locator}\",",
+      "  defaultValue: \"${3:}\",",
+      "  applicable: (cite) => cite.item.itemType === \"${4:book}\",",
+      "},",
+      "$0"
+    ]
+  },
+  "CITE_PARAMS: Forced Value": {
+    "prefix": ["cite-param-forced", "cite-forced"],
+    "description": "Insert a conditionally forced value parameter",
+    "body": [
+      "{",
+      "  id: \"${1:journalNameForm}\",",
+      "  kind: \"state\",",
+      "  label: \"${2:报刊名写法}\",",
+      "  states: {",
+      "    full: \"${3:全称}\",",
+      "    abbreviated: \"${4:刊名缩写}\",",
+      "  },",
+      "  defaultValue: \"${5:full}\",",
+      "  forcedValue: (cite) =>",
+      "    cite.item.journalAbbreviation ? null : \"${6:full}\",",
+      "},",
+      "$0"
+    ]
+  },
+  "CITE_PARAMS: List of Values": {
+    "prefix": ["cite-param-list", "cite-list"],
+    "description": "Insert a list parameter whose fields are value parameters",
+    "body": [
+      "{",
+      "  id: \"${1:pages}\",",
+      "  kind: \"list\",",
+      "  label: \"${2:多个页码}\",",
+      "  min: 1,",
+      "  fields: [",
+      "    { id: \"start\", kind: \"value\", label: \"${3:起}\", defaultValue: \"\" },",
+      "    { id: \"end\", kind: \"value\", label: \"${4:止}\", defaultValue: \"\" },",
+      "  ],",
+      "},",
       "$0"
     ]
   },
@@ -96,19 +188,6 @@
       "$0"
     ]
   },
-  "UI: Citation Checkbox": {
-    "prefix": ["ui-citation-checkbox", "citation-checkbox"],
-    "description": "Insert a checkbox component for UI.citation",
-    "body": [
-      "{",
-      "  id: \"${1:show-url}\",",
-      "  label: \"${2:Show URL}\",",
-      "  type: \"checkbox\",",
-      "  value: ${3:false},",
-      "},",
-      "$0"
-    ]
-  },
   "ITEM_FIELD_VALIDATORS: Basic Checker": {
     "prefix": ["validator", "item-field-validators", "field-check"],
     "description": "Insert an ITEM_FIELD_VALIDATORS checker (item context menu \"Check Fields\")",
@@ -116,84 +195,8 @@
       "{",
       "  // Report text; a single plain string, since styles have no locale concept",
       "  description: \"${1:必须填写标题}\",",
-      "  // Read-only; return true/false, a string, an array of strings, or a Promise",
+      "  // Read-only; return true/false, a string, or an array of strings (may be async)",
       "  check: (item) => ${2:item.title ? true : \"缺少标题\"},",
-      "},",
-      "$0"
-    ]
-  },
-  "UI: Citation Select": {
-    "prefix": ["ui-citation-select", "citation-select"],
-    "description": "Insert a select component for UI.citation",
-    "body": [
-      "{",
-      "  id: \"${1:name-format}\",",
-      "  label: \"${2:Name Format}\",",
-      "  type: \"select\",",
-      "  value: \"${3:full}\",",
-      "  options: {",
-      "    \"${4:full}\": \"${5:Full Name}\",",
-      "    \"${6:abbr}\": \"${7:Abbreviated}\",",
-      "  },",
-      "},",
-      "$0"
-    ]
-  },
-  "UI: Citation Input": {
-    "prefix": ["ui-citation-input", "citation-input"],
-    "description": "Insert an input component for UI.citation",
-    "body": [
-      "{",
-      "  id: \"${1:prefix}\",",
-      "  label: \"${2:Prefix}\",",
-      "  type: \"input\",",
-      "  value: \"${3:}\",",
-      "},",
-      "$0"
-    ]
-  },
-  "UI: Cite Checkbox": {
-    "prefix": ["ui-cite-checkbox", "cite-checkbox"],
-    "description": "Insert a checkbox component for UI.cite",
-    "body": [
-      "{",
-      "  id: \"${1:suppress-author}\",",
-      "  label: \"${2:Suppress Author}\",",
-      "  type: \"checkbox\",",
-      "  value: ${3:false},",
-      "  visible: (item) => item.itemType === \"${5:book}\",",
-      "},",
-      "$0"
-    ]
-  },
-  "UI: Cite Select": {
-    "prefix": ["ui-cite-select", "cite-select"],
-    "description": "Insert a select component for UI.cite",
-    "body": [
-      "{",
-      "  id: \"${1:page-kind}\",",
-      "  label: \"${2:Page Kind}\",",
-      "  type: \"select\",",
-      "  value: \"${3:page}\",",
-      "  options: {",
-      "    \"${4:page}\": \"${5:Page}\",",
-      "    \"${6:folio}\": \"${7:Folio}\",",
-      "  },",
-      "  visible: (item) => item.itemType === \"${9:manuscript}\",",
-      "},",
-      "$0"
-    ]
-  },
-  "UI: Cite Input": {
-    "prefix": ["ui-cite-input", "cite-input"],
-    "description": "Insert an input component for UI.cite",
-    "body": [
-      "{",
-      "  id: \"${1:locator}\",",
-      "  label: \"${2:Locator}\",",
-      "  type: \"input\",",
-      "  value: \"${3:}\",",
-      "  visible: (item) => item.itemType === \"${5:book}\",",
       "},",
       "$0"
     ]

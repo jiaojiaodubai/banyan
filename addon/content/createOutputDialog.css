@@ -60,6 +60,24 @@ body {
   margin-top: -4px;
 }
 
+#style-options-block {
+  gap: 8px;
+}
+
+#style-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 34vh;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+
+#style-options .style-options-error {
+  color: var(--fill-danger, #c50042);
+  font-size: 0.95em;
+}
+
 .radio-group {
   display: flex;
   gap: 12px;

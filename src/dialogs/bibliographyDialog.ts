@@ -8,11 +8,15 @@ import type {
   CitationSource,
   Cite,
   BibliographyLine,
-} from "../../typings/style";
+} from "@banyan/core/types/style";
 import type { IO as CitationDialogIO } from "./citationDialog";
-import { RichTextEditor } from "../components/richTextEditor";
-import { emptyRichText } from "../utils/richText";
+import { getZoteroItemId } from "../modules/sandbox/items";
+import { RichTextEditor } from "../ui/richTextEditor";
+import { emptyRichText } from "@banyan/core/richText/richText";
 import { unwrapDialogIO } from "../utils/window";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("bibliography-dialog");
 
 export type IO = {
   data: BibliographyRequestData;
@@ -27,6 +31,8 @@ let extraCitation: CitationSource | undefined;
 let editorEl: HTMLDivElement | null = null;
 let editor: RichTextEditor | null = null;
 let uncitedItemsView: _ZoteroTypes.CollectionViewItemTree | null = null;
+/** Bumped per refresh so the view does not treat a new row set as unchanged. */
+let uncitedRowSerial = 0;
 
 const DEFAULT_VISIBLE_COLUMNS: readonly string[] = [
   "title",
@@ -45,7 +51,7 @@ window.addEventListener("unload", () => {
 async function initBibliographyDialog(): Promise<void> {
   const arg = unwrapDialogIO<IO>(window.arguments?.[0]);
   if (!arg) {
-    ztoolkit.logError("bibliographyDialog: window IO is missing");
+    log.error("window IO is missing");
     return;
   }
   io = arg;
@@ -150,7 +156,7 @@ async function initUncitedItemsTree(): Promise<void> {
     });
     await refreshUncitedItems();
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("初始化未引用条目列表失败", e);
   }
 }
 
@@ -161,15 +167,15 @@ async function refreshUncitedItems(): Promise<void> {
   try {
     await uncitedItemsView.changeCollectionTreeRow(row);
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("切换未引用条目集合失败", e);
   }
 }
 
 function getExtraCitationItems(): Zotero.Item[] {
   const cites: Cite[] = extraCitation?.cites ?? [];
   const ids = cites
-    .map((cite) => cite.item?.id)
-    .filter((id): id is number => typeof id === "number");
+    .map((cite) => (cite.item ? getZoteroItemId(cite.item) : undefined))
+    .filter((id): id is number => id !== undefined);
   const items = ids
     .map((id) => Zotero.Items.get(id))
     .filter((item): item is Zotero.Item => Boolean(item));
@@ -179,7 +185,10 @@ function getExtraCitationItems(): Zotero.Item[] {
 function makeUncitedCollectionTreeRow(items: Zotero.Item[]) {
   const libraryID = Zotero.Libraries?.userLibraryID ?? 1;
   return {
-    id: "banyan-uncited-items-row",
+    // A fresh id on every refresh: `CollectionViewItemTree.setCollectionTreeRows()`
+    // returns early when the new row ids equal the current ones, so a reused id
+    // leaves the list showing the items from before an uncited-item edit.
+    id: `banyan-uncited-items-row-${++uncitedRowSerial}`,
     view: {},
     ref: { libraryID },
     visibilityGroup: "",

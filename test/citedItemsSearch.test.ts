@@ -9,9 +9,9 @@ import type {
   CitationContext,
   IntextCitation,
   NoteCitation,
-} from "../typings/style";
+} from "@banyan/core/types/style";
 
-function createContext(id: string, itemIDs: Array<number | undefined>) {
+function createContext(id: string, itemIDs: Array<string | undefined>) {
   return {
     id,
     page: 1,
@@ -60,8 +60,8 @@ describe("citation collection helpers", function () {
 
   it("builds ordered per-item citation previews from refresh data", function () {
     const contexts = [
-      createContext("ctx-1", [101, 102]),
-      createContext("ctx-2", [101]),
+      createContext("ctx-1", ["101", "102"]),
+      createContext("ctx-2", ["101"]),
     ];
     const citations = [
       createCitation("(Smith, 2024)"),
@@ -90,9 +90,9 @@ describe("citation collection helpers", function () {
 
   it("keeps a repeat out of a preview but leaves a later one in", function () {
     const contexts = [
-      createContext("ctx-1", [101]),
-      createContext("ctx-2", [101]),
-      createContext("ctx-3", [101]),
+      createContext("ctx-1", ["101"]),
+      createContext("ctx-2", ["101"]),
+      createContext("ctx-3", ["101"]),
     ];
     const citations = [
       createCitation("(Smith, 2024)"),
@@ -108,8 +108,8 @@ describe("citation collection helpers", function () {
 
   it("skips citations with no text and cites with no item id", function () {
     const contexts = [
-      createContext("ctx-1", [undefined, 101]),
-      createContext("ctx-2", [102]),
+      createContext("ctx-1", [undefined, "101"]),
+      createContext("ctx-2", ["102"]),
     ];
     const citations = [createCitation("   "), createCitation("(Jones, 2025)")];
 
@@ -124,8 +124,8 @@ describe("citation collection helpers", function () {
 
   it("pairs contexts with citations up to the shorter list", function () {
     const contexts = [
-      createContext("ctx-1", [101]),
-      createContext("ctx-2", [102]),
+      createContext("ctx-1", ["101"]),
+      createContext("ctx-2", ["102"]),
     ];
 
     const previews = buildPreviews(contexts, [createCitation("(Smith, 2024)")]);

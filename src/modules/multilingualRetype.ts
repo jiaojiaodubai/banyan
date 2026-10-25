@@ -11,6 +11,9 @@ import {
   wasItemTypeChanged,
   type GroupMember,
 } from "../utils/multilingualRetype";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("multilingual-retype");
 
 /** A member to move to the new type, next to the item its data came from. */
 type SplitMember = {
@@ -85,11 +88,11 @@ function enqueue(id: number): void {
   pending = pending
     .then(() => reportSplit(id))
     .catch((error: unknown) => {
-      ztoolkit.logError(error);
+      log.error("处理拆分结果失败", error);
       try {
         notify(t("multilingual-retype-read-error"));
       } catch (notifyError) {
-        ztoolkit.logError(notifyError);
+        log.warn("显示拆分结果失败", notifyError);
       }
     });
 }
@@ -174,7 +177,7 @@ async function applyRetype(
   try {
     await reloadItemContent(changed);
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("重新读取条目失败", error);
     notify(t("multilingual-retype-read-error"));
     return;
   }
@@ -212,7 +215,7 @@ async function applyRetype(
       }
     });
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("执行类型转换失败", error);
     // The database rolled back, but the items keep the new type in memory, and
     // `reload()` refuses to change a type it considers loaded ("Cannot change
     // type in loadIn mode"). Restore the stored type first, then reload and
@@ -227,7 +230,7 @@ async function applyRetype(
           await item.reload(["primaryData", "itemData", "creators"], true);
           item._clearChanged();
         } catch (reloadError) {
-          ztoolkit.logError(reloadError);
+          log.error("恢复条目类型失败", reloadError);
         }
       }),
     );
@@ -319,7 +322,7 @@ async function focusItem(itemID: number): Promise<void> {
     await Zotero.getActiveZoteroPane()?.selectItem(itemID);
   } catch (error) {
     // Showing the split matters more than the selection failing here.
-    ztoolkit.logError(error);
+    log.warn("选中拆分后的条目失败", error);
   }
 }
 

@@ -1,6 +1,10 @@
-import type { Cite, CitationContext } from "../../typings/style";
+import type { Cite, CitationContext } from "@banyan/core/types/style";
+import { getZoteroItemUri, ZOTERO_ITEM_URI_KEY } from "./sandbox/items";
 import { useL10n } from "../utils/locale";
 import { checkURIAccessibility, type InaccessibleReason } from "../utils/uri";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("inaccessible-items");
 
 export type InaccessibleItemInfo = {
   cite: Cite;
@@ -29,7 +33,7 @@ export async function scanInaccessibleItems(
 
   for (const context of contexts) {
     for (const cite of context.cites) {
-      const uri = cite.item.uri;
+      const uri = getZoteroItemUri(cite.item);
       if (!uri || seenUris.has(uri)) {
         continue;
       }
@@ -170,7 +174,7 @@ export async function showInaccessibleItemsDialog(
       Zotero.Utilities.Internal.activate(parentWindow);
     }
   } catch (e) {
-    ztoolkit.logError(e);
+    log.warn("激活主窗口失败", e);
   }
 
   const [button0, button1, button2] = actions;
@@ -232,11 +236,10 @@ export async function importInaccessibleItems(
           if (
             typeof value === "string" &&
             field !== "id" &&
-            field !== "key" &&
-            field !== "uri" &&
             field !== "itemType" &&
             field !== "title" &&
-            field !== "date"
+            field !== "date" &&
+            field !== ZOTERO_ITEM_URI_KEY
           ) {
             try {
               newItem.setField(field, value);
@@ -270,7 +273,7 @@ export async function importInaccessibleItems(
         await newItem.save();
         imported.set(info.uri, newItem);
       } catch (e) {
-        ztoolkit.logError(e);
+        log.error("导入条目失败", e);
       }
     }
   });

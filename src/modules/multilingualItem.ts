@@ -12,11 +12,11 @@ import { unwrapMultilingualDialogIO } from "../utils/multilingualDialogIO";
 import {
   findExistingLanguageItem,
   isSameItemContent,
-  normalizeLanguageCode,
   reloadItemContent,
   snapshotItemContent,
   type LanguageItemCandidate,
 } from "../utils/multilingualDraft";
+import { normalizeLanguageCode } from "@banyan/core/items/language";
 import {
   findWindowByName,
   isWindowAlive,
@@ -29,6 +29,9 @@ import type {
   MultilingualCommitResult,
   MultilingualItemDialogIO,
 } from "../../typings/multilingualItemDialog";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("multilingual-item");
 
 const t = useL10n(["multilingualItemDialog.ftl"]);
 
@@ -130,9 +133,9 @@ export async function commitMultilingualDraft(
             }
           });
         } catch (error) {
-          // The rollback restores the database, not the objects: put the items
-          // the transaction wrote back on the stored values, or a later save
-          // writes the relations the rollback undid.
+          // The rollback restores the database, not the objects. Restore the
+          // stored values on the items as well, or a later save could reapply
+          // the relations that the rollback removed.
           await restoreStoredState([source, ...related]);
           throw error;
         }
@@ -151,7 +154,7 @@ export async function commitMultilingualDraft(
             : {}),
         };
       },
-      logError: (error) => ztoolkit.logError(error),
+      logError: (error) => log.error("提交条目失败", error),
       fallbackMessage: t("multilingual-item-error-save"),
     }),
   );
@@ -172,7 +175,7 @@ async function restoreStoredState(items: Zotero.Item[]): Promise<void> {
       await item.loadDataType("relations");
       await reloadItemContent(item);
     } catch (error) {
-      ztoolkit.logError(error);
+      log.warn("恢复条目存储状态失败", error);
     }
   }
 }
@@ -193,7 +196,7 @@ async function requireCurrentSource(
   try {
     await reloadItemContent(stored);
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("重新读取来源条目失败", error);
     throw new Error(t("multilingual-item-error-source-changed"), {
       cause: error,
     });
@@ -374,7 +377,7 @@ async function handleDialogResult(
         );
       }
     } catch (error) {
-      ztoolkit.logError(error);
+      log.warn("检查来源条目是否被删除失败", error);
     }
   }
 }

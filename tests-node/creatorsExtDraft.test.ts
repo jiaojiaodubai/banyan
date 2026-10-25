@@ -9,9 +9,9 @@ import {
 import {
   parseCreatorsExt,
   reconcileCreatorsExt,
-  replaceExtraFieldBlock,
-} from "../src/utils/item";
-import type { Creator } from "../typings/item";
+} from "@banyan/core/items/creatorsExt";
+import { replaceExtraFieldBlock } from "@banyan/core/items/extra";
+import type { Creator } from "@banyan/core/types/item";
 import type { CreatorSnapshot } from "../typings/multilingualItem";
 
 const CREATORS_EXT_PREFIX = "creators-ext: ";
@@ -200,19 +200,15 @@ describe("creators-ext window data", function () {
 
   describe("save path", function () {
     it("writes the creator list and the extension block together", function () {
-      const write = buildCreatorsExtWrite(
-        [
-          draft({ role: "著", nationality: "英" }),
-          draft({
-            creatorType: "translator",
-            fieldMode: 1,
-            lastName: "Grace Hopper",
-            role: "译",
-          }),
-        ],
-        [],
-        true,
-      );
+      const write = buildCreatorsExtWrite([
+        draft({ role: "著", nationality: "英" }),
+        draft({
+          creatorType: "translator",
+          fieldMode: 1,
+          lastName: "Grace Hopper",
+          role: "译",
+        }),
+      ]);
 
       assert.deepEqual(write.creators, [
         { creatorType: "author", firstName: "Ada", lastName: "Lovelace" },
@@ -237,20 +233,16 @@ describe("creators-ext window data", function () {
     });
 
     it("drops empty rows and keeps the remaining indexes aligned", function () {
-      const write = buildCreatorsExtWrite(
-        [
-          draft({ role: "著" }),
-          draft({ firstName: "   ", lastName: "  " }),
-          draft({
-            creatorType: "translator",
-            firstName: "Someone",
-            lastName: "Else",
-            role: "译",
-          }),
-        ],
-        [],
-        true,
-      );
+      const write = buildCreatorsExtWrite([
+        draft({ role: "著" }),
+        draft({ firstName: "   ", lastName: "  " }),
+        draft({
+          creatorType: "translator",
+          firstName: "Someone",
+          lastName: "Else",
+          role: "译",
+        }),
+      ]);
 
       assert.lengthOf(write.creators, 2);
       assert.lengthOf(write.lines, 2);
@@ -265,14 +257,10 @@ describe("creators-ext window data", function () {
     });
 
     it("trims values and writes no record for a row without extensions", function () {
-      const write = buildCreatorsExtWrite(
-        [
-          draft({ firstName: " Ada ", lastName: " Lovelace ", role: " 著 " }),
-          draft({ creatorType: "translator", firstName: "Grace" }),
-        ],
-        [],
-        true,
-      );
+      const write = buildCreatorsExtWrite([
+        draft({ firstName: " Ada ", lastName: " Lovelace ", role: " 著 " }),
+        draft({ creatorType: "translator", firstName: "Grace" }),
+      ]);
 
       assert.deepEqual(write.creators[0], {
         creatorType: "author",
@@ -291,18 +279,14 @@ describe("creators-ext window data", function () {
     });
 
     it("keeps a single-name creator in one field", function () {
-      const write = buildCreatorsExtWrite(
-        [
-          draft({
-            fieldMode: 1,
-            firstName: "ignored",
-            lastName: " Grace Hopper ",
-            nationality: "美",
-          }),
-        ],
-        [],
-        true,
-      );
+      const write = buildCreatorsExtWrite([
+        draft({
+          fieldMode: 1,
+          firstName: "ignored",
+          lastName: " Grace Hopper ",
+          nationality: "美",
+        }),
+      ]);
 
       assert.deepEqual(write.creators, [
         { creatorType: "author", name: "Grace Hopper" },
@@ -340,26 +324,22 @@ describe("creators-ext window data", function () {
     });
 
     it("round-trips what it writes back onto the creators", function () {
-      const write = buildCreatorsExtWrite(
-        [
-          draft({ role: "著", nationality: "英" }),
-          draft({
-            creatorType: "translator",
-            fieldMode: 1,
-            lastName: "Grace Hopper",
-            role: "译注",
-          }),
-          draft({
-            creatorType: "editor",
-            firstName: "F",
-            lastName: "He",
-            role: "编著",
-            dynasty: "唐",
-          }),
-        ],
-        [],
-        true,
-      );
+      const write = buildCreatorsExtWrite([
+        draft({ role: "著", nationality: "英" }),
+        draft({
+          creatorType: "translator",
+          fieldMode: 1,
+          lastName: "Grace Hopper",
+          role: "译注",
+        }),
+        draft({
+          creatorType: "editor",
+          firstName: "F",
+          lastName: "He",
+          role: "编著",
+          dynasty: "唐",
+        }),
+      ]);
 
       const parsed = parseCreatorsExt({
         "creators-ext": write.lines.map((line) =>

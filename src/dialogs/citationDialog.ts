@@ -3,17 +3,32 @@ import type {
   CitationResponseData,
 } from "../../typings/server";
 import type {
+  CitationContext,
+  CitationParam,
   CitationParams,
   Cite,
-  StyleComponent,
-  StyleUI,
-} from "../../typings/style";
-import { BubbleInput } from "../components/bubbleInput";
-import { renderStyleComponentOptions } from "../components/styleComponentOptions";
-import { toBanyanItem } from "../utils/item";
+  ParamDeclarations,
+  StyleOptionValues,
+} from "@banyan/core/types/style";
+import {
+  resolveCitationParamValues,
+  resolveStyleOptionState,
+  type ParamState,
+} from "@banyan/core/validation/paramValues";
+import { BubbleInput } from "../ui/bubbleInput";
+import {
+  ParameterPanel,
+  initialParameterValue,
+  type ScalarValue,
+} from "../ui/parameterPanel";
+import { getStyleOptionState } from "../modules/styles";
+import { getZoteroItemId, toBanyanItem } from "../modules/sandbox/items";
 import { useL10n } from "../utils/locale";
 import { getPref, setPref } from "../utils/prefs";
 import { unwrapDialogIO } from "../utils/window";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("citation-dialog");
 
 export type IO = {
   data: CitationDialogRequestData;
@@ -52,6 +67,8 @@ const CITATION_DIALOG_COLLECTION_TREE_WIDTH_PREF =
 type CitationDialogInitialCollectionMode =
   "mainLibrary" | "followAppSelection" | "lastSelected";
 
+type ResolvedCitation = ReturnType<typeof resolveCitationParamValues>;
+
 let io: IO | null = null;
 let resolved = false;
 let collectionsView: _ZoteroTypes.CollectionTree | null = null;
@@ -61,6 +78,16 @@ let bubbleInput: BubbleInput | null = null;
 
 // Store current values for citation-scope options
 let citationParams: CitationParams = {};
+/** Effective document-wide option values, read by control predicates. */
+let styleOptions: StyleOptionValues = {};
+let citationPanel: ParameterPanel<CitationParam> | null = null;
+let citationDeclarations: CitationParam[] = [];
+/**
+ * One resolution per change. `ParameterPanel.refresh()` asks for each control's
+ * state separately, and cite predicates read the resolved citation again, so
+ * resolving per call would run every `applicable`/`validate` callback N times.
+ */
+let citationResolution: ResolvedCitation | null = null;
 
 let committedItemIDs = new Set<number>();
 
@@ -144,8 +171,8 @@ function getItemsViewFocusedRowIndex(): number {
   const focused = itemsView?.tree?.selection?.focused;
   if (typeof focused === "number") return focused;
 
-  // Backward Compatibly: compatible with older Zotero item tree builds around
-  // upstream commit 5ca1fbb16 where selection may still be read from itemsView.
+  // The virtualized tree is not ready during the first render; the item view
+  // still exposes its selection then.
   const fallbackFocused = itemsView?.selection?.focused;
   return typeof fallbackFocused === "number" ? fallbackFocused : -1;
 }
@@ -187,14 +214,20 @@ async function initCitationDialog(): Promise<void> {
     if (io?.mode === "uncited") {
       document.title = t("citation-dialog-uncited-title");
     }
-    const styleUI = await resolveCitationStyleUI(io.data.style);
-    const citationUI: StyleComponent[] = styleUI.citation ?? [];
+    const declarations = await resolveParamDeclarations(io.data.style);
+    citationDeclarations = declarations.citation ?? [];
 
     citationParams = { ...(io?.data.source?.params ?? {}) };
+    styleOptions = await resolveDialogStyleOptions(
+      io?.data.style,
+      io?.data.options,
+    );
 
-    for (const comp of citationUI) {
-      citationParams[comp.id] =
-        io?.data.source?.params?.[comp.id] ?? comp.value;
+    for (const control of citationDeclarations) {
+      citationParams[control.id] = initialParameterValue(
+        control,
+        io?.data.source?.params?.[control.id],
+      );
     }
 
     // Seed committed set so opening an existing citation doesn't log as add/remove
@@ -210,10 +243,10 @@ async function initCitationDialog(): Promise<void> {
 
     const searchContainer = document.getElementById("search-placeholder");
     if (searchContainer) {
-      const styleComponents = styleUI.cite || [];
+      const citeControls = declarations.cite || [];
       bubbleInput = new BubbleInput(
         searchContainer as HTMLElement,
-        styleComponents,
+        citeControls,
         {
           onSearch: (query) => {
             void scheduleApplyItemsFilter(query);
@@ -223,12 +256,18 @@ async function initCitationDialog(): Promise<void> {
           },
           onCitesChanged: (cites) => {
             logCitesDelta(cites);
-            updateAcceptButton();
+            invalidateCitationResolution();
+            citationPanel?.refresh();
+            scheduleAcceptUpdate();
             refreshItemsHighlight();
           },
           onDropItemIDs: (itemIDs, insertIndex) => {
             addDraggedItemsToCitation(itemIDs, insertIndex);
           },
+        },
+        {
+          getCitationParams: () => resolvedCitationContext().params,
+          getStyleOptions: () => styleOptions,
         },
       );
     }
@@ -239,18 +278,19 @@ async function initCitationDialog(): Promise<void> {
     initResizableSidebar();
     await initLibrary();
     await selectInitialCollection();
-    renderCitationOptions(citationUI);
 
-    // Restore initial cites if dialog is opened to edit an existing citation
+    // Restore initial cites first: citation controls may ask about them
+    // (visibility predicates see the cites being edited).
     if (io?.data.source?.cites?.length && bubbleInput) {
       bubbleInput.setCites(io.data.source.cites, { notify: true });
     }
+    renderCitationOptions(citationDeclarations);
     initDynamicDialogMinHeight();
     refreshItemsHighlight();
 
     updateAcceptButton();
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("初始化引用对话框失败", e);
     if (!resolved) {
       io?.resolve(null);
       resolved = true;
@@ -272,17 +312,50 @@ function isStyleIdentifier(
   );
 }
 
-async function resolveCitationStyleUI(
+async function resolveParamDeclarations(
   styleInput: CitationDialogRequestData["style"],
-): Promise<StyleUI> {
+): Promise<ParamDeclarations> {
   if (isStyleIdentifier(styleInput)) {
-    return addon.api.getStyleUI(styleInput);
+    return addon.api.getParamDeclarations(styleInput);
   }
 
   return {
+    style: Array.isArray(styleInput.style) ? styleInput.style : [],
     cite: Array.isArray(styleInput.cite) ? styleInput.cite : [],
     citation: Array.isArray(styleInput.citation) ? styleInput.citation : [],
   };
+}
+
+/**
+ * Effective style options for control predicates. The request carries stored
+ * values; the core resolves defaults and forced values, exactly like the
+ * refresh path does for `generate()`.
+ */
+async function resolveDialogStyleOptions(
+  styleInput: CitationDialogRequestData["style"],
+  stored: StyleOptionValues | undefined,
+): Promise<StyleOptionValues> {
+  if (!isStyleIdentifier(styleInput)) {
+    // Param declarations carry the style-option schema itself, so the dialog
+    // resolves them the same way it would for a style binding.
+    try {
+      return resolveStyleOptionState(styleInput.style, stored).effectiveValues;
+    } catch (e) {
+      log.error("解析样式全局选项失败", e);
+      return stored ? { ...stored } : {};
+    }
+  }
+  // Style bindings carry the saved options inside `style`; WPS/Word use that
+  // shape, while the plugin's own callers may send a top-level `options`.
+  const styleStored =
+    stored ?? (styleInput as { options?: StyleOptionValues }).options;
+  try {
+    const { state } = await getStyleOptionState(styleInput, styleStored);
+    return state.effectiveValues;
+  } catch (e) {
+    log.error("读取样式全局选项失败", e);
+    return styleStored ? { ...styleStored } : {};
+  }
 }
 
 async function initLibrary(): Promise<void> {
@@ -335,8 +408,7 @@ async function initLibrary(): Promise<void> {
 
     bindItemsTreeSpaceToggle();
   } catch (e) {
-    ztoolkit.log("初始化文库视图失败");
-    ztoolkit.logError(e);
+    log.error("初始化文库视图失败", e);
   }
 }
 
@@ -368,8 +440,7 @@ async function selectMainLibraryByDefault(): Promise<void> {
   try {
     await collectionsView.selectLibrary(userLibraryID);
   } catch (e) {
-    ztoolkit.log("默认选中主文库失败");
-    ztoolkit.logError(e);
+    log.error("默认选中主文库失败", e);
   }
 }
 
@@ -385,8 +456,7 @@ async function restoreLastSelectedCollection(): Promise<boolean> {
     const restored = await collectionsView.selectByID?.(lastSelected);
     return restored !== false;
   } catch (e) {
-    ztoolkit.log("恢复上次选中的分类失败");
-    ztoolkit.logError(e);
+    log.error("恢复上次选中的分类失败", e);
     return false;
   }
 }
@@ -422,8 +492,7 @@ async function restoreAppSelectedCollection(): Promise<boolean> {
     }
     return true;
   } catch (e) {
-    ztoolkit.log("恢复客户端当前选中的分类失败");
-    ztoolkit.logError(e);
+    log.error("恢复客户端当前选中的分类失败", e);
     return false;
   }
 }
@@ -572,15 +641,15 @@ function toggleSelectedItemsCommitState(options?: {
 
   const existingByID = new Map<number, Cite>();
   for (const c of bubbleInput.Cites) {
-    const id = c.item.id;
-    if (typeof id === "number") existingByID.set(id, c);
+    const id = getCiteItemID(c);
+    if (id != null) existingByID.set(id, c);
   }
 
   const normalizedTargets: Array<{ id: number; cite: Cite }> = [];
   for (const item of targets) {
     const simplified = toBanyanItem(item);
-    const id = simplified.id;
-    if (typeof id !== "number") continue;
+    const id = getZoteroItemId(simplified);
+    if (id == null) continue;
     normalizedTargets.push({ id, cite: { item: simplified, params: {} } });
   }
   if (!normalizedTargets.length) return;
@@ -653,15 +722,34 @@ async function handleLibraryCollectionSelection(): Promise<void> {
 
 function onAccept(): void {
   if (!io || !bubbleInput) return;
+  if (!validateBeforeAccept()) return;
 
   const output: CitationResponseData = {
     cites: bubbleInput.Cites,
     params: citationParams,
   };
-  ztoolkit.log("citationDialog output", output);
+  log.debug("output", output);
   io.resolve(output);
   resolved = true;
   window.close();
+}
+
+/**
+ * Validation gate for the whole dialog: citation-scope errors are already on
+ * screen; cite params may live in a closed popup, so they are re-checked from
+ * the stored values before the result is accepted.
+ */
+function validateBeforeAccept(): boolean {
+  const citationValid = citationPanel?.isValid() ?? true;
+  if (!citationValid) {
+    citationPanel?.focusFirstInvalid();
+    return false;
+  }
+  if (!(bubbleInput?.validateAll() ?? true)) {
+    bubbleInput?.focusFirstInvalid();
+    return false;
+  }
+  return true;
 }
 
 function delay(ms: number): Promise<void> {
@@ -677,8 +765,7 @@ function elideMiddle(text: string, maxChars: number): string {
 }
 
 function getCiteItemID(cite: Cite): number | null {
-  const id = cite.item.id;
-  return typeof id === "number" ? id : null;
+  return getZoteroItemId(cite.item) ?? null;
 }
 
 function getCiteTitleForLog(cite: Cite): string {
@@ -712,10 +799,10 @@ function logCitesDelta(nextCites: Cite[]): void {
   for (const id of added) {
     const cite = byID.get(id);
     const title = cite ? getCiteTitleForLog(cite) : "";
-    ztoolkit.log(`[commit+] ${id}${title ? ` ${title}` : ""}`);
+    log.debug(`commit+ ${id}${title ? ` ${title}` : ""}`);
   }
   for (const id of removed) {
-    ztoolkit.log(`[commit-] ${id}`);
+    log.debug(`commit- ${id}`);
   }
 
   committedItemIDs = nextIDs;
@@ -799,8 +886,8 @@ function updateItemsTreeContextMenuState(): void {
   let hasToUncommit = false;
   for (const item of selectedItems) {
     const simplified = toBanyanItem(item);
-    const id = simplified.id;
-    if (typeof id !== "number") continue;
+    const id = getZoteroItemId(simplified);
+    if (id == null) continue;
     if (existingByID.has(id)) {
       hasToUncommit = true;
     } else {
@@ -859,8 +946,8 @@ function uncommitSelectedItemsFromContextMenu(): void {
 
   for (const item of selectedItems) {
     const simplified = toBanyanItem(item);
-    const id = simplified.id;
-    if (typeof id !== "number") continue;
+    const id = getZoteroItemId(simplified);
+    if (id == null) continue;
     const existing = existingByID.get(id);
     if (existing) {
       bubbleInput.removeCite(existing);
@@ -912,8 +999,7 @@ async function applyItemsFilter(query: string): Promise<void> {
   try {
     await view.setFilter(ITEMTREE_FILTER_ID, query);
   } catch (e) {
-    ztoolkit.log("设置条目过滤失败");
-    ztoolkit.logError(e);
+    log.error("设置条目过滤失败", e);
   }
 }
 
@@ -1105,7 +1191,9 @@ function initResizableSidebar(): void {
 
 async function refreshItemsHighlight(): Promise<void> {
   if (!itemsView || !bubbleInput) return;
-  const ids = bubbleInput.Cites.map((c) => c.item.id).filter(Boolean);
+  const ids = bubbleInput.Cites.map(getCiteItemID).filter(
+    (id): id is number => id != null,
+  );
   try {
     // Wait for ItemTree.tree (VirtualizedTable ref) to exist. Calling setHighlightedRows
     // too early can throw inside Zotero's ItemTree because it tries to invalidate.
@@ -1121,7 +1209,7 @@ async function refreshItemsHighlight(): Promise<void> {
     vt?.invalidate?.();
     vt?.forceUpdate?.();
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("刷新条目高亮失败", e);
   }
 }
 
@@ -1129,10 +1217,65 @@ function updateAcceptButton(): void {
   if (!acceptButton) {
     return;
   }
-  acceptButton.disabled = !bubbleInput || bubbleInput.Cites.length === 0;
+  const hasCites = Boolean(bubbleInput && bubbleInput.Cites.length > 0);
+  const citationValid = citationPanel?.isValid() ?? true;
+  const citesValid = bubbleInput?.validateAll() ?? true;
+  acceptButton.disabled = !hasCites || !citationValid || !citesValid;
 }
 
-function renderCitationOptions(components: StyleComponent[]): void {
+/**
+ * Several listeners in one event (cite change, citation control refresh) can
+ * ask for the same button state; validate once per task instead of once per
+ * call. `validateAll()` runs every cite's style-declared validators.
+ */
+let acceptUpdateQueued = false;
+function scheduleAcceptUpdate(): void {
+  if (acceptUpdateQueued) return;
+  acceptUpdateQueued = true;
+  queueMicrotask(() => {
+    acceptUpdateQueued = false;
+    updateAcceptButton();
+  });
+}
+
+function buildCitationContext(): CitationContext {
+  return {
+    id: "citation-dialog",
+    page: 0,
+    cites: bubbleInput?.Cites ?? [],
+    params: citationParams,
+  } as CitationContext;
+}
+
+function citationState(control: CitationParam): ParamState {
+  const resolved = resolveCitation();
+  return (
+    resolved.states[control.id] ?? {
+      mode: "free",
+      value: citationParams[control.id] ?? "",
+    }
+  );
+}
+
+function resolvedCitationContext(): CitationContext {
+  return resolveCitation().citation;
+}
+
+function resolveCitation(): ResolvedCitation {
+  citationResolution ??= resolveCitationParamValues(
+    citationDeclarations,
+    buildCitationContext(),
+    styleOptions,
+  );
+  return citationResolution;
+}
+
+/** The citation context changed: cites, citation params, declarations or options. */
+function invalidateCitationResolution(): void {
+  citationResolution = null;
+}
+
+function renderCitationOptions(controls: CitationParam[]): void {
   const footer = document.querySelector("footer") as HTMLElement | null;
   if (!footer) return;
 
@@ -1147,14 +1290,28 @@ function renderCitationOptions(components: StyleComponent[]): void {
     footer.appendChild(container);
   }
 
-  renderStyleComponentOptions({
+  const values: Record<string, ScalarValue> = {};
+  for (const control of controls) {
+    values[control.id] = initialParameterValue(
+      control,
+      citationParams[control.id],
+    );
+  }
+
+  citationPanel = new ParameterPanel<CitationParam>({
     container,
-    components,
-    values: citationParams,
+    controls,
+    values,
     mode: "xul",
     createXULElementCompat,
-    onChange: (id, value) => {
-      citationParams[id] = value;
+    getState: citationState,
+    onChange: (control, value) => {
+      citationParams[control.id] = value;
+      invalidateCitationResolution();
+      bubbleInput?.refreshOpenPopup();
     },
+    onValidityChange: () => scheduleAcceptUpdate(),
   });
+  citationPanel.render();
+  updateAcceptButton();
 }

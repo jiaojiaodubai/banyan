@@ -2,13 +2,13 @@ import {
   analyzeExtraField,
   mergeExtraField,
   needsConflictDecision,
-} from "../utils/extraField";
+} from "@banyan/core/items/extraField";
 import {
   isValidExtraKey,
   normalizeExtraKey,
-  toBanyanItem,
   toTitleCaseExtraKey,
-} from "../utils/item";
+} from "@banyan/core/items/extra";
+import { toBanyanItem } from "./sandbox/items";
 import { getLocaleID, useL10n } from "../utils/locale";
 import { showSimpleMessage } from "../utils/message";
 import { getRegularSelection } from "../utils/selection";
@@ -19,10 +19,13 @@ import {
   recoverItemAfterFailedSave,
   type ConflictAction,
 } from "./extraFieldWrite";
-import { getFieldPresetMenuLabel } from "./sandbox/fieldPresets";
+import { getFieldPresetMenuLabel } from "@banyan/core/validation/fieldPresets";
 import { getEffectiveItemMenuStyleId } from "./itemMenu";
 import type { ItemMenuContribution, ItemMenuData } from "../../typings/menu";
 import type { IndexedFieldPreset } from "../../typings/styleIndex";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("field-presets");
 
 const t = useL10n(["mainWindow.ftl"]);
 
@@ -55,7 +58,7 @@ function buildFieldPresetSubmenu(): ItemMenuData | null {
       try {
         context.setVisible(presets.some(hasPresetTargets));
       } catch (error) {
-        ztoolkit.logError(error);
+        log.warn("判断字段预设是否有可用目标失败", error);
         context.setVisible(false);
       }
     },
@@ -72,7 +75,7 @@ function buildPresetMenuItem(preset: IndexedFieldPreset): ItemMenuData {
         context.menuElem.setAttribute("label", getFieldPresetMenuLabel(preset));
         context.setVisible(getPresetTargets(preset).length > 0);
       } catch (error) {
-        ztoolkit.logError(error);
+        log.warn("构建字段预设菜单项失败", error);
         context.setVisible(false);
       }
     },
@@ -80,7 +83,7 @@ function buildPresetMenuItem(preset: IndexedFieldPreset): ItemMenuData {
       // The run reports its own failures; this only keeps an unexpected throw
       // from becoming an unhandled rejection.
       void applyFieldPresets(preset).catch((error: unknown) => {
-        ztoolkit.logError(error);
+        log.error("应用字段预设失败", error);
       });
     },
   };
@@ -124,7 +127,7 @@ function isPresetTarget(
     }
     return !preset.visible || preset.visible(toBanyanItem(item)) === true;
   } catch (error) {
-    ztoolkit.logError(error);
+    log.warn("判断条目是否适用字段预设失败", error);
     return false;
   }
 }
@@ -222,7 +225,7 @@ function readField(item: Zotero.Item, fieldName: string): string | null {
   try {
     return String(item.getField(fieldName) ?? "");
   } catch (error) {
-    ztoolkit.logError(error);
+    log.warn("读取条目字段失败", error);
     return null;
   }
 }
@@ -255,7 +258,7 @@ function applyPresetWrites(
     try {
       run();
     } catch (error) {
-      ztoolkit.logError(error);
+      log.error("写入条目字段失败", error);
       ok = false;
     }
   };
@@ -289,14 +292,14 @@ function applyPresetWrites(
         try {
           item.setField(fieldName, previous);
         } catch (error) {
-          ztoolkit.logError(error);
+          log.warn("恢复字段原值失败", error);
         }
       }
       if (extraChanged) {
         try {
           item.setField("extra", originalExtra);
         } catch (error) {
-          ztoolkit.logError(error);
+          log.warn("恢复 extra 字段失败", error);
         }
       }
     },
@@ -330,7 +333,7 @@ async function applyFieldPresets(preset: IndexedFieldPreset): Promise<void> {
     try {
       plan = await planPresetWrites(preset, item, session);
     } catch (error) {
-      ztoolkit.logError(error);
+      log.error("规划字段预设写入失败", error);
       failed++;
       continue;
     }
@@ -355,7 +358,7 @@ async function applyFieldPresets(preset: IndexedFieldPreset): Promise<void> {
       await item.saveTx();
       updated++;
     } catch (error) {
-      ztoolkit.logError(error);
+      log.error("保存条目失败", error);
       await recoverItemAfterFailedSave(item, applied.restore);
       failed++;
     }
@@ -417,14 +420,14 @@ function resolvePresetRoute(
         }
       }
     } catch (error) {
-      ztoolkit.logError(error);
+      log.warn("解析字段预设键失败", error);
     }
   }
   if (!isValidExtraKey(key)) {
     // A key outside the variable-line charset would be written but never read
     // back, so every apply would append another line for it.
-    ztoolkit.logError(
-      `[field-presets] preset '${presetId}': '${key}' cannot be written as an extra field key; ignored`,
+    log.warn(
+      `preset '${presetId}': '${key}' cannot be written as an extra field key; ignored`,
     );
     return null;
   }

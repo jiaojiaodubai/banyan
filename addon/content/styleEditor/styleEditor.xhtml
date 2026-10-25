@@ -21,6 +21,18 @@
       rel="stylesheet"
       href="chrome://__addonRef__/content/styleEditor/styleEditor.css"
     />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/dialogFooter.css"
+    />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/richTextEditor.css"
+    />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/parameterPanel.css"
+    />
 
     <script src="chrome://zotero/content/include.js"></script>
     <script src="chrome://zotero/content/customElements.js"></script>
@@ -377,11 +389,7 @@
               ></iframe>
             </div>
             <div id="output-lint-view" class="output-view"></div>
-            <div
-              id="output-preview-view"
-              class="output-view"
-              data-l10n-id="style-editor-empty-preview"
-            ></div>
+            <div id="output-preview-view" class="output-view"></div>
           </div>
         </div>
       </section>
@@ -392,29 +400,43 @@
         <div id="input-panel-block" class="panel-block">
           <div class="pane-title" data-l10n-id="style-editor-input-title"></div>
           <div id="input-container">
-            <div
-              class="virtualized-table-container"
-              id="citation-rows-list-wrap"
-            >
-              <div id="citation-rows-table-container"></div>
+            <div class="input-section" id="document-citation-block">
+              <div
+                class="pane-subtitle"
+                data-l10n-id="style-editor-input-citation-title"
+              ></div>
+              <div
+                class="virtualized-table-container"
+                id="citation-rows-list-wrap"
+              >
+                <div id="citation-rows-table-container"></div>
+              </div>
+
+              <div id="citation-rows-toolbar">
+                <label
+                  for="citation-row-page-input"
+                  data-l10n-id="style-editor-input-page-column"
+                ></label>
+                <input
+                  id="citation-row-page-input"
+                  class="citation-page-input"
+                  type="number"
+                  min="1"
+                  step="1"
+                />
+                <button id="citation-row-add" type="button">+</button>
+                <button id="citation-row-remove" type="button">-</button>
+                <button id="citation-row-up" type="button">↑</button>
+                <button id="citation-row-down" type="button">↓</button>
+              </div>
             </div>
 
-            <div id="citation-rows-toolbar">
-              <label
-                for="citation-row-page-input"
-                data-l10n-id="style-editor-input-page-column"
-              ></label>
-              <input
-                id="citation-row-page-input"
-                class="citation-page-input"
-                type="number"
-                min="1"
-                step="1"
-              />
-              <button id="citation-row-add" type="button">+</button>
-              <button id="citation-row-remove" type="button">-</button>
-              <button id="citation-row-up" type="button">↑</button>
-              <button id="citation-row-down" type="button">↓</button>
+            <div class="input-section" id="preview-options-block" hidden="true">
+              <div
+                class="pane-subtitle"
+                data-l10n-id="style-editor-options-title"
+              ></div>
+              <div id="preview-options"></div>
             </div>
           </div>
         </div>

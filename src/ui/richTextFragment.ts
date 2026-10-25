@@ -1,64 +1,19 @@
-import type { BibliographyLine } from "../../typings/style";
-import type { RichText } from "../../typings/unit";
-import { escapeAttribute, escapeHtml, sanitizeLink } from "./html";
-import { getRichTextSegments, type RichTextSegment } from "./richText";
+/**
+ * DOM rendering of compiled rich text for plugin UI (previews, dialogs).
+ *
+ * The core owns the string rendering of style output; this layer adds real DOM
+ * nodes and host link handling, so it stays on the host side of the boundary.
+ */
+import type { RichText } from "@banyan/core/types/unit";
+import { sanitizeLink } from "@banyan/core/richText/html";
+import {
+  getRichTextSegments,
+  type RichTextSegment,
+} from "@banyan/core/richText/richText";
 
 export type RenderRichTextFragmentOptions = {
   onLinkClick?: (link: string, event: MouseEvent) => boolean | void;
 };
-
-export type RenderRichTextToHtmlOptions = {
-  includeLinks?: boolean;
-};
-
-export function renderRichTextToHtml(
-  richText: RichText,
-  options: RenderRichTextToHtmlOptions = {},
-): string {
-  if (options.includeLinks === false) {
-    return getRichTextSegments(richText)
-      .map((unit) => renderUnitVisualToHtml(unit))
-      .join("");
-  }
-
-  const out: string[] = [];
-  let currentLink = "";
-  let currentLinkParts: string[] = [];
-
-  const flushLink = () => {
-    if (!currentLink) {
-      return;
-    }
-    out.push(
-      `<a href="${escapeAttribute(currentLink)}">${currentLinkParts.join("")}</a>`,
-    );
-    currentLink = "";
-    currentLinkParts = [];
-  };
-
-  for (const unit of getRichTextSegments(richText)) {
-    const html = renderUnitVisualToHtml(unit);
-    const link = sanitizeLink(unit.link);
-    if (!link) {
-      flushLink();
-      out.push(html);
-      continue;
-    }
-
-    if (currentLink && currentLink !== link) {
-      flushLink();
-    }
-    currentLink = link;
-    currentLinkParts.push(html);
-  }
-
-  flushLink();
-  return out.join("");
-}
-
-export function renderRichTextToText(richText: RichText): string {
-  return richText.text;
-}
 
 export function renderRichTextToFragment(
   richText: RichText,
@@ -88,29 +43,6 @@ export function renderRichTextToFragment(
   }
 
   return fragment;
-}
-
-export function renderBibliographyLineToHtml(line: BibliographyLine): string {
-  const inner = renderRichTextToHtml(line.content);
-  if (line.type === "bibliography-title") {
-    return `<h1>${inner}</h1>`;
-  }
-  return `<p>${inner}</p>`;
-}
-
-function renderUnitVisualToHtml(unit: RichTextSegment): string {
-  let text = escapeHtml(unit.value);
-  if (unit.bold) text = `<strong>${text}</strong>`;
-  if (unit.italic) text = `<em>${text}</em>`;
-  if (unit.script === "superscript") text = `<sup>${text}</sup>`;
-  if (unit.script === "subscript") text = `<sub>${text}</sub>`;
-  const style: string[] = [];
-  if (unit.color) style.push(`color:${escapeAttribute(unit.color)}`);
-  if (unit.backgroundColor) {
-    style.push(`background-color:${escapeAttribute(unit.backgroundColor)}`);
-  }
-  if (style.length) text = `<span style="${style.join(";")}">${text}</span>`;
-  return text;
 }
 
 function createNodeFromUnit(doc: Document, unit: RichTextSegment): Node {

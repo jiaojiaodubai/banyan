@@ -3,11 +3,13 @@ import {
   CREATOR_EXT_FIELDS,
   bindCreatorsExt,
   parseCreatorsExt,
-  parseExtraLines,
   reconcileCreatorsExt,
+} from "@banyan/core/items/creatorsExt";
+import {
+  parseExtraLines,
   replaceExtraFieldBlock,
-} from "../src/utils/item";
-import type { Creator, Item } from "../typings/item";
+} from "@banyan/core/items/extra";
+import type { Creator, Item } from "@banyan/core/types/item";
 
 const creators: Creator[] = [
   {
@@ -218,7 +220,7 @@ describe("creator extension extra data", function () {
       // A copy: binding writes onto the creator, and the shared fixture must
       // stay pristine for the other cases.
       creators: [{ ...creators[0] }],
-    } as Item;
+    } as unknown as Item;
     const warnings: string[] = [];
 
     bindCreatorsExt(item, (message) => warnings.push(message));
@@ -349,7 +351,7 @@ describe("creator extension extra data", function () {
     const item = {
       extra: { "creators-ext": ["{bad json", '{"role":12}'] },
       creators: [{ ...creators[0] }],
-    } as Item;
+    } as unknown as Item;
     const warnings: string[] = [];
 
     assert.doesNotThrow(() => bindCreatorsExt(item, (m) => warnings.push(m)));
@@ -365,7 +367,7 @@ describe("creator extension extra data", function () {
           '{"creatorType":"author","firstName":"Ada","lastName":"Nobody","role":"著"}',
       },
       creators: [{ ...creators[0] }],
-    } as Item;
+    } as unknown as Item;
     const warnings: string[] = [];
 
     bindCreatorsExt(item, (message) => warnings.push(message));
@@ -384,7 +386,7 @@ describe("creator extension extra data", function () {
         ],
       },
       creators: [{ ...creators[0] }, { ...creators[1] }],
-    } as Item;
+    } as unknown as Item;
     const warnings: string[] = [];
 
     bindCreatorsExt(item, (message) => warnings.push(message));
@@ -404,7 +406,7 @@ describe("creator extension extra data", function () {
    * once, and the style reads the extensions off the Banyan creator.
    */
   describe("through toBanyanItem", function () {
-    let toBanyanItem: (typeof import("../src/utils/item"))["toBanyanItem"];
+    let toBanyanItem: (typeof import("../src/modules/sandbox/items"))["toBanyanItem"];
 
     before(async function () {
       const global = globalThis as Record<string, unknown>;
@@ -417,7 +419,7 @@ describe("creator extension extra data", function () {
         },
         URI: { getItemURI: () => "http://zotero.org/users/local/X/items/KEY1" },
       };
-      ({ toBanyanItem } = await import("../src/utils/item"));
+      ({ toBanyanItem } = await import("../src/modules/sandbox/items"));
     });
 
     after(function () {
