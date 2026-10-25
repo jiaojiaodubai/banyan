@@ -137,7 +137,7 @@ async function reportSplit(id: number): Promise<void> {
     text: [
       t("multilingual-retype-message", {
         args: {
-          item: changed.getDisplayTitle(),
+          item: describeChangedItem(changed),
           type: newTypeName,
           count: split.length,
         },
@@ -285,6 +285,15 @@ async function collectRetypeGroup(
     }
   }
   return { members: infos, split };
+}
+
+/**
+ * Name the item the user just changed. `getDisplayTitle()` reads `title`, which
+ * a book → bookSection change moves to `bookTitle`, so the prompt would name an
+ * empty string right when it points at the item that lost it.
+ */
+function describeChangedItem(item: Zotero.Item): string {
+  return item.getDisplayTitle() || item.getField("bookTitle") || item.key;
 }
 
 function describeMember(item: Zotero.Item, newTypeID: number): string {
