@@ -3,65 +3,34 @@ import {
   getFieldPresetMenuLabel,
   hasDeferredFieldValues,
   normalizeFieldPresets,
-} from "../src/modules/sandbox/fieldPresets";
+} from "@banyan/core/validation/fieldPresets";
+import type { StyleMessageReporter } from "@banyan/core/messages";
+import { createStyleMessageReporter } from "@banyan/core/messages";
+import { createIdentitySandboxContext } from "./helpers/sandboxContext";
 
-// Mirrors `citationControls.test.ts`: the module only needs `Cu` for
-// waiveXrays/cloneInto and `ztoolkit` for diagnostics.
-const globals = globalThis as Record<string, unknown>;
-const realZotero = globals.Zotero;
-const realCu = globals.Cu;
-const realZtoolkit = globals.ztoolkit;
+// The core hands what it notices back as diagnostics instead of printing.
+const context = createIdentitySandboxContext();
 
 describe("field preset normalization", function () {
-  const sandbox = {};
-
-  beforeEach(function () {
-    globals.Zotero = {
-      getMainWindow() {
-        return { Cu: { waiveXrays: (value: unknown) => value } };
-      },
-      CreatorTypes: { getID: () => false },
-      ItemTypes: { getID: () => false },
-    };
-    globals.Cu = {
-      waiveXrays: (value: unknown) => value,
-      cloneInto: (value: unknown) => value,
-    };
-    globals.ztoolkit = {
-      log() {
-        // Keep invalid-preset diagnostics quiet in tests.
-      },
-      logError() {
-        // Keep invalid-preset diagnostics quiet in tests.
-      },
-    };
-  });
-
-  afterEach(function () {
-    globals.Zotero = realZotero;
-    globals.Cu = realCu;
-    globals.ztoolkit = realZtoolkit;
-  });
+  const normalize = (
+    raw: unknown,
+    messages: StyleMessageReporter = createStyleMessageReporter(),
+  ) => normalizeFieldPresets(raw, context, messages);
 
   it("normalizes documented entries and their labels", function () {
-    const result = normalizeFieldPresets(
-      [
-        {
-          id: "classic",
-          label: "古籍",
-          fields: { type: "classic" },
-        },
-        {
-          id: "plain",
-          label: "  Plain label  ",
-          visible: () => true,
-          fields: { status: "advance online publication" },
-        },
-      ],
-      {},
-      sandbox,
-      globals.Cu as never,
-    );
+    const result = normalize([
+      {
+        id: "classic",
+        label: "古籍",
+        fields: { type: "classic" },
+      },
+      {
+        id: "plain",
+        label: "  Plain label  ",
+        visible: () => true,
+        fields: { status: "advance online publication" },
+      },
+    ]);
 
     assert.deepEqual(
       result?.map((preset) => ({
@@ -83,31 +52,30 @@ describe("field preset normalization", function () {
       ],
     );
     assert.isFunction(result?.[1].visible);
-    assert.isTrue(result![1].visible!({ id: 1 } as never));
+    assert.isTrue(
+      result![1].visible!({ id: "1", itemType: "book", creators: [] }),
+    );
   });
 
-  it("accepts an object map and falls back to the id as label", function () {
-    const result = normalizeFieldPresets(
+  it("rejects the object-map form the runtime no longer accepts", function () {
+    const messages = createStyleMessageReporter();
+    const result = normalize(
       { entry: { id: "classic", fields: { type: "classic" } } },
-      {},
-      sandbox,
-      globals.Cu as never,
+      messages,
     );
 
-    assert.equal(result?.length, 1);
-    assert.equal(result?.[0].label, "classic");
+    assert.isUndefined(result);
+    assert.include(
+      messages.diagnostics.map((message) => message.message),
+      "ITEM_FIELD_PRESETS must be an array; ignored",
+    );
   });
 
   it("falls back to the id for a non-string label", function () {
-    const result = normalizeFieldPresets(
-      [
-        { id: "locale-map", label: { "zh-CN": "古籍" }, fields: { type: "x" } },
-        { id: "number", label: 42, fields: { type: "x" } },
-      ],
-      {},
-      sandbox,
-      globals.Cu as never,
-    );
+    const result = normalize([
+      { id: "locale-map", label: { "zh-CN": "古籍" }, fields: { type: "x" } },
+      { id: "number", label: 42, fields: { type: "x" } },
+    ]);
 
     assert.deepEqual(
       result?.map((preset) => preset.label),
@@ -116,18 +84,13 @@ describe("field preset normalization", function () {
   });
 
   it("keeps null values as 'ask the user at apply time'", function () {
-    const result = normalizeFieldPresets(
-      [
-        {
-          id: "foreign-law",
-          label: "外国法",
-          fields: { jurisdiction: null, type: "regulation" },
-        },
-      ],
-      {},
-      sandbox,
-      globals.Cu as never,
-    );
+    const result = normalize([
+      {
+        id: "foreign-law",
+        label: "外国法",
+        fields: { jurisdiction: null, type: "regulation" },
+      },
+    ]);
 
     assert.deepEqual(result?.[0].fields, {
       jurisdiction: null,
@@ -138,30 +101,22 @@ describe("field preset normalization", function () {
   });
 
   it("leaves the menu label alone when every value is fixed", function () {
-    const result = normalizeFieldPresets(
-      [{ id: "classic", label: "古籍", fields: { type: "classic" } }],
-      {},
-      sandbox,
-      globals.Cu as never,
-    );
+    const result = normalize([
+      { id: "classic", label: "古籍", fields: { type: "classic" } },
+    ]);
 
     assert.isFalse(hasDeferredFieldValues(result![0]));
     assert.equal(getFieldPresetMenuLabel(result![0]), "古籍");
   });
 
   it("drops unusable entries instead of failing the style", function () {
-    const result = normalizeFieldPresets(
-      [
-        { id: "", fields: { type: "classic" } },
-        { id: "dup", fields: { type: "classic" } },
-        { id: "dup", fields: { type: "other" } },
-        { id: "empty-fields", fields: {} },
-        { id: "not-an-object-field", fields: "type: classic" },
-      ],
-      {},
-      sandbox,
-      globals.Cu as never,
-    );
+    const result = normalize([
+      { id: "", fields: { type: "classic" } },
+      { id: "dup", fields: { type: "classic" } },
+      { id: "dup", fields: { type: "other" } },
+      { id: "empty-fields", fields: {} },
+      { id: "not-an-object-field", fields: "type: classic" },
+    ]);
 
     assert.deepEqual(
       result?.map((preset) => preset.id),
@@ -170,44 +125,34 @@ describe("field preset normalization", function () {
   });
 
   it("rejects values and keys that must not be written", function () {
-    const result = normalizeFieldPresets(
-      [
-        {
-          id: "mixed",
-          fields: {
-            type: "classic",
-            status: "",
-            note: 42,
-            extra: "x",
-            key: "x",
-            dateAdded: "2020-01-01",
-          },
+    const result = normalize([
+      {
+        id: "mixed",
+        fields: {
+          type: "classic",
+          status: "",
+          note: 42,
+          extra: "x",
+          key: "x",
+          dateAdded: "2020-01-01",
         },
-      ],
-      {},
-      sandbox,
-      globals.Cu as never,
-    );
+      },
+    ]);
 
     assert.deepEqual(result?.[0].fields, { type: "classic" });
   });
 
   it("drops invalid keys so an unusable preset is not indexed", function () {
-    const result = normalizeFieldPresets(
-      [
-        {
-          id: "invalid-key",
-          fields: { "citation.key": "x" },
-        },
-        {
-          id: "mixed-keys",
-          fields: { "citation.key": "x", status: "advance" },
-        },
-      ],
-      {},
-      sandbox,
-      globals.Cu as never,
-    );
+    const result = normalize([
+      {
+        id: "invalid-key",
+        fields: { "citation.key": "x" },
+      },
+      {
+        id: "mixed-keys",
+        fields: { "citation.key": "x", status: "advance" },
+      },
+    ]);
 
     assert.deepEqual(
       result?.map((preset) => preset.id),
@@ -217,44 +162,29 @@ describe("field preset normalization", function () {
   });
 
   it("treats a throwing visibility predicate as not visible", function () {
-    const result = normalizeFieldPresets(
-      [
-        {
-          id: "boom",
-          fields: { type: "classic" },
-          visible: () => {
-            throw new Error("boom");
-          },
+    const result = normalize([
+      {
+        id: "boom",
+        fields: { type: "classic" },
+        visible: () => {
+          throw new Error("boom");
         },
-      ],
-      {},
-      sandbox,
-      globals.Cu as never,
-    );
+      },
+    ]);
 
-    assert.isFalse(result![0].visible!({ id: 1 } as never));
+    assert.isFalse(
+      result![0].visible!({ id: "1", itemType: "book", creators: [] }),
+    );
   });
 
   it("returns undefined when nothing is declared", function () {
-    assert.isUndefined(
-      normalizeFieldPresets([], {}, sandbox, globals.Cu as never),
-    );
-    assert.isUndefined(
-      normalizeFieldPresets(undefined, {}, sandbox, globals.Cu as never),
-    );
+    assert.isUndefined(normalize([]));
+    assert.isUndefined(normalize(undefined));
   });
 
   it("extracts ITEM_FIELD_PRESETS through the style sandbox", async function () {
-    // The sandbox needs the real `Cu`/`Zotero`/`ztoolkit`: the stubs above only
-    // cover the pure normalization checks.
-    const scope = globalThis as Record<string, unknown>;
-    const banyan = (
-      realZotero as { Banyan?: { data?: { ztoolkit?: unknown } } } | undefined
-    )?.Banyan;
-    scope.Zotero = realZotero;
-    scope.Cu = realCu;
-    scope.ztoolkit = realZtoolkit ?? banyan?.data?.ztoolkit;
-
+    // This path needs the real host: the core builds a sandbox through
+    // `geckoSandboxRuntime` and the Zotero capabilities.
     const { createStyle } = await import("../src/modules/sandbox");
     const style = await createStyle(`
       const INFO = {
@@ -289,7 +219,77 @@ describe("field preset normalization", function () {
     // Non-string values and unwritable keys are dropped during bridging.
     assert.deepEqual(Object.keys(preset.fields), ["type"]);
     assert.isFunction(preset.visible);
-    assert.isTrue(preset.visible!({ itemType: "book" } as never));
-    assert.isFalse(preset.visible!({ itemType: "journalArticle" } as never));
+    assert.isTrue(preset.visible!({ id: "1", itemType: "book", creators: [] }));
+    assert.isFalse(
+      preset.visible!({ id: "2", itemType: "journalArticle", creators: [] }),
+    );
+  });
+
+  it("runs a style that uses the sandbox console", async function () {
+    // The Gecko sandbox has a console of its own; the core has to replace it, or
+    // a style's `console.log` would leave the sandbox instead of going through
+    // the host. This pins the real thing: level routing, `assert`, the methods
+    // that only exist so a familiar call cannot throw, and the fact that a
+    // warning does not abort the run.
+    const { createStyle } = await import("../src/modules/sandbox");
+    const style = await createStyle(`
+      const INFO = {
+        id: "console-probe",
+        title: "Console Probe",
+        description: "",
+        citationType: "intext-citation",
+        creator: [],
+        tags: [],
+        documentation: [],
+        license: "MIT",
+        updated: "2026-01-01",
+      };
+      function generate() {
+        console.debug("debug line");
+        console.log("log line", { n: 1 });
+        console.trace("trace line");
+        console.info("info line");
+        console.warn("warn line");
+        console.error("error line");
+        console.assert(true, "not reported");
+        console.assert(false, "assertion detail");
+        console.count("x");
+        console.group("g");
+        console.groupEnd();
+        console.time("t");
+        console.timeEnd("t");
+        console.clear();
+        console.dir({ a: 1 });
+        console.table([{ a: 1 }]);
+        return { citations: [{ id: "ctx-1", content: "kept" }], bibliography: [] };
+      }
+    `);
+
+    const result = await style.generate([
+      { id: "ctx-1", page: 0, cites: [], params: {} },
+    ]);
+
+    assert.equal(
+      (result.citations as { content: { text: string } }[])[0].content.text,
+      "kept",
+    );
+    assert.deepEqual(
+      style.diagnostics.map((message) => message.severity),
+      ["info", "warning", "error", "error"],
+    );
+    assert.deepEqual(
+      style.diagnostics.map((message) => message.message),
+      [
+        "info line",
+        "warn line",
+        "error line",
+        "Assertion failed assertion detail",
+      ],
+    );
+    assert.isTrue(
+      style.diagnostics.every(
+        (message) => message.source === "style" && message.code === "generate",
+      ),
+    );
   });
 });

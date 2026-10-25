@@ -3,14 +3,19 @@ import type {
   CitationDialogRequestData,
   StyleListEntry,
 } from "../../typings/server";
-import type { CitationParams, Cite } from "../../typings/style";
-import { textToRichText } from "../utils/richText";
-import { toBanyanItem } from "../utils/item";
+import type { CitationParams, Cite } from "@banyan/core/types/style";
+import { textToRichText } from "@banyan/core/richText/richText";
+import { toBanyanItem } from "./sandbox/items";
 import {
   openBibliographyDialog,
   openCitationDialog,
   openStyleDialog,
 } from "./server";
+import { LAST_USED_STYLE_PREF } from "./styles";
+import { getPref } from "../utils/prefs";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("debug");
 
 /**
  * Debug-only entry points that open the server-owned dialogs without a
@@ -32,12 +37,16 @@ export function getDebugStyleList(): StyleListEntry[] {
       citationType: style.citationType,
       description: style.description,
       updated: style.updated,
+      optionParams: style.optionParams ?? [],
     }))
     .toSorted((a, b) => a.title.localeCompare(b.title));
 }
 
 function getDebugStyleIdentifier(): { id: string; title: string } | null {
-  const style = getDebugStyleList()[0];
+  const styles = getDebugStyleList();
+  const lastUsed = String(getPref(LAST_USED_STYLE_PREF) ?? "");
+  const style =
+    styles.find((entry) => entry.id === lastUsed) ?? styles.at(0) ?? null;
   return style ? { id: style.id, title: style.title } : null;
 }
 
@@ -53,14 +62,18 @@ function getDebugCites(): Cite[] | null {
 
 export function getDebugCitationRequestData(): CitationDialogRequestData | null {
   const style = getDebugStyleIdentifier();
-  const cites = getDebugCites();
-  if (!style || !cites) {
+  if (!style) {
     return null;
   }
   return {
     documentId: DEBUG_DOCUMENT_ID,
     style,
-    source: { cites, params: { ...DEBUG_CITATION_PARAMS } },
+    // An empty citation dialog is useful in debug: the maintainer can pick
+    // items inside it even when the library pane has no selection.
+    source: {
+      cites: getDebugCites() ?? [],
+      params: { ...DEBUG_CITATION_PARAMS },
+    },
   };
 }
 
@@ -90,16 +103,16 @@ export function getDebugBibliographyRequestData(): BibliographyRequestData | nul
 export async function openDebugStyleDialog(): Promise<void> {
   const style = getDebugStyleIdentifier();
   if (!style) {
-    ztoolkit.logError("debug: no style available for the style dialog");
+    log.warn("no style available for the style dialog");
     return;
   }
-  await openStyleDialog(style, DEBUG_DOCUMENT_ID);
+  await openStyleDialog({ ...style, documentId: DEBUG_DOCUMENT_ID });
 }
 
 export async function openDebugCitationDialog(): Promise<void> {
   const data = getDebugCitationRequestData();
   if (!data) {
-    ztoolkit.logError("debug: select at least one regular item first");
+    log.warn("no style available for the citation dialog");
     return;
   }
   await openCitationDialog(data);
@@ -108,7 +121,7 @@ export async function openDebugCitationDialog(): Promise<void> {
 export async function openDebugBibliographyDialog(): Promise<void> {
   const data = getDebugBibliographyRequestData();
   if (!data) {
-    ztoolkit.logError("debug: select at least one regular item first");
+    log.warn("select at least one regular item first");
     return;
   }
   await openBibliographyDialog(data);

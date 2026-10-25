@@ -6,13 +6,16 @@ import {
   isValidExtraKey,
   normalizeExtraKey,
   toTitleCaseExtraKey,
-} from "../utils/item";
+} from "@banyan/core/items/extra";
 import {
   analyzeExtraField,
   mergeExtraField,
   needsConflictDecision,
-} from "../utils/extraField";
+} from "@banyan/core/items/extraField";
 import type { ItemMenuContribution } from "../../typings/menu";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("extra-field-write");
 
 const t = useL10n(["mainWindow.ftl"]);
 
@@ -63,7 +66,7 @@ export async function recoverItemAfterFailedSave(
     item._clearChanged();
     return;
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("恢复条目失败", error);
   }
   restoreFallback();
 }
@@ -110,7 +113,7 @@ async function openWriteExtraFieldDialog(): Promise<void> {
             try {
               await batchWriteExtraField(selectedItems, io.result);
             } catch (e) {
-              ztoolkit.logError(e);
+              log.error("批量写入 extra 字段失败", e);
               showSimpleMessage(
                 t("extra-field-write-failed", {
                   args: {

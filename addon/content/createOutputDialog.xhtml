@@ -23,6 +23,14 @@
       rel="stylesheet"
       href="chrome://__addonRef__/content/createOutputDialog.css"
     />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/richTextEditor.css"
+    />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/parameterPanel.css"
+    />
 
     <script src="chrome://zotero/content/include.js"></script>
     <script src="chrome://zotero/content/customElements.js"></script>
@@ -33,6 +41,7 @@
     </script>
     <script src="chrome://__addonRef__/content/scripts/createOutputDialog.js"></script>
   </head>
+
   <body>
     <div class="dialog-container">
       <!-- Style Selection -->
@@ -48,6 +57,16 @@
         >
           <xul:menupopup id="style-popup" />
         </xul:menulist>
+      </div>
+
+      <!-- Global style options declared by the selected style -->
+      <div
+        id="style-options-block"
+        class="form-row form-row-stack"
+        hidden="true"
+      >
+        <label data-l10n-id="create-output-options-label"></label>
+        <div id="style-options"></div>
       </div>
 
       <!-- Item Count Info -->

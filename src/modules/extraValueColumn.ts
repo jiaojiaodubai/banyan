@@ -1,9 +1,10 @@
 import { useL10n } from "../utils/locale";
 import { getPref } from "../utils/prefs";
-import { getExtraValueForDisplay } from "../utils/extraField";
+import { getExtraValueForDisplay } from "@banyan/core/items/extraField";
 
 type ZoteroPaneLike = {
   itemsView?: {
+    tree?: unknown;
     refreshAndMaintainSelection?: () => Promise<void> | void;
   };
 };
@@ -78,6 +79,11 @@ export function registerExtraValueColumn(): void {
 async function refreshOpenItemTrees(): Promise<void> {
   for (const win of Zotero.getMainWindows()) {
     const pane = (win as Window & { ZoteroPane?: ZoteroPaneLike })?.ZoteroPane;
+    // The main window creates ItemTree asynchronously; refreshing before that
+    // leaves Zotero's ItemTree with an undefined virtualized table.
+    if (pane?.itemsView && "tree" in pane.itemsView && !pane.itemsView.tree) {
+      continue;
+    }
     await pane?.itemsView?.refreshAndMaintainSelection?.();
   }
 }

@@ -2,7 +2,8 @@ import type {
   CitationContext,
   IntextCitation,
   NoteCitation,
-} from "../../typings/style";
+} from "@banyan/core/types/style";
+import { decodeZoteroItemId } from "./itemHandle";
 
 export type DocumentCitationPreview = {
   /** One entry per citation, in document order, without repeats of the previous one. */
@@ -56,8 +57,8 @@ export function buildDocumentCitationPreviewMap(
 
     const itemIDs = new Set(
       context.cites
-        .map((cite) => cite.item.id)
-        .filter((itemId): itemId is number => typeof itemId === "number"),
+        .map((cite) => decodeZoteroItemId(cite.item.id))
+        .filter((itemId): itemId is number => itemId !== undefined),
     );
 
     for (const itemId of itemIDs) {

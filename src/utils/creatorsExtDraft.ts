@@ -3,15 +3,15 @@ import {
   CREATORS_EXT_KEY,
   creatorMatchesExtIdentity,
   parseCreatorsExt,
-  parseExtraLines,
   reconcileCreatorsExt,
-} from "./item";
+} from "@banyan/core/items/creatorsExt";
+import { parseExtraLines } from "@banyan/core/items/extra";
 import type {
   Creator,
   CreatorExtField,
   CreatorExtFields,
   CreatorExtRecord,
-} from "../../typings/item";
+} from "@banyan/core/types/item";
 import type { CreatorSnapshot } from "../../typings/multilingualItem";
 
 /** One creator row as edited in the "Extend Creator Information" window. */

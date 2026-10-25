@@ -17,32 +17,17 @@ body {
 
 .report-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  gap: 2px;
   flex: 0 0 auto;
   padding: 12px 16px;
   background: var(--material-sidepane);
   border-bottom: var(--material-panedivider);
-  -moz-window-dragging: drag;
-}
-
-.report-header-text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.report-title {
-  font-size: 1.2em;
-  font-weight: 600;
-  line-height: 1.3;
 }
 
 .report-style,
 .report-summary {
-  color: var(--fill-secondary);
+  color: var(--fill-primary);
   overflow-wrap: anywhere;
 }
 
@@ -50,38 +35,95 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 0.95em;
-}
-
-.report-actions {
-  display: flex;
-  gap: 8px;
-  flex: 0 0 auto;
-  -moz-window-dragging: no-drag;
-}
-
-.report-actions button {
-  margin: 0;
-  white-space: nowrap;
 }
 
 .report-main {
   position: relative;
   display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
+/* Top half: the native item list. */
 .report-tree-container {
   display: flex;
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 0;
+  min-height: 120px;
+}
+
+.report-tree-container[hidden] {
+  display: none;
 }
 
 .report-tree-container > .virtualized-table {
   flex: 1;
   min-height: 0;
+}
+
+.report-tree-container .virtualized-table .cell {
+  padding-inline: 8px;
+}
+
+/* Zotero scopes its item icon's trailing gap to `#zotero-items-tree`; report
+   rows use another container, so carry the same 4px gap. */
+.report-tree-container .cell > .cell-icon {
+  margin-inline-end: 4px;
+}
+
+.banyan-validator-result {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* Bottom half: check details for the selected item. */
+.report-details {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: 6px;
+  border-top: var(--material-panedivider);
+  background: var(--material-background);
+}
+
+.report-details[hidden] {
+  display: none;
+}
+
+.report-details-table-container {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.report-details-table-container[hidden] {
+  display: none;
+}
+
+.report-details-table-container > .virtualized-table {
+  flex: 1;
+  min-height: 0;
+}
+
+.report-details-table-container .virtualized-table .cell {
+  padding-inline: 8px;
+}
+
+.report-details-table-container .cell .label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-details-empty {
+  padding: 0 12px 10px;
+  color: var(--fill-secondary);
 }
 
 .report-empty {
@@ -97,35 +139,30 @@ body {
   display: none;
 }
 
-.report-footer {
-  justify-content: space-between;
-}
-
-.report-hint {
-  color: var(--fill-secondary);
-  max-width: 72%;
-}
-
-.banyan-validator-item-row .cell:first-child {
-  font-weight: 600;
-}
-
-.banyan-validator-status {
+/* Status icon: 16px glyph plus its label. */
+.banyan-validator-status-icon {
   display: inline-block;
-  width: 1.1em;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
   margin-inline-end: 4px;
-  text-align: center;
-  font-weight: 600;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  -moz-context-properties: fill, fill-opacity;
 }
 
-.banyan-validator-status-pass {
-  color: var(--accent-green);
+.banyan-validator-status-icon.is-pass {
+  background-image: url("chrome://zotero/skin/16/universal/tick.svg");
+  fill: var(--accent-green);
 }
 
-.banyan-validator-status-fail {
-  color: var(--accent-orange);
+.banyan-validator-status-icon.is-fail {
+  background-image: url("chrome://zotero/skin/16/universal/cross.svg");
+  fill: var(--accent-orange);
 }
 
-.banyan-validator-status-error {
-  color: var(--accent-red);
+.banyan-validator-status-icon.is-error {
+  background-image: url("chrome://zotero/skin/20/universal/error.svg");
+  fill: var(--accent-red);
 }

@@ -14,12 +14,7 @@ export default defineConfig({
     "https://github.com/{{owner}}/{{repo}}/releases/download/v{{version}}/{{xpiName}}.xpi",
 
   build: {
-    assets: [
-      "addon/**/*.*",
-      "typings/item.d.ts",
-      "typings/style.d.ts",
-      "typings/styleUtils.d.ts",
-    ],
+    assets: ["addon/**/*.*"],
     define: {
       ...pkg.config,
       author: pkg.author,

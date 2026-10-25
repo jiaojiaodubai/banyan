@@ -1,25 +1,32 @@
 import { openDialogWindow } from "../utils/window";
+import { config } from "../../package.json";
 import { getStyle } from "./styles";
-import { toBanyanItem } from "../utils/item";
-import { getLocaleID } from "../utils/locale";
+import { toBanyanItem } from "./sandbox/items";
+import { getLocaleID, useL10n } from "../utils/locale";
 import { showSimpleMessage } from "../utils/message";
 import { getRegularSelection } from "../utils/selection";
 import {
   renderBibliographyLineToHtml,
   renderRichTextToHtml,
   renderRichTextToText,
-} from "../utils/richTextHtml";
-import type { Item } from "../../typings/item";
+} from "@banyan/core/richText/render";
+import type { Item } from "@banyan/core/types/item";
 import type { ItemMenuContribution } from "../../typings/menu";
 import type {
   BibliographyLine,
   CitationContext,
   IntextCitation,
   NoteCitation,
-} from "../../typings/style";
+  StyleOptionValues,
+} from "@banyan/core/types/style";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("create-output");
+const t = useL10n(["createOutputDialog.ftl"]);
 
 type CreateOutputResult = {
   styleId: string;
+  styleOptions?: StyleOptionValues;
   outputType: "citation" | "bibliography";
   outputFormat: "html" | "text";
   outputMethod: "clipboard" | "file";
@@ -46,15 +53,6 @@ type LegacyClipboardService = {
   ) => void;
 };
 
-type LegacyFilePicker = {
-  init: (parent: Window | null, title: string, mode: number) => void;
-  defaultString: string;
-  appendFilter: (title: string, filter: string) => void;
-  appendFilters: (filterMask: number) => void;
-  open: (callback: (result: number) => void) => void;
-  file: { path: string };
-};
-
 export const createOutputItemMenu: ItemMenuContribution = {
   id: "create-output",
   build() {
@@ -72,6 +70,29 @@ export const createOutputItemMenu: ItemMenuContribution = {
       },
     ];
   },
+};
+
+// Built from the compile-time config: module bodies run before `src/index.ts`
+// assigns the `addon` global.
+const DIALOG_URL = `chrome://${config.addonRef}/content/createOutputDialog.xhtml`;
+
+/** Data the dialog writes back; `result` stays null when it is cancelled. */
+type CreateOutputIO = {
+  items: Item[];
+  result: CreateOutputResult | null;
+  /** Rendered output; filled in by `render()` before the dialog closes. */
+  fragment: string | null;
+  /**
+   * Generate while the dialog is still open, and await it before closing.
+   *
+   * The dialog is parentless modal: `openWindow` blocks until it closes, and a
+   * style sandbox continuation that resumes on the task the closed window left
+   * behind never settles (its generation queue stops running). Generation
+   * therefore has to happen inside the modal loop; the native file picker, on
+   * the other hand, is disabled while that modal window is up, so it runs after
+   * `openWindow` returns, on the caller's own task.
+   */
+  render: () => Promise<void>;
 };
 
 /**
@@ -92,45 +113,39 @@ export async function openCreateOutputDialog(): Promise<void> {
   }
 
   const items = selectedItems.map((item) => toBanyanItem(item));
+  const io: CreateOutputIO = {
+    items,
+    result: null,
+    fragment: null,
+    render: async () => {
+      if (!io.result) {
+        return;
+      }
+      try {
+        io.fragment = await renderOutput(items, io.result);
+      } catch (e) {
+        log.error("生成结果失败", e);
+        showSimpleMessage(
+          `Failed to generate output: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    },
+  };
 
-  return new Promise((resolve) => {
-    const io = {
-      items,
-      result: null as CreateOutputResult | null,
-      deferred: {
-        promise: Promise.resolve(),
-        resolve: async () => {
-          if (io.result) {
-            try {
-              await generateAndOutputResult(items, io.result);
-            } catch (e) {
-              ztoolkit.logError(e);
-              showSimpleMessage(
-                `Failed to generate output: ${e instanceof Error ? e.message : String(e)}`,
-              );
-            }
-          }
-          resolve();
-        },
-      },
-    };
+  // Blocks until the dialog closes, after its `render()` has finished.
+  openDialogWindow(DIALOG_URL, "modal,resizable=no", io);
 
-    openDialogWindow(
-      `chrome://${addon.data.config.addonRef}/content/createOutputDialog.xhtml`,
-      "modal,resizable=no",
-      io,
-    );
-  });
+  if (io.result && io.fragment !== null) {
+    await deliverOutput(io.fragment, io.result);
+  }
 }
 
-/**
- * Generate citation or bibliography and output according to user selection
- */
-async function generateAndOutputResult(
+/** Generate the output text for the chosen style and output shape. */
+async function renderOutput(
   items: Item[],
   options: CreateOutputResult,
-): Promise<void> {
-  const { styleId, outputType, outputFormat, outputMethod } = options;
+): Promise<string> {
+  const { styleId, outputType, outputFormat } = options;
 
   // Get style file info
   const styleFile = addon.data.styles.files.get(styleId);
@@ -152,35 +167,44 @@ async function generateAndOutputResult(
     },
   }));
 
-  const result = await style.generate(contexts);
+  const result = await style.generate(contexts, options.styleOptions);
 
-  let outputFragment: string;
   if (outputType === "citation") {
-    outputFragment = result.citations
+    return result.citations
       .map((citation: IntextCitation | NoteCitation) => {
         return outputFormat === "html"
           ? renderRichTextToHtml(citation.content)
           : renderRichTextToText(citation.content);
       })
       .join(outputFormat === "html" ? "<br/>" : "\n");
-  } else {
-    outputFragment = result.bibliography
-      .map((line: BibliographyLine) => {
-        return outputFormat === "html"
-          ? renderBibliographyLineToHtml(line)
-          : renderRichTextToText(line.content);
-      })
-      .join(outputFormat === "html" ? "" : "\n");
   }
+  return result.bibliography
+    .map((line: BibliographyLine) => {
+      return outputFormat === "html"
+        ? renderBibliographyLineToHtml(line)
+        : renderRichTextToText(line.content);
+    })
+    .join(outputFormat === "html" ? "" : "\n");
+}
+
+/** Copy the output, or save it with a native picker once the dialog is gone. */
+async function deliverOutput(
+  fragment: string,
+  options: CreateOutputResult,
+): Promise<void> {
+  const { outputType, outputFormat, outputMethod } = options;
 
   if (outputMethod === "clipboard") {
-    await copyToClipboard(outputFragment, outputFormat);
+    await copyToClipboard(fragment, outputFormat);
+    showSimpleMessage(t("create-output-status-copied"));
     return;
   }
 
   const fileContent =
-    outputFormat === "html" ? wrapHtmlOutput(outputFragment) : outputFragment;
-  await saveToFile(fileContent, outputFormat, outputType);
+    outputFormat === "html" ? wrapHtmlOutput(fragment) : fragment;
+  if (await saveToFile(fileContent, outputFormat, outputType)) {
+    showSimpleMessage(t("create-output-status-saved"));
+  }
 }
 
 /**
@@ -233,7 +257,7 @@ async function copyToClipboard(
     transferable.setTransferData("text/html", htmlString, text.length * 2);
   }
 
-  // Always add plain text flavor
+  // A plain-text flavor accompanies HTML.
   const plainText = format === "html" ? stripHtml(text) : text;
   const textString = Cc["@mozilla.org/supports-string;1"].createInstance(
     Ci.nsISupportsString,
@@ -259,54 +283,38 @@ function stripHtml(html: string): string {
 
 /**
  * Save text to file
+ *
+ * The picker comes from the toolkit's Zotero `FilePicker` wrapper: the raw
+ * `nsIFilePicker.init()` no longer takes a `Window` in the current beta, it
+ * needs the parent's `browsingContext`, and passing a window throws before the
+ * dialog is ever shown.
  */
 async function saveToFile(
   content: string,
   format: "html" | "text",
   outputType: "citation" | "bibliography",
-): Promise<void> {
-  const Cc = Components.classes as unknown as Record<
-    string,
-    {
-      createInstance: <T>(iid: T) => nsQIResult<T>;
-      getService: <T>(iid: T) => nsQIResult<T>;
-    }
-  >;
-  const Ci = Components.interfaces;
-
-  const fp = Cc["@mozilla.org/filepicker;1"].createInstance(
-    Ci.nsIFilePicker,
-  ) as unknown as LegacyFilePicker;
-
-  const win = Zotero.getMainWindow();
-  if (!win) {
-    throw new Error("Main window not found");
-  }
-
-  fp.init(win, "Save Output", Ci.nsIFilePicker.modeSave ?? 0);
-
-  // Set default filename and filter
+): Promise<boolean> {
   const extension = format === "html" ? "html" : "txt";
-  const defaultName = `banyan-${outputType}.${extension}`;
-  fp.defaultString = defaultName;
+  const parent = Zotero.getMainWindow() ?? undefined;
+  const picker = new ztoolkit.FilePicker(
+    "Save Output",
+    "save",
+    [
+      [
+        format === "html" ? "HTML Files" : "Text Files",
+        format === "html" ? "*.html;*.htm" : "*.txt",
+      ],
+    ],
+    `banyan-${outputType}.${extension}`,
+    parent,
+    "all",
+  );
 
-  if (format === "html") {
-    fp.appendFilter("HTML Files", "*.html;*.htm");
-  } else {
-    fp.appendFilter("Text Files", "*.txt");
+  const picked = await picker.open();
+  if (!picked) {
+    return false;
   }
-  fp.appendFilters(Ci.nsIFilePicker.filterAll ?? 0);
 
-  const result = await new Promise<number>((resolve) => {
-    fp.open((res: number) => resolve(res));
-  });
-
-  const returnOK = Ci.nsIFilePicker.returnOK ?? 0;
-  const returnReplace = Ci.nsIFilePicker.returnReplace ?? 1;
-  if (result !== returnOK && result !== returnReplace) {
-    return;
-  }
-
-  // Write file
-  await IOUtils.writeUTF8(fp.file.path, content);
+  await IOUtils.writeUTF8(picked, content);
+  return true;
 }

@@ -1,0 +1,10 @@
+{
+  "package": "eslint-plugin-banyan-style",
+  "version": "0.1.0",
+  "schemaRevision": "zotero-45+csl-0ee62cac6648+cslm-e507b2fb131c",
+  "diagnostics": 132,
+  "format": "esm",
+  "target": "node20",
+  "generator": "Banyan scripts/genStyleLint.mjs",
+  "bundleSha256": "6990eb5f00f5a9ff4dccafb0a7b6faf62911238be6483aa76d01cc6ac688f4e0"
+}

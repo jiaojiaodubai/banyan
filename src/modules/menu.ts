@@ -11,6 +11,9 @@ import { getLocaleID } from "../utils/locale";
 import { getRegularSelection } from "../utils/selection";
 import type { ItemMenuContribution, ItemMenuData } from "../../typings/menu";
 import { config } from "../../package.json";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("menu");
 
 // Menu items are localized through the Fluent DOM overlay, which REPLACES the
 // element's children with a plain text node unless the message is defined as an
@@ -69,10 +72,9 @@ function buildContributedMenus(): ItemMenuData[] {
     try {
       menus.push(...(contribution.build() ?? []));
     } catch (error) {
-      ztoolkit.logError(
-        new Error(
-          `Item menu contribution '${contribution.id}' could not be built: ${String(error)}`,
-        ),
+      log.error(
+        `item menu contribution '${contribution.id}' could not be built`,
+        error,
       );
     }
   }

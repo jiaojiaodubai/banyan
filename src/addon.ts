@@ -6,14 +6,14 @@ import {
 } from "zotero-plugin-toolkit";
 import hooks from "./hooks";
 import { createZToolkit } from "./utils/ztoolkit";
-import { Style } from "../typings/style";
+import { Style } from "@banyan/core/types/style";
 import {
   IndexedFieldPreset,
   IndexedItemFieldValidators,
   StyleFile,
 } from "../typings/styleIndex";
 import { createLocale } from "./utils/locale";
-import { getStyleUI } from "./modules/styles";
+import { getParamDeclarations } from "./modules/styles";
 
 class Addon {
   public data: {
@@ -41,7 +41,7 @@ class Addon {
   public hooks: typeof hooks;
   // APIs
   public api: {
-    getStyleUI: typeof getStyleUI;
+    getParamDeclarations: typeof getParamDeclarations;
   };
 
   constructor() {
@@ -61,7 +61,7 @@ class Addon {
     };
     this.hooks = hooks;
     this.api = {
-      getStyleUI,
+      getParamDeclarations,
     };
   }
 }

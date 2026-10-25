@@ -1,11 +1,23 @@
-// Note: Validation here is static and heuristic; execution happens in sandbox.ts
 import { StyleIdentifier } from "../../typings/server";
-import type { Style, StyleUI } from "../../typings/style";
+import type {
+  ParamDeclarations,
+  Style,
+  StyleOptionParam,
+  StyleOptionValues,
+} from "@banyan/core/types/style";
+import {
+  resolveStyleOptionState,
+  type StyleOptionState,
+} from "@banyan/core/validation/paramValues";
 import { useL10n } from "../utils/locale";
 import { getPref, setPref } from "../utils/prefs";
 import { createStyle } from "./sandbox";
+import { toStyleOptionParamInfos } from "./styleList";
 import presetsManifest from "../../addon/content/styleEditor/presets/presets-manifest.json";
+import { createLogger } from "../utils/logger";
 import type { IndexedItemFieldValidators } from "../../typings/styleIndex";
+
+const log = createLogger("styles");
 
 const t = useL10n();
 
@@ -19,20 +31,48 @@ export async function ensureDataDir(): Promise<string> {
       ignoreExisting: true,
     });
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("创建样式数据目录失败", e);
     throw e;
   }
   return dirPath;
 }
 
-export async function getStyleUI(style: StyleIdentifier): Promise<StyleUI> {
-  const instant = await getStyle(style);
-  return instant.UI ?? { cite: [], citation: [] };
+export async function getParamDeclarations(
+  style: StyleIdentifier,
+): Promise<ParamDeclarations> {
+  const instant = await getStyle(style, { recordLastUsed: false });
+  return {
+    style: instant.STYLE_OPTIONS ?? [],
+    citation: instant.CITATION_PARAMS ?? [],
+    cite: instant.CITE_PARAMS ?? [],
+  };
+}
+
+/** Reading a style for display only must not change what the item menu uses. */
+type ReadStyleOptions = { recordLastUsed?: boolean };
+
+/**
+ * Declarations plus stored/effective values for one style.
+ *
+ * The settings UI and the refresh path both go through the core resolver, so
+ * what the dialog shows and what `generate()` reads cannot drift.
+ *
+ * This is a read: a chooser previewing rows must not rewrite `lastUsedStyleId`
+ * (and re-index the item menu) merely because the user browsed a style.
+ */
+export async function getStyleOptionState(
+  style: StyleIdentifier,
+  values?: StyleOptionValues,
+): Promise<{ params: StyleOptionParam[]; state: StyleOptionState }> {
+  const instant = await getStyle(style, { recordLastUsed: false });
+  const params = instant.STYLE_OPTIONS ?? [];
+  return { params, state: resolveStyleOptionState(params, values) };
 }
 
 /**
- * Style id of the last style parsed for rendering (document refresh, citation
- * dialog, "Create Output"), not counting an edit in the style editor.
+ * Style id of the last style used to generate output (document refresh,
+ * "Create Output"), not counting a read for display or an edit in the style
+ * editor.
  */
 export const LAST_USED_STYLE_PREF = "lastUsedStyleId" as const;
 
@@ -44,21 +84,30 @@ function recordLastUsedStyle(styleId: string): void {
     setPref(LAST_USED_STYLE_PREF, styleId);
     notifyStyleIndexChanged();
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("记录最近使用的样式失败", e);
   }
 }
 
 /**
  * Get style from plugin styles index by id
+ *
+ * `recordLastUsed` is for the paths that are about to render with the style;
+ * a chooser previewing rows must leave the preference alone.
+ *
  * @throws Error if:
  *  - Data directory cannot be ensured
  *  - Style with given id not found
  *  - Style file cannot be read
  */
-export async function getStyle(style: StyleIdentifier): Promise<Style> {
+export async function getStyle(
+  style: StyleIdentifier,
+  { recordLastUsed = true }: ReadStyleOptions = {},
+): Promise<Style> {
   const exist = addon.data.styles.cache.get(style.id);
   if (exist) {
-    recordLastUsedStyle(style.id);
+    if (recordLastUsed) {
+      recordLastUsedStyle(style.id);
+    }
     return exist;
   }
 
@@ -76,13 +125,15 @@ export async function getStyle(style: StyleIdentifier): Promise<Style> {
   try {
     code = await IOUtils.readUTF8(fullPath);
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error(`读取样式文件失败：${fullPath}`, e);
     throw e;
   }
 
   const instant = await createStyle(code);
   addon.data.styles.cache.set(style.id, instant);
-  recordLastUsedStyle(style.id);
+  if (recordLastUsed) {
+    recordLastUsedStyle(style.id);
+  }
 
   return instant;
 }
@@ -95,7 +146,7 @@ export async function readStyleFile(path: string): Promise<string> {
   try {
     return await IOUtils.readUTF8(path);
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error(`读取样式文件失败：${path}`, e);
     throw e;
   }
 }
@@ -137,6 +188,7 @@ function indexLoadedStyle(style: Style, filename: string): void {
     description: style.INFO.description,
     updated: style.INFO.updated,
     filename,
+    optionParams: toStyleOptionParamInfos(style.STYLE_OPTIONS),
   });
   indexStyleFieldPresets(style);
   indexStyleItemFieldValidators(style);
@@ -144,7 +196,7 @@ function indexLoadedStyle(style: Style, filename: string): void {
 }
 
 /**
- * Keep the presets of the styles that declare them. Their `visible` closures hold
+ * Index the presets of a style that declares them. Their `visible` closures hold
  * the style's sandbox alive, so only styles using the feature pay for it.
  */
 function indexStyleFieldPresets(style: Style): void {
@@ -167,7 +219,7 @@ function indexStyleFieldPresets(style: Style): void {
 }
 
 /**
- * Keep the item-type keyed field checks of the styles that declare them. The
+ * Index the item-type keyed field checks of a style that declares them. The
  * checker closures hold the style's sandbox alive, so only styles using the
  * feature pay for it.
  */
@@ -258,7 +310,7 @@ function notifyStyleIndexChanged(): void {
     try {
       listener();
     } catch (e) {
-      ztoolkit.logError(e);
+      log.error("样式索引监听器执行失败", e);
     }
   }
 }
@@ -335,15 +387,14 @@ export async function loadStyle(path: string): Promise<void> {
   const style = await createStyle(code);
   const id = style.INFO?.id;
   if (!id) {
-    // For calling only, INFO is unessisery, but for style created from file in data directory, we need it to make indexing
+    // A one-off style may omit INFO.id, but a file in the data directory needs
+    // one so it can be indexed.
     throw new Error(`Style file ${path} missing INFO.id`);
   }
   if (addon.data.styles.files.has(id)) {
     const existing = addon.data.styles.files.get(id);
-    ztoolkit.logError(
-      new Error(
-        `Ignoring '${path}': style ID '${id}' is already used by '${existing!.filename}'`,
-      ),
+    log.warn(
+      `Ignoring '${path}': style ID '${id}' is already used by '${existing!.filename}'`,
     );
     return;
   }
@@ -371,7 +422,7 @@ export async function loadStyles(reset?: boolean): Promise<void> {
       try {
         await loadStyle(path);
       } catch (e) {
-        ztoolkit.logError(e);
+        log.error(`加载样式失败：${path}`, e);
         continue;
       }
     }
@@ -403,7 +454,7 @@ export async function installPresetStyles(): Promise<void> {
         await IOUtils.writeUTF8(destPath, code);
         indexLoadedStyle(style, fileName);
       } catch (e) {
-        ztoolkit.logError(e);
+        log.error(`安装预设样式失败：${fileName}`, e);
       }
     }
   });
@@ -452,7 +503,7 @@ export async function promptImportStyle(): Promise<boolean> {
     indexLoadedStyle(style, PathUtils.filename(destPath));
     return true;
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("保存样式代码失败", e);
     return false;
   }
 }
@@ -486,13 +537,12 @@ export async function deleteStylesById(ids: string[]): Promise<boolean> {
   const dirPath = await ensureDataDir();
   let removed = false;
   for (const { id, entry } of targets) {
-    // We have already filtered out missing entries
     const filename = entry!.filename;
     const fullPath = PathUtils.join(dirPath, filename);
     try {
       await IOUtils.remove(fullPath);
     } catch (e) {
-      ztoolkit.logError(e);
+      log.error(`删除样式文件失败：${fullPath}`, e);
     }
     addon.data.styles.files.delete(id);
     addon.data.styles.cache.delete(id);

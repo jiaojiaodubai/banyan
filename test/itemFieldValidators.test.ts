@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { runItemFieldValidators } from "../src/modules/sandbox/itemFieldValidators";
+import { runItemFieldValidators } from "@banyan/core/validation/itemFieldValidators";
 
 describe("item field validators through the style sandbox", function () {
   it("extracts and runs synchronous and asynchronous checks", async function () {
@@ -86,7 +86,7 @@ describe("item field validators through the style sandbox", function () {
 
   it("resolves a multilingual sibling inside an async checker", async function () {
     const { createStyle } = await import("../src/modules/sandbox");
-    const { toBanyanItem } = await import("../src/utils/item");
+    const { toBanyanItem } = await import("../src/modules/sandbox/items");
     const { prefix } = await import("../src/modules/relations");
 
     const source = new Zotero.Item("book");

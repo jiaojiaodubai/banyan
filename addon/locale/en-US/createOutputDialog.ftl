@@ -1,5 +1,6 @@
 create-output-dialog-title = Create Citation/Bibliography
 create-output-style-label = Style
+create-output-options-label = Style options
 create-output-type-label = Output Type
 create-output-type-bibliography = Bibliography
 create-output-type-citation = Citation
@@ -18,3 +19,7 @@ create-output-cancel = Cancel
 create-output-no-styles = No styles available
 create-output-error-no-style = Please select a style
 create-output-error-incomplete = Please complete all options
+create-output-error-invalid-options = Fix the style option errors first
+create-output-error-options-unavailable = This style's options could not be loaded. Choose another style or reopen the dialog.
+create-output-status-copied = Output copied to the clipboard
+create-output-status-saved = Output saved

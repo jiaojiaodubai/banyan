@@ -258,6 +258,17 @@ main {
   border-top: 1px solid var(--fill-quinary);
 }
 
+/* A group inside a panel, such as the citation rows and the global options
+   that both feed the input pane. */
+.pane-subtitle {
+  display: flex;
+  align-items: center;
+  min-height: 22px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fill-secondary);
+}
+
 #style-editor-iframe {
   border: none;
   width: 100%;
@@ -401,6 +412,8 @@ main {
   min-height: 0;
   overflow: auto;
   padding: 4px 10px 10px;
+  /* Output is text to read and copy, never a drag/selection surface. */
+  -moz-user-select: text;
 }
 
 .output-view.active {
@@ -422,6 +435,21 @@ main {
   white-space: normal;
 }
 
+/* The "no output yet" text is guidance, not a rendered citation: same type and
+   centering as the empty states in the editor and the input pane. */
+.preview-empty-state {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 20px 40px;
+  color: var(--fill-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+}
+
 .preview-heading {
   margin: 8px 0 6px;
   font-weight: 600;
@@ -429,6 +457,25 @@ main {
 
 .preview-line {
   margin: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+/* Guidance inside the preview ("no citations yet"): not rendered output. */
+.preview-empty-note {
+  color: var(--fill-secondary);
+}
+
+/* What the sandbox reported: the same severity colors as the lint list. */
+.preview-line.error {
+  color: var(--color-error);
+}
+
+.preview-line.warning {
+  color: #8a5a00;
+}
+
+.preview-line.info {
+  color: var(--fill-secondary);
 }
 
 .preview-link-target {
@@ -440,6 +487,7 @@ main {
 .preview-error-text {
   flex: 1 1 auto;
   width: 100%;
+  min-width: 0;
   min-height: 0;
   box-sizing: border-box;
   margin: 4px 0;
@@ -450,6 +498,8 @@ main {
   color: inherit;
   font: var(--monospace-font);
   line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   resize: vertical;
   -moz-user-select: text;
 }
@@ -460,6 +510,8 @@ main {
 
 #output-help-view,
 #output-lint-view {
+  min-width: 0;
+  overflow-x: hidden;
   line-height: 1.45;
 }
 
@@ -513,12 +565,21 @@ body.resizing-panes-y #style-editor-iframe {
 
 .lint-item-action {
   display: block;
+  flex: 0 0 auto;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  height: auto;
+  min-height: 28px;
   padding: 6px 8px;
   border: 1px solid var(--fill-quinary);
   border-radius: 4px;
   background: transparent;
   text-align: left;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   cursor: pointer;
 }
 
@@ -537,4 +598,39 @@ body.resizing-panes-y #style-editor-iframe {
 
 .lint-item.warning {
   color: #8a5a00;
+}
+
+/* The input pane holds two parameter groups: the document's citations and the
+   style's global options. Both feed the preview, so they are sections of the
+   same pane rather than separate panels. */
+.input-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#document-citation-block {
+  flex: 1 1 auto;
+  min-height: 120px;
+}
+
+#preview-options-block {
+  flex: 0 0 auto;
+  max-height: 34vh;
+  margin-top: 8px;
+  padding-top: 4px;
+  overflow-y: auto;
+  border-top: 1px solid var(--fill-quinary);
+}
+
+/* The attribute must win over the flex display set above. */
+#preview-options-block[hidden] {
+  display: none;
+}
+
+#preview-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 2px;
 }

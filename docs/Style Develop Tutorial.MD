@@ -412,7 +412,17 @@ Bnayan 还提供了其他实用的工具：
 - `readBytes(relPath)`：读取 Zotero 数据目录下 `banyan` 目录内的文件内容，返回字节数组。
 - `readJSON(relPath)`：读取 Zotero 数据目录下 `banyan` 目录内的文件内容，返回 JSON 对象。
 
-文件读取不设置大小硬限制；建议只读取来源明确、格式固定、已经预清洗的小型数据文件，避免把过大的文本、JSON 或二进制内容一次性读入。
+`readText`/`readBytes`/`readJSON` 不设置大小硬限制；建议只读取来源明确、格式固定、已经预清洗的小型数据文件，避免把过大的文本、JSON 或二进制内容一次性读入。需要体积、格式与校验保护时，改用下面声明的 `loadResource()`。
+
+- `callStyle(id, contexts, optionValues?)`：调用另一个已安装的样式，返回它的
+  `citations` 与 `bibliography`。被调用的 id 必须先在 `STYLE_DEPENDENCIES` 中声明
+  （最多 4 个），两个样式的 `INFO.citationType` 必须一致；一次运行最多 16 次调用、
+  调用链最多 3 个样式（含最顶层）。返回 `{ ok: true, … }` 或
+  `{ ok: false, reason, message }`，失败时由调用方自己写回退分支。
+- `loadResource(id)`：读取 `STYLE_RESOURCES` 中声明的文件（最多 8 个）。核心先校验
+  相对路径，再按 4 MiB / 10 秒上限读取；`json` 格式会解析，最后执行声明的
+  `validate()`。返回 `{ ok: true, data }` 或 `{ ok: false, reason, message }`。
+  成功结果是实例级冻结快照，同一实例重复读取返回同一个对象。
 
 - `getExtraValue(item, key, mode)`：读取条目的 `item.extra` 字段中的值，返回字符串。可选参数 `mode` 指定为 `"array"` 时返回字符串数组。`item.extra` 的键在条目转换时统一归一化为 kebab-case（如 `My Key`/`AuthorID` → `my-key`/`author-id`），`key` 需使用归一化后的形式。只有符合变量行格式的行才会成为键：键以字母开头，其余为字母／数字／空格／连字符／下划线，且值非空——与 Zotero 自身的解析一致，因此 `tex.shorttitle: Foo` 这类带点的行、空值行都是普通文本，`item.extra` 里取不到。
 - `debug(...values)`：脚本被执行的时候在 Zotero 控制台中打印调试信息。

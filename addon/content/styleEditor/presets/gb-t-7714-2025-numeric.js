@@ -26,21 +26,21 @@ function generate() {
   const uniqueCites = [];
   for (const ctx of contexts) {
     for (const cite of ctx.cites) {
-      const isExist = uniqueCites.some(i => i.item.key === cite.item.key);
+      const isExist = uniqueCites.some(i => i.item.id === cite.item.id);
       if (!isExist) {
         uniqueCites.push(cite);
       }
     }
   }
   const getOrder = (/** @type {ScriptCite} */ cite) => {
-    const index = uniqueCites.findIndex(i => i.item.key === cite.item.key);
+    const index = uniqueCites.findIndex(i => i.item.id === cite.item.id);
     return index + 1;
   };
   const bibliography = uniqueCites.map((cite) => {
     const order = affix(getOrder(cite), "[", "]");
     const content = affix(dispatcher(cite), "", ".");
     return {
-      id: cite.item.key,
+      id: String(cite.item.id),
       type: "bibliography-entry",
       content: group([order, content], "\t")
     };
@@ -54,9 +54,9 @@ function generate() {
         return orderA - orderB;
       })
       .map(getOrder);
-    const order2key = (/** @type {number} */ order) => {
-      const key = uniqueCites.find(i => getOrder(i) === order)?.item.key;
-      return key;
+    const order2id = (/** @type {number} */ order) => {
+      const id = uniqueCites.find(i => getOrder(i) === order)?.item.id;
+      return typeof id === "string" || typeof id === "number" ? String(id) : "";
     };
     if (orders.length === 1) {
       return {
@@ -65,7 +65,7 @@ function generate() {
           affix(
             link(
               orders[0],
-              `banyan://entry/${order2key(orders[0])}`
+              `banyan://entry/${order2id(orders[0])}`
             ),
             "[",
             "]"
@@ -94,8 +94,8 @@ function generate() {
           group(
             wrapped.map((r) => {
               const { start, end } = r;
-              const startUnit = link(start, `banyan://entry/${order2key(start)}`);
-              const endUnit = link(end, `banyan://entry/${order2key(end)}`);
+              const startUnit = link(start, `banyan://entry/${order2id(start)}`);
+              const endUnit = link(end, `banyan://entry/${order2id(end)}`);
               return start === end
                 ? startUnit
                 : group([startUnit, endUnit], "-");
@@ -135,7 +135,7 @@ function dispatcher(cite) {
       getCreators(cite, ["author", "editor"]),
       group([
         cite.item.title,
-        affix(cite.item.seriesTitle, "："),  
+        affix(cite.item.seriesTitle, "："),
         affix(cite.item.volume, "："),
         typeCode
       ]),
@@ -264,7 +264,7 @@ function dispatcher(cite) {
       accessed,
       doi
     ], ". ");
-  /* 会议录中析出的文献 */
+    /* 会议录中析出的文献 */
   case "C":
     return group([
       group([
@@ -283,7 +283,7 @@ function dispatcher(cite) {
       accessed,
       doi
     ], ". ");
-  /* 学位论文 */
+    /* 学位论文 */
   case "D":
     return group([
       creators,
@@ -301,7 +301,7 @@ function dispatcher(cite) {
       accessed,
       doi
     ], ". ");
-  /* 报告 */
+    /* 报告 */
   case "R":
     return group([
       creators,
@@ -318,20 +318,20 @@ function dispatcher(cite) {
       accessed,
       doi
     ], ". ");
-  /* 标准 */
+    /* 标准 */
   case "S":
     return group([
       group([
         group([
           cite.item.number,
           cite.item.title
-        ],"　"),
+        ], "　"),
         typeCode
       ]),
       accessed,
       doi
     ], ". ");
-  /* 专利 */
+    /* 专利 */
   case "P": {
     const hasInventor = cite.item.creators.some((c) => c.creatorType === "inventor");
     const authors = hasInventor
@@ -365,7 +365,7 @@ function dispatcher(cite) {
       accessed,
       doi
     ], ". ");
-  /* 档案 */
+    /* 档案 */
   case "A":
     return group([
       creators,
@@ -387,7 +387,7 @@ function dispatcher(cite) {
       accessed,
       doi
     ], ". ");
-  /* 地图 */
+    /* 地图 */
   case "CM":
     return group([
       creators,
@@ -408,7 +408,7 @@ function dispatcher(cite) {
       accessed,
       doi
     ], ". ");
-  /* 数据集 */
+    /* 数据集 */
   case "DS":
     return group([
       creators,
@@ -425,7 +425,7 @@ function dispatcher(cite) {
       accessed,
       doi
     ], ". ");
-  /* 预印本 */
+    /* 预印本 */
   case "PP":
     return group([
       creators,
@@ -455,9 +455,11 @@ function getCreators(cite, type = "author") {
   const isZh = isChinese(cite);
   const etal = isZh ? "，等" : " et al.";
   const creators = [];
-  if (!Array.isArray(type)) {{
-    creators.push(...cite.item.creators.filter(c => c.creatorType === type));
-  }}
+  if (!Array.isArray(type)) {
+    {
+      creators.push(...cite.item.creators.filter(c => c.creatorType === type));
+    }
+  }
   else {
     for (const t of type) {
       creators.push(...cite.item.creators.filter(c => c.creatorType === t));
@@ -573,7 +575,7 @@ function getMediaCode(cite) {
 /**
  * @param {ScriptCite} cite 
  */
-function getPublishPlace(cite) { 
+function getPublishPlace(cite) {
   const isZh = isChinese(cite);
   const place = cite.item.place;
   if (!place && !isElectronic(cite)) {
@@ -601,7 +603,7 @@ function getPublisher(cite) {
  * @param {ScriptCite} cite
  * @param {String} prop
  */
-function getDate(cite, prop="date") {
+function getDate(cite, prop = "date") {
   const itemType = cite.item.itemType;
   const date = cite.item[prop];
   const nonAdYear = getExtraValue(cite.item, "non-ad-year");

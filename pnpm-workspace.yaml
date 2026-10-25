@@ -1,0 +1,7 @@
+# Banyan installs the published toolchain artifacts. Map the toolchain's
+# internal package name to its tarball so a consumer does not need a sibling
+# checkout; `toolchain.lock.json` pins the revision and artifact hashes.
+packages: []
+
+overrides:
+  "@banyan/style-contract": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=db7eca9"

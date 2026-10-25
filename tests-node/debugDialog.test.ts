@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import { config } from "../package.json";
+import type { CitationDialogRequestData } from "../typings/server";
 
 /**
  * The debug dialog opens the server-owned dialogs (style / citation /
@@ -14,7 +15,8 @@ type OpenCall = {
 };
 
 const opened: OpenCall[] = [];
-const errors: string[] = [];
+/** What the plugin wrote to Zotero's error console. */
+const reported: string[] = [];
 
 let styleFiles: Map<string, unknown>;
 let selectedItems: Array<{ isRegularItem: () => boolean }>;
@@ -53,8 +55,16 @@ function makeZotero() {
     },
     URI: { getItemURI: (item: { id: number }) => `uri://${item.id}` },
     Utilities: { Internal: { activate: () => {} } },
+    // The plugin's logger writes debug output to `debug` and anything the user
+    // should see to the error console; only the latter is recorded here.
+    debug: () => {},
+    log: (message: unknown) => reported.push(String(message)),
   };
 }
+
+/** `debug` identifies a style by id/title; the request type also allows control declarations. */
+const styleIdOf = (data: CitationDialogRequestData) =>
+  "id" in data.style ? data.style.id : undefined;
 
 describe("debug dialog server helpers", function () {
   let debug: typeof import("../src/modules/debug");
@@ -63,7 +73,6 @@ describe("debug dialog server helpers", function () {
     const global = globalThis as Record<string, unknown>;
     global.ztoolkit = {
       log: () => {},
-      logError: (message: unknown) => errors.push(String(message)),
     };
     global.addon = {
       data: {
@@ -107,7 +116,7 @@ describe("debug dialog server helpers", function () {
 
   beforeEach(function () {
     opened.length = 0;
-    errors.length = 0;
+    reported.length = 0;
     (globalThis as Record<string, unknown>).Zotero = makeZotero();
     selectedItems = [fakeItem({ id: 1, title: "Alpha" })];
     styleFiles = new Map([
@@ -140,8 +149,23 @@ describe("debug dialog server helpers", function () {
 
     assert.isNotNull(data);
     assert.equal(data!.documentId, "banyan-debug");
-    assert.equal(data!.style.id, "style-a");
+    assert.equal(styleIdOf(data!), "style-a");
     assert.equal(data!.source?.cites[0].item.title, "Alpha");
+  });
+
+  it("uses the last used style when it is still indexed", function () {
+    const zotero = (globalThis as Record<string, unknown>).Zotero as {
+      Prefs: { get: (key: string, global?: boolean) => unknown };
+    };
+    const originalGet = zotero.Prefs.get;
+    zotero.Prefs.get = (key: string) =>
+      key.endsWith("lastUsedStyleId") ? "style-b" : "";
+    try {
+      const data = debug.getDebugCitationRequestData();
+      assert.equal(styleIdOf(data!), "style-b");
+    } finally {
+      zotero.Prefs.get = originalGet;
+    }
   });
 
   it("builds a bibliography request whose line carries the cite titles", function () {
@@ -149,7 +173,7 @@ describe("debug dialog server helpers", function () {
 
     assert.isNotNull(data);
     assert.equal(data!.documentId, "banyan-debug");
-    assert.equal(data!.style.id, "style-a");
+    assert.equal(styleIdOf(data!), "style-a");
     assert.equal(data!.line.content.text, "Alpha");
     assert.lengthOf(data!.extraSource?.cites ?? [], 1);
   });
@@ -166,10 +190,12 @@ describe("debug dialog server helpers", function () {
     assert.equal(data!.source?.cites[0].item.title, "Alpha");
   });
 
-  it("returns nothing when nothing usable is selected", function () {
+  it("still opens an empty citation dialog when nothing is selected", function () {
     selectedItems = [];
 
-    assert.isNull(debug.getDebugCitationRequestData());
+    const data = debug.getDebugCitationRequestData();
+    assert.isNotNull(data);
+    assert.deepEqual(data!.source?.cites, []);
     assert.isNull(debug.getDebugBibliographyRequestData());
   });
 
@@ -195,6 +221,8 @@ describe("debug dialog server helpers", function () {
     void debug.openDebugStyleDialog();
 
     assert.isEmpty(opened);
-    assert.lengthOf(errors, 1);
+    assert.deepEqual(reported, [
+      "[debug] no style available for the style dialog",
+    ]);
   });
 });

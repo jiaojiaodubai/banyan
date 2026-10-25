@@ -1,5 +1,18 @@
 import { useL10n } from "../utils/locale";
 import { unwrapDialogIO } from "../utils/window";
+import { createLogger } from "../utils/logger";
+import type {
+  StyleOptionParam,
+  StyleOptionValues,
+} from "@banyan/core/types/style";
+import {
+  resolveStyleOptionState,
+  type StyleOptionState,
+} from "@banyan/core/validation/paramValues";
+import { getStyleOptionState } from "../modules/styles";
+import { createXULElementCompat, ParameterPanel } from "../ui/parameterPanel";
+
+const log = createLogger("create-output-dialog");
 
 const t = useL10n(["createOutputDialog.ftl"]);
 
@@ -8,32 +21,49 @@ type XULMenulistElement = Element & { value: string };
 export type IO = {
   result: {
     styleId: string;
+    styleOptions?: StyleOptionValues;
     outputType: "citation" | "bibliography";
     outputFormat: "html" | "text";
     outputMethod: "clipboard" | "file";
   } | null;
   items: Array<unknown>;
-  deferred: {
-    promise: Promise<void>;
-    resolve: () => void;
-  };
+  /**
+   * Generate the output. Awaited before the dialog closes: a style sandbox run
+   * that resumes after this modal window is gone never settles. The native
+   * file picker then opens after the dialog, once it is no longer disabled.
+   */
+  render: () => Promise<void>;
 };
 
 let io: IO | null = null;
-let resolved = false;
+/** True while `onAccept()` runs the output; blocks a second accept. */
+let running = false;
+
+/** Per-style drafts, kept while the dialog is open. */
+const optionDrafts = new Map<string, StyleOptionValues>();
+let optionParams: StyleOptionParam[] = [];
+let optionState: StyleOptionState = {
+  storedValues: {},
+  valueSources: {},
+  effectiveValues: {},
+  states: {},
+};
+let optionPanel: ParameterPanel<StyleOptionParam> | null = null;
+let optionsValid = true;
+let optionsRequest = 0;
+/** Style whose option panel is on screen; empty while loading. */
+let optionsReadyStyleId = "";
+/** The in-flight load, so an early Accept can wait instead of doing nothing. */
+let optionsLoadPromise: Promise<void> | null = null;
+/** Style that `optionsLoadPromise` belongs to. */
+let optionsLoadStyleId = "";
 
 window.addEventListener("load", initCreateOutputDialog);
-window.addEventListener("unload", () => {
-  if (!resolved && io) {
-    io.result = null;
-    io.deferred.resolve();
-  }
-});
 
 async function initCreateOutputDialog(): Promise<void> {
   const arg = unwrapDialogIO<IO>(window.arguments?.[0]);
   if (!arg) {
-    ztoolkit.logError("createOutputDialog: window IO is missing");
+    log.error("window IO is missing");
     return;
   }
   io = arg;
@@ -43,6 +73,7 @@ async function initCreateOutputDialog(): Promise<void> {
   restoreSavedSettings();
   bindEvents();
   updateCitationLabel();
+  void showStyleOptions();
 }
 
 function updateItemCount(): void {
@@ -98,7 +129,7 @@ function restoreSavedSettings(): void {
     setRadioValue("output-format", settings.outputFormat);
     setRadioValue("output-method", settings.outputMethod);
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("恢复上次的输出设置失败", e);
   }
 }
 
@@ -116,16 +147,17 @@ function bindEvents(): void {
   document.getElementById("accept-button")?.addEventListener("click", onAccept);
   document.getElementById("cancel-button")?.addEventListener("click", onCancel);
   // A XUL menulist fires `command`, not `change`.
-  document
-    .getElementById("style-select")
-    ?.addEventListener("command", () => updateCitationLabel());
+  document.getElementById("style-select")?.addEventListener("command", () => {
+    updateCitationLabel();
+    void showStyleOptions();
+  });
   document.addEventListener("keydown", onKeydown);
 }
 
 function onKeydown(event: KeyboardEvent): void {
   if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
     event.preventDefault();
-    onAccept();
+    void onAccept();
     return;
   }
   if (event.key === "Escape") {
@@ -150,6 +182,182 @@ function updateCitationLabel(): void {
       : t("create-output-type-citation-inline");
 }
 
+async function showStyleOptions(): Promise<void> {
+  const menulist = document.getElementById(
+    "style-select",
+  ) as XULMenulistElement | null;
+  if (!menulist?.value) {
+    clearStyleOptions();
+    return;
+  }
+  const styleFile = addon.data.styles.files.get(menulist.value);
+  if (!styleFile) {
+    clearStyleOptions();
+    return;
+  }
+
+  const request = ++optionsRequest;
+  optionsReadyStyleId = "";
+  optionsLoadStyleId = styleFile.id;
+  updateAcceptDisabled();
+  const load = (async () => {
+    let next: Awaited<ReturnType<typeof getStyleOptionState>>;
+    try {
+      next = await getStyleOptionState(
+        { id: styleFile.id, title: styleFile.title },
+        optionDrafts.get(styleFile.id),
+      );
+    } catch (e) {
+      log.error("读取样式全局选项失败", e);
+      reportStyleOptionsFailure(request);
+      return;
+    }
+    if (request !== optionsRequest) return;
+
+    try {
+      optionParams = next.params;
+      optionState = next.state;
+      optionDrafts.set(styleFile.id, { ...next.state.storedValues });
+      renderStyleOptions(styleFile.id);
+      optionsReadyStyleId = styleFile.id;
+      updateAcceptDisabled();
+    } catch (e) {
+      log.error("渲染样式全局选项失败", e);
+      reportStyleOptionsFailure(request);
+    }
+  })();
+  optionsLoadPromise = load;
+  await load;
+}
+
+function reportStyleOptionsFailure(request: number): void {
+  if (request !== optionsRequest) return;
+  clearStyleOptions();
+  showStyleOptionsFailure();
+}
+
+/**
+ * Wait for the selected style's options when Accept arrives during a load.
+ * Returns false when there is no load for this style to wait for (the load
+ * failed, or the style was never readable).
+ */
+async function waitForStyleOptions(styleId: string): Promise<boolean> {
+  while (optionsReadyStyleId !== styleId) {
+    const pending = optionsLoadPromise;
+    if (!pending || optionsLoadStyleId !== styleId) {
+      return false;
+    }
+    await pending;
+    if (optionsLoadPromise === pending) {
+      return optionsReadyStyleId === styleId;
+    }
+  }
+  return true;
+}
+
+function updateAcceptDisabled(): void {
+  const acceptButton = document.getElementById(
+    "accept-button",
+  ) as HTMLButtonElement | null;
+  if (!acceptButton) return;
+  const menulist = document.getElementById(
+    "style-select",
+  ) as XULMenulistElement | null;
+  const styleId = menulist?.value ?? "";
+  acceptButton.disabled =
+    running || (Boolean(styleId) && optionsReadyStyleId !== styleId);
+}
+
+/**
+ * A failed load leaves no panel to validate against, so Accept stays disabled;
+ * say why instead of leaving the dialog looking frozen.
+ */
+function showStyleOptionsFailure(): void {
+  const block = document.getElementById(
+    "style-options-block",
+  ) as HTMLElement | null;
+  const container = document.getElementById(
+    "style-options",
+  ) as HTMLElement | null;
+  if (!block || !container) return;
+  block.hidden = false;
+  container.replaceChildren();
+  const message = document.createElement("div");
+  message.className = "style-options-error";
+  message.textContent = t("create-output-error-options-unavailable");
+  container.appendChild(message);
+}
+
+function clearStyleOptions(): void {
+  optionsRequest++;
+  optionsReadyStyleId = "";
+  optionPanel = null;
+  optionParams = [];
+  optionState = {
+    storedValues: {},
+    valueSources: {},
+    effectiveValues: {},
+    states: {},
+  };
+  optionsValid = true;
+  const block = document.getElementById(
+    "style-options-block",
+  ) as HTMLElement | null;
+  const container = document.getElementById(
+    "style-options",
+  ) as HTMLElement | null;
+  if (block) block.hidden = true;
+  container?.replaceChildren();
+  updateAcceptDisabled();
+}
+
+function renderStyleOptions(styleId: string): void {
+  const block = document.getElementById(
+    "style-options-block",
+  ) as HTMLElement | null;
+  const container = document.getElementById(
+    "style-options",
+  ) as HTMLElement | null;
+  if (!block || !container) return;
+
+  const hasOptions = optionParams.length > 0;
+  block.hidden = !hasOptions;
+  if (!hasOptions) {
+    container.replaceChildren();
+    optionPanel = null;
+    optionsValid = true;
+    return;
+  }
+
+  optionsValid = true;
+  const values = { ...optionState.storedValues };
+  optionDrafts.set(styleId, values);
+  optionPanel = new ParameterPanel<StyleOptionParam>({
+    container,
+    controls: optionParams,
+    values,
+    // Same widgets as the style chooser, so the options of one style do not
+    // change appearance between dialogs.
+    mode: "xul",
+    createXULElementCompat,
+    getState: (control) =>
+      optionState.states[control.id] ?? {
+        mode: "free",
+        value: optionState.effectiveValues[control.id] ?? "",
+      },
+    onChange: () => {
+      const draft = optionDrafts.get(styleId);
+      if (draft) {
+        optionState = resolveStyleOptionState(optionParams, draft);
+      }
+    },
+    onValidityChange: (valid) => {
+      optionsValid = valid;
+    },
+  });
+  optionPanel.render();
+}
+
 function getCheckedValue<T extends string>(name: string): T | null {
   const checked = document.querySelector<HTMLInputElement>(
     `input[name="${name}"]:checked`,
@@ -157,8 +365,10 @@ function getCheckedValue<T extends string>(name: string): T | null {
   return (checked?.value as T | undefined) ?? null;
 }
 
-function onAccept(): void {
+async function onAccept(): Promise<void> {
   if (!io) return;
+  // Re-entry guard: the button stays clickable while the output runs below.
+  if (running) return;
 
   const menulist = document.getElementById(
     "style-select",
@@ -167,6 +377,29 @@ function onAccept(): void {
     ztoolkit.getGlobal("alert")(t("create-output-error-no-style"));
     return;
   }
+  // A freshly opened dialog can be accepted before the first load resolves;
+  // wait for the selection that is actually on screen instead of swallowing
+  // the keypress. The loop re-reads the menulist in case the user switches
+  // styles while the previous load is still pending.
+  while (optionsReadyStyleId !== menulist.value) {
+    if (!menulist.value) {
+      ztoolkit.getGlobal("alert")(t("create-output-error-no-style"));
+      return;
+    }
+    const styleId = menulist.value;
+    let ready = false;
+    try {
+      ready = await waitForStyleOptions(styleId);
+    } catch (e) {
+      log.error("等待样式选项加载失败", e);
+    }
+    if (!ready) {
+      ztoolkit.getGlobal("alert")(t("create-output-error-options-unavailable"));
+      return;
+    }
+  }
+  // Waiting for options yielded; a second Accept may have started the run.
+  if (running) return;
 
   const outputType = getCheckedValue<"citation" | "bibliography">(
     "output-type",
@@ -178,9 +411,20 @@ function onAccept(): void {
     ztoolkit.getGlobal("alert")(t("create-output-error-incomplete"));
     return;
   }
+  if (optionPanel && (!optionsValid || !optionPanel.isValid())) {
+    ztoolkit.getGlobal("alert")(t("create-output-error-invalid-options"));
+    optionPanel.focusFirst();
+    return;
+  }
+
+  const storedOptions = resolveStyleOptionState(
+    optionParams,
+    optionDrafts.get(menulist.value),
+  ).storedValues;
 
   io.result = {
     styleId: menulist.value,
+    styleOptions: storedOptions,
     outputType,
     outputFormat,
     outputMethod,
@@ -192,18 +436,27 @@ function onAccept(): void {
       JSON.stringify({ outputType, outputFormat, outputMethod }),
     );
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("保存输出设置失败", e);
   }
 
-  resolved = true;
-  io.deferred.resolve();
-  window.close();
+  running = true;
+  const acceptButton = document.getElementById(
+    "accept-button",
+  ) as HTMLButtonElement | null;
+  if (acceptButton) {
+    acceptButton.disabled = true;
+  }
+  try {
+    // Generation must finish while this window is still open; see `IO.render`.
+    await io.render();
+  } finally {
+    running = false;
+    window.close();
+  }
 }
 
 function onCancel(): void {
   if (!io) return;
   io.result = null;
-  resolved = true;
-  io.deferred.resolve();
   window.close();
 }

@@ -44,23 +44,59 @@ type ScriptSafe<T> = T extends undefined
  */
 interface Style<T extends CitationType = CitationType> {
   INFO: StyleInfo<T>;
-  UI?: StyleUI;
+  /** Document-wide parameters; values are written to `options`. */
+  STYLE_OPTIONS?: StyleOptionParam[];
+  /** Parameters for the whole citation; values are written to `CitationContext.params`. */
+  CITATION_PARAMS?: CitationParam[];
+  /** Parameters for one cited item; values are written to `Cite.params`. */
+  CITE_PARAMS?: CiteParam[];
   /** Declared marks for the item context menu (write item field / `extra`). */
   ITEM_FIELD_PRESETS?: FieldPreset[];
-  /** Declared read-only field checks, grouped by Zotero item type. */
+  /** Item-type keyed, read-only field checks shown in the item menu. */
   ITEM_FIELD_VALIDATORS?: ItemFieldValidators;
-  generate: (contexts: CitationContext[]) => MaybePromise<StyleResult<T>>;
+  /** Other styles this one may call through `callStyle()`, by style id. */
+  STYLE_DEPENDENCIES?: string[];
+  /** Assets under the style's `assets/` directory this one may read through `loadResource()`. */
+  STYLE_RESOURCES?: StyleResource[];
+  generate: (
+    contexts: CitationContext[],
+    options?: StyleOptionValues,
+  ) => MaybePromise<StyleResult<T>>;
 }
 
 /**
+ * One file a style may read through `loadResource()`.
+ *
+ * `id` is the asset's public name *and* its file name: the file lives at
+ * `<style directory>/assets/<id>`, with no extension. Lowercase letters,
+ * digits and single hyphens only. `format` decides whether the bytes are
+ * parsed as JSON or decoded as UTF-8 text. Assets are shared, publicly
+ * maintained data; the runtime does not run a per-style validator.
+ */
+type StyleResource = {
+  /** Unique within the style; also the file name under `assets/`. */
+  id: string;
+  format: "json" | "text";
+};
+
+/**
  * User-authored script contract executed inside the sandbox.
- * `generate()` reads the readonly global `contexts` instead of accepting args.
+ * `generate()` reads the readonly globals `contexts` and `options` instead of
+ * accepting arguments.
  */
 interface StyleScript<T extends CitationType = CitationType> {
   INFO: StyleInfo<T>;
-  UI?: StyleUI;
+  STYLE_OPTIONS?: StyleOptionParam[];
+  /** Parameters for the whole citation; values are written to `CitationContext.params`. */
+  CITATION_PARAMS?: CitationParam[];
+  /** Parameters for one cited item; values are written to `Cite.params`. */
+  CITE_PARAMS?: CiteParam[];
   ITEM_FIELD_PRESETS?: FieldPreset[];
   ITEM_FIELD_VALIDATORS?: ItemFieldValidators;
+  /** Other styles this one may call through `callStyle()`, by style id. */
+  STYLE_DEPENDENCIES?: string[];
+  /** Assets under the style's `assets/` directory this one may read through `loadResource()`. */
+  STYLE_RESOURCES?: StyleResource[];
   generate: () => MaybePromise<ScriptResult<T>>;
 }
 
@@ -82,55 +118,208 @@ type StyleInfo<T extends CitationType = CitationType> = {
   [key: string]: unknown;
 };
 
-/** One declared control; the host renders it and owns its behavior. */
-type ComponentBase = {
+/**
+ * Result of a parameter validator: `true` when the value is usable, `false` or
+ * an error message when it is not. The core runs validators while resolving a
+ * free parameter and reports the outcome through `ParamState.validation`
+ * (`fieldValidation` for list rows). Validators are synchronous, like the other
+ * resolution callbacks; they cannot await async utilities.
+ */
+type ParamCheckResult = boolean | string;
+type ParamPreset = string | { label: string; value: string };
+
+type StateValue = string | boolean;
+type StyleOptionValue = StateValue;
+type StyleOptionValues = Record<string, StyleOptionValue>;
+
+/**
+ * The value a parameter can force. A resolver returns `null` when the
+ * parameter is free; any other returned value must match the parameter's kind.
+ * A throw or an invalid value leaves the parameter free.
+ */
+type ForcedValue<T, Scope extends unknown[]> =
+  T | ((...scope: Scope) => T | null);
+
+type ValueParamBase = {
   id: string;
   label: string;
+  description?: string;
+  defaultValue?: string;
+  /** Suggested values; a string is shorthand for `{ label, value }`. */
+  presets?: readonly ParamPreset[];
+  /** `rich` values are restricted markup strings, not structured rich text. */
+  format?: "plain" | "rich";
 };
 
-type CitationComponentBase = ComponentBase;
-
-type CiteComponentBase = ComponentBase & {
-  /** Evaluate in the style sandbox once when the cite popup opens. */
-  visible?: CiteVisibilityPredicate;
-  /** Evaluate in the style sandbox whenever cite params change. */
-  disabled?: CiteDisabledPredicate;
+type StateParamBase = {
+  id: string;
+  label: string;
+  description?: string;
+  kind: "state";
+  /**
+   * Stable state key -> plain-text label. Omit for a boolean toggle.
+   * Declaration order is display order.
+   */
+  states?: Record<string, string>;
+  defaultValue?: StateValue;
 };
 
-type CheckboxComponent = {
-  type: "checkbox";
-  value: boolean;
+type StyleStateParam = StateParamBase & {
+  forcedValue?: ForcedValue<StateValue, [values: Readonly<StyleOptionValues>]>;
 };
 
-type SelectComponent = {
-  type: "select";
-  value: string;
-  options: Record<string, string>;
+type StyleValueParam = ValueParamBase & {
+  kind: "value";
+  forcedValue?: ForcedValue<string, [values: Readonly<StyleOptionValues>]>;
+  /**
+   * Called by the core while resolving a free option. Return `true` when the
+   * value is usable, or `false`/a message when it is not. Hidden and forced
+   * options are never validated.
+   */
+  validate?: (
+    value: string,
+    values: Readonly<StyleOptionValues>,
+  ) => ParamCheckResult;
 };
 
-type InputComponent = {
-  type: "input";
-  value: string;
+/** Document-wide parameter (`STYLE_OPTIONS`). */
+type StyleOptionParam = StyleStateParam | StyleValueParam;
+
+type CitationParamBase = {
+  id: string;
+  label: string;
+  description?: string;
+  /** `false` hides the parameter; only a strict `false` is negative. */
+  applicable?: (
+    citation: Readonly<CitationContext>,
+    options: Readonly<StyleOptionValues>,
+  ) => boolean;
 };
 
-type CitationStyleComponent =
-  | (CitationComponentBase & CheckboxComponent)
-  | (CitationComponentBase & SelectComponent)
-  | (CitationComponentBase & InputComponent);
+type CitationStateParam = CitationParamBase &
+  StateParamBase & {
+    forcedValue?: ForcedValue<
+      StateValue,
+      [
+        citation: Readonly<CitationContext>,
+        options: Readonly<StyleOptionValues>,
+      ]
+    >;
+  };
 
-type CiteStyleComponent =
-  | (CiteComponentBase & CheckboxComponent)
-  | (CiteComponentBase & SelectComponent)
-  | (CiteComponentBase & InputComponent);
+type CitationValueParam = CitationParamBase &
+  ValueParamBase & {
+    kind: "value";
+    forcedValue?: ForcedValue<
+      string,
+      [
+        citation: Readonly<CitationContext>,
+        options: Readonly<StyleOptionValues>,
+      ]
+    >;
+    /** Called by the core for free values; never for hidden or forced ones. */
+    validate?: (
+      value: string,
+      citation: Readonly<CitationContext>,
+      options: Readonly<StyleOptionValues>,
+    ) => ParamCheckResult;
+  };
 
-type StyleComponent = CitationStyleComponent | CiteStyleComponent;
+/** Parameter for the whole citation (`CITATION_PARAMS`). */
+type CitationParam = CitationStateParam | CitationValueParam;
 
-type StyleUI = {
-  cite: CiteStyleComponent[];
-  citation: CitationStyleComponent[];
+type CiteParamBase = {
+  id: string;
+  label: string;
+  description?: string;
+  /** `false` hides the parameter; only a strict `false` is negative. */
+  applicable?: (
+    cite: Readonly<Cite>,
+    citation: Readonly<CitationContext>,
+    options: Readonly<StyleOptionValues>,
+  ) => boolean;
 };
 
-/** Same contract as {@link CiteVisibilityPredicate}: evaluated in the style sandbox, `true` only when strict. */
+type CiteStateParam = CiteParamBase &
+  StateParamBase & {
+    forcedValue?: ForcedValue<
+      StateValue,
+      [
+        cite: Readonly<Cite>,
+        citation: Readonly<CitationContext>,
+        options: Readonly<StyleOptionValues>,
+      ]
+    >;
+  };
+
+type CiteValueParam = CiteParamBase &
+  ValueParamBase & {
+    kind: "value";
+    forcedValue?: ForcedValue<
+      string,
+      [
+        cite: Readonly<Cite>,
+        citation: Readonly<CitationContext>,
+        options: Readonly<StyleOptionValues>,
+      ]
+    >;
+    /** Called by the core for free values; never for hidden or forced ones. */
+    validate?: (
+      value: string,
+      cite: Readonly<Cite>,
+      citation: Readonly<CitationContext>,
+      options: Readonly<StyleOptionValues>,
+    ) => ParamCheckResult;
+  };
+
+/** A repeatable row's field; rows contain only value parameters. */
+type ListFieldParam = {
+  id: string;
+  kind: "value";
+  label: string;
+  description?: string;
+  defaultValue?: string;
+  presets?: readonly ParamPreset[];
+  format?: "plain" | "rich";
+  /** Called by the core once per row while resolving a free list. */
+  validate?: (
+    value: string,
+    row: ListRow,
+    cite: Readonly<Cite>,
+    citation: Readonly<CitationContext>,
+    options: Readonly<StyleOptionValues>,
+  ) => ParamCheckResult;
+};
+
+type CiteListParam = CiteParamBase & {
+  kind: "list";
+  fields: readonly ListFieldParam[];
+  /** Editor bounds, in rows; the core reports but never truncates a list. */
+  min?: number;
+  /** Editor bounds, in rows; the core reports but never truncates a list. */
+  max?: number;
+  defaultValue?: readonly ListRow[];
+  forcedValue?: ForcedValue<
+    readonly ListRow[],
+    [
+      cite: Readonly<Cite>,
+      citation: Readonly<CitationContext>,
+      options: Readonly<StyleOptionValues>,
+    ]
+  >;
+};
+
+/** Parameter for one cited item (`CITE_PARAMS`). */
+type CiteParam = CiteStateParam | CiteValueParam | CiteListParam;
+
+/** Host-side aggregate of the three parameter scopes. */
+type ParamDeclarations = {
+  style: StyleOptionParam[];
+  citation: CitationParam[];
+  cite: CiteParam[];
+};
+
+/** Same sandbox evaluation contract as the parameter callbacks: only a strict `true` is visible. */
 type FieldPresetVisible = (item: Readonly<Item>) => boolean;
 
 /**
@@ -152,10 +341,14 @@ type FieldPreset = {
   fields: Record<string, string | null>;
 };
 
-/** Result of one field check; see `FieldValidator`. */
+/** Result of one field check. */
 type FieldCheckResult = boolean | string | readonly string[];
 
-/** Read-only check; a promise is awaited by the host with a timeout. */
+/**
+ * Read one item snapshot and answer whether its fields are usable. The check
+ * is read-only and may return a promise; the host awaits it with a timeout.
+ * Any other result is reported as a broken checker.
+ */
 type FieldCheck = (item: Readonly<Item>) => MaybePromise<FieldCheckResult>;
 
 /** One declared check shown in the field-check report. */
@@ -174,21 +367,23 @@ type CitationContext = CitationSource & {
   page: number;
 };
 
+/** One value a parameter can hold: a state, plain/rich string, or row set. */
+type ParamValue = StateValue | string | readonly ListRow[];
+
+/** A repeatable row: field id -> that field's string value (never nested). */
+type ListRow = Readonly<Record<string, string>>;
+
 type CitationSource = {
   cites: Cite[];
   params: CitationParams;
 };
 
-type CitationParams = Record<string, string | boolean>;
+type CitationParams = Record<string, ParamValue>;
 
 type Cite = {
   item: Item;
-  params?: { [key: string]: string | boolean };
+  params?: Record<string, ParamValue>;
 };
-
-type CiteVisibilityPredicate = (item: Readonly<Item>) => boolean;
-
-type CiteDisabledPredicate = (cite: Readonly<Cite>) => boolean;
 
 /**
  * Item view exposed to scripts (e.g. `cite.item` inside `contexts`): a
@@ -222,6 +417,13 @@ type ScriptContext = ScriptSafe<CitationContext>;
  * native. `contexts.length` always equals the number of citations to emit.
  */
 type ScriptContexts = readonly ScriptContext[];
+
+/**
+ * The readonly global `options` injected before `generate()` runs: the
+ * effective style-option values. Missing keys read as `""`, like the other
+ * sandbox views.
+ */
+type ScriptOptions = ScriptSafe<StyleOptionValues>;
 
 type ScriptResult<T extends CitationType = CitationType> = {
   citations: ScriptCitationsMap[T];
@@ -309,3 +511,11 @@ type ScriptBibliographyLine = ScriptBibliographyTitle | ScriptBibliographyEntry;
  * strings at runtime, while array semantics stay unchanged.
  */
 declare const contexts: ScriptContexts;
+
+/**
+ * `options` is injected as a readonly global by the sandbox before
+ * `generate()` is called. It carries the effective document-wide parameter
+ * values: declared defaults filled in, hidden values replaced, and forced
+ * values applied.
+ */
+declare const options: StyleOptionValues;

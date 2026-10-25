@@ -3,14 +3,18 @@ import {
   doiToUrl,
   filterComparableFields,
   findExistingLanguageItem,
-  findLanguageMatch,
   hasNonLanguageChanges,
   isSameItemContent,
+} from "../src/utils/multilingualDraft";
+import type {
+  CreatorSnapshot,
+  ItemContentSnapshot,
+} from "../typings/multilingualItem";
+import {
+  findLanguageMatch,
   normalizeLanguageCode,
   normalizeStyleLanguageTag,
-  type CreatorSnapshot,
-  type ItemContentSnapshot,
-} from "../src/utils/multilingualDraft";
+} from "@banyan/core/items/language";
 
 const content = (
   overrides: Partial<ItemContentSnapshot> = {},
@@ -116,10 +120,10 @@ describe("multilingual item draft validation", function () {
   });
 
   it("resolves language matches in the source, then tag, then ID order", function () {
-    const source = { id: 1 };
-    const chineseTraditional = { id: 2 };
-    const chineseSimplified = { id: 3 };
-    const genericChinese = { id: 4 };
+    const source = { id: "1" };
+    const chineseTraditional = { id: "2" };
+    const chineseSimplified = { id: "3" };
+    const genericChinese = { id: "4" };
     const candidates = [
       { item: chineseTraditional, language: "zh-tw" },
       { item: source, language: "zh-cn", isSource: true },
@@ -151,27 +155,27 @@ describe("multilingual item draft validation", function () {
 
     // Without a source flag: lowest tag, then lowest ID, regardless of order.
     const copies = [
-      { item: { id: 11 }, language: "zh-tw" },
-      { item: { id: 12 }, language: "zh-hans-cn" },
-      { item: { id: 13 }, language: "zh-cn" },
+      { item: { id: "11" }, language: "zh-tw" },
+      { item: { id: "12" }, language: "zh-hans-cn" },
+      { item: { id: "13" }, language: "zh-cn" },
     ];
-    assert.equal(findLanguageMatch(copies, "zh")?.id, 13);
-    assert.equal(findLanguageMatch([...copies].reverse(), "zh")?.id, 13);
+    assert.equal(findLanguageMatch(copies, "zh")?.id, "13");
+    assert.equal(findLanguageMatch([...copies].reverse(), "zh")?.id, "13");
     assert.equal(
       findLanguageMatch(
         [
-          { item: { id: 21 }, language: "zh-cn" },
-          { item: { id: 20 }, language: "zh-cn" },
+          { item: { id: "21" }, language: "zh-cn" },
+          { item: { id: "20" }, language: "zh-cn" },
         ],
         "zh-CN",
       )?.id,
-      20,
+      "20",
     );
   });
 
   it("matches tags the strict validation refuses", function () {
-    const catalanValencia = { id: 1 };
-    const latinAmericanSpanish = { id: 2 };
+    const catalanValencia = { id: "1" };
+    const latinAmericanSpanish = { id: "2" };
 
     assert.strictEqual(
       findLanguageMatch(
