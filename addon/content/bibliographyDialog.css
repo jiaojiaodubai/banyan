@@ -60,6 +60,18 @@ section {
   height: 100%;
 }
 
+#uncited-items-tree .virtualized-table .cell {
+  padding-inline: 8px;
+}
+
+#uncited-items-tree .virtualized-table .cell:first-child {
+  padding-inline-start: 0;
+}
+
+#uncited-items-tree .cell-icon {
+  margin-inline-end: 4px;
+}
+
 /* highlight selected row even table is not focused */
 .virtualized-table:not(:focus-within) .row.selected {
   background-color: var(--color-accent);
