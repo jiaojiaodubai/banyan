@@ -1,593 +1,46 @@
 # Banyan 样式开发入门
 
-Banyan Style 是配合 Banyan for Zotero 使用的 JavaScript 脚本，用于生成参考文献和引用。
+Banyan Style 是供 Banyan for Zotero 执行的 JavaScript 样式文件，用于生成引注和参考文献。
+本文从常见的文献格式要求出发，说明这些要求如何对应到 Banyan 样式中的数据和输出字段，
+并介绍样式文件的基本结构及可选功能。无需先掌握全部 JavaScript 语法；代码术语会在相关
+示例中解释。
 
-## 术语约定
+最小样式和文件结构见[第 1 节](#1-最小可用样式)与[第 2 节](#2-样式文件结构)；
+输入参数见[第 3 节](#3-输入数据)；输出结构和 Unit 工具见[第 4 节](#4-输出citations-和-bibliography)
+及[第 6 节](#6-unit-工具速查)；全局选项、快捷标记和字段检查见[第 5 节](#5-按需扩展全局选项快捷标记字段检查)。
 
-为了方便下文的叙述，我们约定以下术语：
+## 术语对照
 
-- 样式（Style）：规定参考文献内容和排版格式的规范，如 APA、MLA、Chicago 等，有时特指 Banyan Style 脚本。
-- 条目（Item）：即 Zotero 中的条目，是包含文献出版信息的一条记录。
-- 引注（Citation）：在正文中标注引用了文献的标记。其中 `intext-citation` 是最常用的引注类型，它仅在正文中出现标记，而 `note-citation` 则在正文插入一个引用标记。
-- 引用（Cite）：把条目添加到引注中的行为，在 Banyan 的语境中，一次引用对应一个条目。
-- 参考文献列表（Bibliography）：集中列出参考文献具体信息的列表，一般出现在文档末尾或章节末尾。
-- 参考文献项目（Bibliography Entry）：参考文献列表中的一项，通常对应一个条目，但在复合编码的样式中，一个参考文献项目中可能包含多个条目。
+格式规范描述的是作者、年份、页码和参考文献等排版要求；样式代码则通过条目、引注和输出
+对象表达这些要求。下表给出两者之间的对应关系。
+
+| 格式规范中的概念                     | Banyan 术语         | 样式中的位置                       |
+| ------------------------------------ | ------------------- | ---------------------------------- |
+| 一处正文或脚注引注，可能包含多个文献 | 引注上下文（`ctx`） | `contexts[]`；输出到 `citations[]` |
+| 该处引注中的一项文献引用             | 引用项（`cite`）    | `ctx.cites[]`                      |
+| Zotero 文库中的文献记录              | 条目（`item`）      | `cite.item`                        |
+| 参考文献列表中的一行                 | 参考文献项目        | `bibliography[]`                   |
+| 引注或参考文献项目的文字、标点和格式 | Unit                | `content`                          |
+
+例如，“引注显示作者、年份和页码”通常由 `citations[].content` 表达；“参考文献列出作者、
+题名和出版信息”则由 `bibliography[].content` 表达。用户为整处引注或其中某项引用填写的
+页码等内容，分别通过 Citation 参数和 Cite 参数提供，详见[第 3 节](#3-输入数据)。
 
 ## JavaScript 基础
 
-编写 Banyan Style 需要一定的 JavaScript 基础。如果你对 JavaScript 不太熟悉，建议先阅读一些入门教程，如 [MDN JavaScript 教程](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide)。JavaScript 很容易入门，但也包含不少深度的概念，为了避免初学者迷失在浩瀚的教程中，这里列举一些编写 Banyan Style 需要了解的概念。
+样式通过 JavaScript 函数读取条目和引注，再返回排版结果。代码示例会解释所需语法；
+不熟悉 JavaScript 的读者可按需阅读
+[MDN JavaScript 教程](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide)。
 
-- 标量：`Number`、`String`、`Boolean`、`Null`、`Undefined` 等。
-- 数据容器：`Array`、`Object` 等。
-- 函数：匿名函数、箭头函数、异步函数的声明及调用。
-- 流程控制：`if/else`、`switch/case`、`for/break/continue` 等。
+## 1. 最小可用样式
 
-在以上的概念中，`Array` 是我们最常用的数据容器，因为我们总是需要在样式中处理用户插入的一系列引注，因此你需要重点掌握它的几个方法：
-
-- `filter`：返回一个新数组，该数组中的元素是通过检查指定数组中符合条件的元素。
-- `map`：返回一个新数组，该数组中的元素是通过对指定数组中每个元素进行指定操作后返回的结果。
-- `find`：返回数组中满足条件的第一个元素。
-- `findIndex`：返回数组中满足条件的第一个元素的索引。
-
-## 准备环境
-
-JavaScript 是文本脚本，理论上你可以用任意文本编辑器编写脚本，但为了方便，推荐你使用以下方案：
-
-- Banyan for Zotero 插件内置的脚本编辑器。它是一个集成环境，提供了模板、代码片段、语法高亮、错误提示、渲染预览等功能。
-- Zotero 首选项中的样式管理器。选中一个样式后可以点击“预览样式”，或双击样式行，用当前文库中已选中的常规条目生成快速预览。
-- [Visual Studio Code](https://code.visualstudio.com/)。你可以在安装 Banyan for Zotero 插件后，使用 VS Code 打开 Banyan 的数据目录，并在集成终端中运行 `pnpm install` 安装依赖包。之后，你可以用 `pnpm run lint:check` 检查代码问题。
-
-这两个方案都需要你准备 Node.js 环境。如果你没有安装 Node.js，请按照 [Node.js 安装指南](https://nodejs.org/zh-cn/download/) 安装。
-
-## 你的任务
-
-在介绍样式的具体结构之前，我们先来认识一下你的任务：输入 `contexts`，生成 `citations` 和 `bibliography`。
-
-### contexts
-
-`contexts` 是样式内的全局对象，代表用户提供的引注。`contexts` 是一个数组，数组中的每个元素都是 `CitationContext` 类型的对象，`CitationContext` 包含以下属性：
-
-- `id`：引注的 ID，用于标识引注。
-- `cites`：引注中的引用。
-- `page`：引注在文档中的页码。
-- `params`：引注的其它的参数，用于控制样式的生成。
-
-`contexts` 及其中的对象是宿主在调用 `generate()` 前注入的**只读安全视图**：读取不存在的属性时会返回空字符串 `""` 而不是 `undefined`；数组的索引访问与数组方法保持原生行为。
-
-而 `cites` 也是一个数组，数组中的每个元素都是 `Cite` 类型的对象，`Cite` 包含以下属性：
-
-- `item`：引用的条目。
-- `params`：引用的其它的参数，用于控制样式的生成。
-
-### Unit 对象
-
-参考文献格式规范除了规定参考文献的内容之外，还规定了文本的格式。Banyan 用 `Unit` 这个概念来表示带有字符格式的文本，`Unit` 可以是简单的字符串或者纯数字，或者 [Unit 工具](#unit工具)提到的类型。
-
-脚本输出对象里的字段名叫 `content`，它接收的是单个 `Unit`。宿主在渲染前会把 `content` 编译成 `RichText`，即 `{ text, marks }` 结构，其中 `text` 是完整纯文本，`marks` 是加粗、斜体、链接等作用区间。
-
-`marks` 中的区间使用 JavaScript 字符串偏移：`start` 为起始位置，`end` 为排他结束位置，单位是 UTF-16 code unit。样式作者通常不需要手写 `RichText`；请继续返回 `Unit`，由宿主统一编译。
-
-### citations
-
-`citations` 即引注组成的数组。我们在[术语约定](#术语约定)中提到过，引注有 `intext-citation` 和 `note-citation` 两种类型，它们所具有的属性不同。
-
-`intext-citation` 类型的引注是具有如下属性的对象：
-
-- `id`：引注的 ID，用于标识引注，一般你只需要沿用 `contexts` 中的 ID，这样你的引注就会取代旧的引注。
-- `content`：引注内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
-
-`note-citation` 类型有正文标记和脚注区内容两部分，它包括以下属性：
-
-- `id`：引注的 ID，用于标识引注，一般你只需要沿用 `contexts` 中的 ID，这样你的引注就会取代旧的引注。
-- `content`：脚注内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
-- `reference`：正文中的标记，是单个 `Unit`。这个属性可以留空，此时脚注标记由字处理器自动分配。
-
-### bibliography
-
-`bibliography` 即参考文献列表。它是一个数组，数组中的元素可能是 `BibliographyEntry` 或者 `BibliographyTitle` 类型的对象。
-
-`BibliographyEntry` 类型表示一个参考文献列表项目，有如下属性：
-
-- `id`：参考文献列表项目的 ID，用于标识项目，可作为超链接的跳转靶点。
-- `type`：必须是 `bibliography-entry`，用以自明身份。
-- `content`：参考文献列表项目的内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
-
-`BibliographyTitle` 类型表示参考文献列表的标题，有如下属性：
-
-- `id`：标题的 ID，推荐使用标题的烤串形式。
-- `type`：必须是 `bibliography-title`，用以自明身份。
-- `content`：参考文献列表的标题内容，是单个 `Unit`。如果内容由多个片段组成，请使用 `group([...])` 组合。
-
-## 样式结构
-
-Banyan Style 是一个 JavaScript 文件，它要求你必需声明 `INFO` 对象和 `generate()` 函数，此外你还可以声明 `UI` 对象用于定义输入控件，以及 `ITEM_FIELD_PRESETS`（条目快捷标记）。
-
-### INFO 对象
-
-`INFO` 对象用于描述样式的元信息，如 ID、标题、描述、作者、标签、文档链接、许可协议、更新时间等，你可以参照下面的例子来写出 `INFO` 对象。
+一个样式至少要有 `INFO` 和 `generate()`：
 
 ```javascript
 const INFO = {
-  id: "your-style-id",
-  title: "Your Style Name",
-  description: "简要描述",
-  // 引注类型，可选值：intext-citation、note-citation
-  citationType: "intext-citation",
-  creator: [
-    // 样式的原作者、维护者信息
-    {
-      name: "Your Name",
-      email: "your-email@example.com",
-      uri: "https://example.com/",
-      type: "author",
-    },
-  ],
-  tags: [
-    // 和样式有关的标签，便于搜索和筛选样式
-    "numeric",
-  ],
-  documentation: [
-    // 文档链接
-    "https://example.com/docs",
-  ],
-  license: "MIT",
-  updated: "2026-01-01",
-};
-```
-
-### generate 函数
-
-`generate()` 函数用于生成引注和参考文献列表，相比 `INFO`，它就复杂多了，它可以用下面的结构来描述：
-
-```javascript
-function generate() {
-  /* 复杂的逻辑 */
-  return { citations, bibliography };
-}
-```
-
-### UI 对象
-
-如果你需要获取用户的输入来生成参考文献，可以用 `UI` 对象定义这些控件，它们将会显示在用户插入引注的窗口中。
-
-UI 对象结构如下：
-
-```javascript
-const UI = {
-  citation: [
-    // 控件列表
-  ],
-  cite: [
-    // 控件列表
-  ],
-};
-```
-
-显然，`citation` 和 `cite` 属性内的控件分别对引注和引用起效。
-
-所有控件对象都有这几个属性：
-
-- `id`：控件的 ID，用于标识控件。
-- `type`：控件的类型，可选值有 `checkbox`、`select`、`input`。
-- `label`：控件的标签，用于显示给用户。
-- `disabled`：`cite` 控件可选的回调，接收当前 `Cite` 并返回是否禁用；省略时默认为 `false`，参数变化后会重新计算。
-
-对于 `cite` 属性中定义的控件，还可以携带 `visible` 回调，用于根据当前条目判断控件是否可见。回调在弹窗展开时于样式沙箱中同步执行一次，并且必须严格返回布尔值。例如：
-
-```javascript
-visible: (item) =>
-  item.itemType === "book" && Boolean(item.extra?.type),
-```
-
-`visible` 只用于限制用户在引注对话框中的参数输入，不会改变 `Cite` 已保存的 `params`。隐藏控件不会占用布局空间；禁用控件仍保留在布局中。`UI.citation` 中的控件目前始终可见。
-
-`disabled` 回调可以读取当前 `Cite` 的参数，从而实现控件之间的联动，同时不改变弹窗布局。例如，当 `locatorType` 选择 `"custom"` 时启用自定义输入框：
-
-```javascript
-disabled: (cite) => cite.params?.locatorType !== "custom",
-```
-
-`type` 属性取不同的值时，相应可取的组件属性不同：
-
-- `checkbox`：`value` 属性表示控件的默认值，默认为 `false`。
-- `select`：`options` 属性是一个对象，对象中的键是选项的 ID，值是选项的标签。`value` 属性取其中一个键表示默认选中的选项。
-- `input`：`value` 属性表示控件的默认值，默认为空字符串。
-
-在 `UI.citation` 和 `UI.cite` 中指定的控件，其获取的值会被分别存储到 `CitationContext` 和 `Cite` 对象的 `params` 属性。
-
-### ITEM_FIELD_PRESETS 对象
-
-有时格式要求"某类条目必须写到某个字段的某个值"（例如把古籍标记为 `type: classic`、把网络首发标记为 `status: advance online publication`），而这属于样式层面的约定，用户通常不知道要写哪个键、写什么值。`ITEM_FIELD_PRESETS` 让样式把这些约定声明成条目右键菜单里的“快捷标记”：
-
-```javascript
-const ITEM_FIELD_PRESETS = [
-  {
-    id: "classic", // 样式内唯一
-    // 菜单文本：单字符串（Banyan 样式没有 locale 概念，不做多语言 label）
-    label: "古籍",
-    // 可选：只在匹配的条目上出现（与 `UI.cite` 的 `visible` 同语义，须严格返回布尔值）
-    visible: (item) => item.itemType === "book",
-    // 要写入的键值对：键在条目类型上是合法字段就写字段，否则写进 extra
-    fields: { type: "classic" },
-  },
-  {
-    id: "foreign-law",
-    label: "外国法（补法域）",
-    visible: (item) => item.itemType === "statute" || item.itemType === "case",
-    // 值写成 null：应用时打开窗口让你填写（菜单文本会自动加 …）
-    fields: { jurisdiction: null },
-  },
-];
-```
-
-规则与注意：
-
-- **只声明，不执行**：`fields` 只接受"键 → 非空字符串值"的单值对，或"键 → `null`"（见下条）；不能写 name 变量（creators），也不能写主字段（`id`／`key`／`itemType` 等）或 `extra` 本身。
-- **值可以留给用户**：把值写成 `null`，表示"应用时再问"。应用该标记时会打开"写入其他字段"的窗口，键已锁定、只填值，窗口顶部会说明是哪个样式在要求什么；菜单项文本会自动加 `…`。**值按条目逐个询问**（同一个标记应用到多个条目时会逐条弹出），因此适合"值随条目而异"的键，例如 `jurisdiction`。
-- **写入位置是自动判定的**：例如 `status` 对 `standard` 是真实字段、对 `journalArticle` 则写进 `extra`；`type` 在 `book` 上写进 `extra`，在 `document` 上会写成字段。
-- **`type` 要小心**：`type: classic` 这类 CSL 类型名是安全的；若值写成 Zotero 的条目类型名（如 `book`），Zotero 会把它当作"改条目类型"，插件会在加载时提醒。
-- **生效样式只有一个**：用户在首选项里选择把哪个样式的快捷标记挂到菜单上（默认跟随"上次使用"的样式，也可选择“禁用”）。因此样式不必为跨样式的键名或取值冲突做设计。
-- **覆盖有确认**：目标已经有不同的值时，插件会询问"跳过／覆盖／取消"，可勾选"应用到剩余"，不会静默覆盖用户数据。
-- **编辑器会检查声明**：样式编辑器用 ESLint 规则 `banyanStyle/validate-field-presets` 检查 `ITEM_FIELD_PRESETS` 的形状、危险键与 name 变量，写错时在编辑器里直接提示。
-
-### ITEM_FIELD_VALIDATORS 对象
-
-`ITEM_FIELD_PRESETS` 负责“写”，`ITEM_FIELD_VALIDATORS` 负责“检”：样式声明某类条目应满足的字段条件，用户在条目右键菜单点「检查字段」，插件对选中的可编辑条目逐条执行，并在非模态报告里按条目列出每个检查器的 `description` 与结果。
-
-它按 Zotero 条目类型组织，每类是检查器数组：
-
-```javascript
-const ITEM_FIELD_VALIDATORS = {
-  book: [
-    {
-      description: "必须填写标题",
-      check: (item) => Boolean(item.title) || "缺少标题",
-    },
-    {
-      description: "中文条目应有英文对照，英文条目应有中文对照",
-      check: async (item) => {
-        const language = String(item.language ?? "").toLowerCase();
-        const wanted = language.startsWith("zh")
-          ? "en"
-          : language.startsWith("en")
-            ? "zh"
-            : "";
-        if (!wanted) return true;
-
-        const siblings = await getMultilingualItems(item);
-        return (
-          siblings.some((sibling) =>
-            String(sibling.language ?? "")
-              .toLowerCase()
-              .startsWith(wanted),
-          ) || `未找到 language 为 ${wanted} 的多语言条目`
-        );
-      },
-    },
-  ],
-};
-```
-
-规则与注意：
-
-- **按类型显式组织**：顶层必须是对象，键是 Zotero 条目类型，值是检查器数组；不提供 `common` 键、通配符或 base 类型继承。
-- **每个检查器只有两项**：必填的 `description`（单字符串，样式没有 locale 概念）和 `check(item)`；不设 `id`、`visible`、`severity` 或 `fix`。
-- **返回值**：`true` 通过；`false` 未通过；非空字符串/字符串数组是失败说明；空数组通过。也可以返回 Promise：宿主会 `await`，每个检查器最多 10 秒；超时、reject、空字符串、`null`、数字、对象等按检查器出错处理，其他检查器继续。
-- **只读、无副作用**：检查器拿到条目快照，不能写条目、不能开窗、不能访问宿主 API；可以使用已有的异步读取函数（如 `getMultilingualItems()`）。不适用时返回 `true`。它不知道其他选中条目，也不校验渲染结果或整库。
-- **报告**：窗口非模态，条目行可展开为检查器行（名称、描述/说明、结果）；方便看着报告去改条目。样式未声明检查器时，菜单项不出现。
-- **生效样式**：与快捷标记共享首选项中的同一个样式；样式只声明检查器、不声明快捷标记也可以被选中。
-- **编辑器检查**：样式编辑器用 `banyanStyle/validate-item-field-validators` 检查声明形状，写错时直接提示。
-
-## Unit工具
-
-Banyan 提供了一些处理 `Unit` 对象的实用工具函数。
-
-### text
-
-`text` 函数用于把一个字符串转换成 `TextUnit` 对象。
-
-```typescript
-type text = (value: string, style?: RenderStyle) => TextUnit;
-```
-
-- `value`：要转换的字符串。
-- `style`：可选的渲染样式，用于控制文本样式。
-
-`RenderStyle` 对象具有以下属性：
-
-- `italic`：是否斜体。
-- `bold`：是否加粗。
-- `script`：可选值为 `subscript`（下标）、`superscript`（上标）。
-- `color`：使用 HEX 格式表示的颜色，你可以使用类似 [HTML Color Picker](https://htmlcolorcodes.com/color-picker/) 这样的在线工具来获取特定颜色的 HEX 代码。
-- `backgroundColor`：背景颜色，同样使用 HEX 格式。
-
-### group
-
-`group` 函数用于把 `Unit` 数组内的 `Unit` 组合成一个 `GroupUnit` 对象。
-
-```typescript
-type group = (units: Unit[], delimiter?: Unit) => GroupUnit;
-```
-
-- `units`：要组合的 `Unit` 对象组成的数组。
-- `delimiter`：可选的分隔符，用于分隔 `units` 中的 `Unit` 对象。
-
-### affix
-
-`affix` 函数用于在一个 `Unit` 对象前后添加 `Unit` 对象。
-
-```typescript
-type affix = (unit: Unit, prefix?: Unit, suffix?: Unit) => AffixUnit;
-```
-
-- `unit`：要添加前后缀的 `Unit` 对象。
-- `prefix`：可选的前缀，用于添加到 `unit` 的前面。
-- `suffix`：可选的后缀，用于添加到 `unit` 的后面。
-
-### fallback
-
-`fallback` 函数用于在 `Unit` 数组中寻找首个非空的 `Unit` 对象。
-
-```typescript
-type fallback = (units: Unit[]) => FallbackUnit;
-```
-
-- `units`：候选的 `Unit` 数组。
-
-### when
-
-`when` 函数用于根据条件返回一个 `Unit` 对象。
-
-```typescript
-type when = (condition: boolean, trueUnit: Unit, falseUnit: Unit) => WhenUnit;
-```
-
-- `condition`：判断条件。
-- `trueUnit`：当 `condition` 为 `true` 时返回的 `Unit` 对象。
-- `falseUnit`：当 `condition` 为 `false` 时返回的 `Unit` 对象。
-
-### textCase
-
-`textCase` 函数用于指定 `Unit` 中的文本大小写形式。
-
-```typescript
-type textCase = (
-  unit: Unit,
-  textCase: TextCase,
-  ignoreWords?: string[],
-) => TextCaseUnit;
-```
-
-- `unit`：目标 `Unit` 对象。
-- `textCase`：格式化形式，详见下文。
-- `ignoreWords`：忽略的单词列表，用于指定哪些单词不需要进行格式化。
-
-`TextCase` 类型可能的值有：
-
-- `lower`：全小写。
-- `upper`：全大写。
-- `small-caps`：小型大写字母。
-- `title`：标题格式，即除了冠词、连词、介词和助词外，其他单词首字母大写。
-- `sentence`：句子格式，即首个字母大写，其余字母小写。
-- `name`：人名格式，即每个单词首字母大写，且撇号后面的首字母也大写。
-
-### withStyle
-
-`withStyle` 函数用于设置 `Unit` 的渲染样式。
-
-```typescript
-type withStyle = (unit: Unit, style: RenderStyle) => WithStyleUnit;
-```
-
-- `unit`：目标 `Unit` 对象。
-- `style`：要设置的渲染样式。
-
-### link
-
-`link` 函数用于为整个 `Unit` 指定超链接。即使这个 `Unit` 内部包含多个不同视觉样式的片段，标准化输出也会生成一个连续的链接区间。
-
-```typescript
-type link = (unit: Unit, link: string) => LinkUnit;
-```
-
-- `unit`：目标 `Unit` 对象。
-- `link`：链接目标，支持 `https://`、`http://`、`doi:` 和 `banyan://entry/...`。
-
-### plainText
-
-`plainText` 函数用于把一个 `Unit` 对象转换成纯文本，这在用作排序键时特别有用。
-
-```typescript
-type plainText = (input: Unit | Unit[]) => string;
-```
-
-- `input`：要转换的 `Unit` 对象或 `Unit` 对象组成的数组。
-
-## 其他工具
-
-Bnayan 还提供了其他实用的工具：
-
-- `uuid()`：生成一个 UUID。
-- `readText(relPath)`：读取 Zotero 数据目录下 `banyan` 目录内的文件内容，返回字符串。
-- `readBytes(relPath)`：读取 Zotero 数据目录下 `banyan` 目录内的文件内容，返回字节数组。
-- `readJSON(relPath)`：读取 Zotero 数据目录下 `banyan` 目录内的文件内容，返回 JSON 对象。
-
-`readText`/`readBytes`/`readJSON` 不设置大小硬限制；建议只读取来源明确、格式固定、已经预清洗的小型数据文件，避免把过大的文本、JSON 或二进制内容一次性读入。需要体积、格式与校验保护时，改用下面声明的 `loadResource()`。
-
-- `callStyle(id, contexts, optionValues?)`：调用另一个已安装的样式，返回它的
-  `citations` 与 `bibliography`。被调用的 id 必须先在 `STYLE_DEPENDENCIES` 中声明
-  （最多 4 个），两个样式的 `INFO.citationType` 必须一致；一次运行最多 16 次调用、
-  调用链最多 3 个样式（含最顶层）。返回 `{ ok: true, … }` 或
-  `{ ok: false, reason, message }`，失败时由调用方自己写回退分支。
-- `loadResource(id)`：读取 `STYLE_RESOURCES` 中声明的文件（最多 8 个）。核心先校验
-  相对路径，再按 4 MiB / 10 秒上限读取；`json` 格式会解析，最后执行声明的
-  `validate()`。返回 `{ ok: true, data }` 或 `{ ok: false, reason, message }`。
-  成功结果是实例级冻结快照，同一实例重复读取返回同一个对象。
-
-- `getExtraValue(item, key, mode)`：读取条目的 `item.extra` 字段中的值，返回字符串。可选参数 `mode` 指定为 `"array"` 时返回字符串数组。`item.extra` 的键在条目转换时统一归一化为 kebab-case（如 `My Key`/`AuthorID` → `my-key`/`author-id`），`key` 需使用归一化后的形式。只有符合变量行格式的行才会成为键：键以字母开头，其余为字母／数字／空格／连字符／下划线，且值非空——与 Zotero 自身的解析一致，因此 `tex.shorttitle: Foo` 这类带点的行、空值行都是普通文本，`item.extra` 里取不到。
-- `debug(...values)`：脚本被执行的时候在 Zotero 控制台中打印调试信息。
-- `safeRecord(object)`：返回一个只读对象，取不存在的属性时返回空字符串 `""`，而不是 `undefined`。
-- `safeString(value)`：返回一个字符串，字符串和数字返回字面值，其他返回空字符串 `""`。
-
-## 进阶效果
-
-### 引注超链接
-
-可以为引注添加超链接实现更丰富的交互体验。
-
-如果添加指向互联网的超链接，只需用 `link(unit, href)` 包裹目标 `Unit`。例如：
-
-```javascript
-function generate() {
-  /* 复杂的逻辑 */
-  const citations = contexts.map((ctx) => {
-    /* 复杂的逻辑 */
-    const content = genCitation(ctx);
-    const url = getURL(ctx);
-    return {
-      id: ctx.id,
-      content: link(content, url),
-    };
-  });
-  return { citations, bibliography };
-}
-```
-
-如果想让引注的超链接指向参考文献列表项目，则需要对应设置引注的 `link(...)` 目标和参考文献列表项目的 `id` 属性。例如：
-
-```javascript
-function generate() {
-  /* 复杂的逻辑 */
-  const citations = contexts.map((ctx) => {
-    /* 复杂的逻辑 */
-    const content = genCitation(ctx);
-    const target = getTargetItem(ctx);
-    return {
-      // 这是 Citation 自身的 id，沿用自 Context
-      id: ctx.id,
-      // 这里的 target.id 对应目标 BibliographyEntry 的 id
-      content: link(content, `banyan://entry/${target.id}`),
-    };
-  });
-  const items = getItems(contexts);
-  const bibliography = items.map((item) => {
-    const content = genBibliography(item);
-    return {
-      // 这是 BibliographyEntry 的 id
-      id: item.id,
-      type: "bibliography-entry",
-      content,
-    };
-  });
-}
-```
-
-上面的例子中，使用 `target.id` 构造 `banyan://entry/...` 的引注，将会指向 `id` 属性和 `target.id` 相同的 `bibliography-entry`。
-
-### 多语言条目
-
-有时候，你可能需要同时输出一个条目的多语言信息（例如，同时输出其英文信息和中文信息）。为了满足这种需求，Banyan 引入了“多语言条目”的概念。不同于 Endnote 或者 CSL 在同一个条目上预设字段来填写多语言信息，Banyan 允许你直接指定若干个选中的条目为“多语言”关系，然后在样式脚本中方便地使用目标条目在指定语言下的字段。
-
-假设你现在有一个中文条目，你想同时输出它的英文信息。先按如下步骤创建多语言条目：
-
-1. 在 Zotero 中选中你要输出的条目。
-2. 右键打开快捷菜单，执行“创建副本”。
-3. 对照出版商网页或者条目的全文，在副本中填写英文信息，并注意将“语言”字段设为 `en`。
-4. 选中这两个条目，右键打开快捷菜单，执行“关联多语言条目”。
-
-现在你已经拥有了多语言条目，接着在样式脚本中，你就可以用 `getMultilingualItem(item, language)` 函数来获取指定语言下的条目信息，例如：
-
-```javascript
-function generate() {
-  /* 复杂的逻辑 */
-  const items = getItems(contexts);
-  const bibliography = items.map((item) => {
-    const enItem = getMultilingualItem(item, "en");
-    const content = genBibEntry(item, enItem);
-    return {
-      id: item.id,
-      type: "bibliography-entry",
-      content,
-    };
-  });
-  return { citations, bibliography };
-}
-```
-
-匹配规则如下：
-
-- 传入的语言标签按 BCP 47 宽松处理：忽略大小写、`_` 视作 `-`，运行时能识别时采用规范写法；带脚本或变体子标签的标签（如 `ca-ES-valencia`、`en-150`）在这里也可用。
-- 语言选择器可以是要按优先级依次尝试的列表（如 `["en", "zh"]`）：按顺序逐个查找，前一项没有匹配才看下一项。
-- 针对每一个语言选择项，先找完整标签相同的条目；没有时再按“裸语言码 ↔ 地区变体”的前缀规则回退（例如 `"en"` 也能匹配到 `"en-US"`）。
-- 同一语言选择项命中多个时：**当前条目自身优先**，其次是标签、条目 ID 较小的条目——结果不取决于关联顺序。
-- 所有语言选择项都没有匹配时返回传入的条目本身。
-
-## 最佳实践与注意事项
-
-以下约定与规范是编写可维护、可长期运行的样式时需要遵循的要求，其中大部分由沙箱运行环境决定。
-
-### 接口与导出
-
-- 样式只需声明 `INFO` 与 `generate()`（必需）、`UI` 与 `ITEM_FIELD_PRESETS`（可选）；其他辅助函数与常量在脚本内部自由定义即可，不需要（也无法）导出。
-- 不要向全局对象（如 `window`、`globalThis`）挂载新属性，也不要依赖宿主之外的外部环境变量；脚本可能被重复执行，请保持脚本幂等。
-
-### 语法与兼容性
-
-- 避免使用 `this`，推荐用顶层函数、常量与闭包组织代码；如确需绑定，请在样式内部自行 `.bind(...)`。
-- 避免使用 `eval`、`with`、`new Function` 与 `Function` 构造函数。
-- 避免使用 `setTimeout` 与 `setInterval`。
-- 不要使用 Node.js 专属 API（如 `require`、`fs`、`path` 等），也不要使用仅在现代浏览器可用的新特性（如顶层 `await`），以保证在 Firefox ESR 环境（Zotero）下可用。
-- `generate()` 支持异步：可以声明为 `async function`，也可以返回一个 `Promise`。
-
-### 命名与注释
-
-- 变量、函数、常量采用小驼峰（camelCase）；常量也可使用全大写。
-- `INFO` 中的 `id`、`title`、`updated`、`description` 等字段请使用英文，便于索引与国际化。
-- 重要逻辑、参数与边界条件请编写注释（英文或中英文皆可）；建议在文件头部注明作者、版本与更新时间。
-
-### 健壮性与错误处理
-
-- 推荐用 `try/catch` 包裹主流程，捕获异常时返回空结果（空数组/空字符串），避免把未捕获异常抛给宿主。
-
-  ```javascript
-  function generate() {
-    try {
-      /* 主逻辑 */
-    } catch (e) {
-      return { citations: [], bibliography: [] };
-    }
-  }
-  ```
-
-- 读取 `contexts` 等安全视图上不存在的属性会得到 `""`，不要假设它返回 `undefined`；数组的索引访问与数组方法保持原生行为。
-
-### 渲染内容契约
-
-- `generate()` 返回的 `citations` 与 `bibliography` 统一使用 `content` 字段，其值为**单个**声明式 `Unit`；多片段请用 `group([...])` 或 `fallback([...])` 组合，**不要把 `Unit` 数组直接赋给 `content`**。
-- 最简单的叶子文本可写成 `text("...")`，也可手写 `{ value: "..." }`；宿主会把它编译成 `RichText { text, marks }`。
-- `marks` 的 `start`/`end` 使用 JavaScript UTF-16 字符串偏移，`end` 为排他边界；这些区间由宿主统一生成，样式作者**不要手工维护**这些索引。
-- 超链接请用 `link(unit, href)` 包裹目标 `Unit`，不要把链接写进 `RenderStyle`。
-- 复杂拼接优先使用 `group(...)`、`affix(...)`、`fallback(...)`、`when(...)`、`textCase(...)` 等声明式工具，谨慎使用 `Array.prototype.join`：
-  - `join` 只能安全处理**纯字符串数组**；如果数组里混入 `affix()`、`group()` 等返回的 `Unit` 对象，会被 JavaScript 隐式串成 `"[object Object]"`，直接污染最终输出。
-  - 错误示例：`firstName.split(" ").map((word) => affix(word, "", ".")).join(" ")`
-  - 正确示例：`group(firstName.split(" ").map((word) => affix(word, "", ".")), " ")`
-
-### 代码组织
-
-- 把主逻辑拆成小函数，`generate()` 只做调度；辅助函数与常量用 `const` 定义。
-- `citations` 与 `bibliography` 在同一个 `generate()` 内生成，天然共享作用域，便于实现互相引用（例如引注用 `link(..., "banyan://entry/...")` 指向参考文献项目）。
-- 提交样式前，至少用样式编辑器的渲染预览检查一次；如果只想快速确认某个已安装的样式，可在 Zotero 文库中选中样例条目后，到首选项的样式管理器中预览。
-
-## 示例模板
-
-下面是一个完整的、可直接运行的样式骨架，覆盖 `INFO`、`UI` 与 `generate()`，你可以在此基础上扩展。
-
-```javascript
-const INFO = {
-  id: "your-style-id",
-  title: "Your Style Name",
-  description: "简要描述",
-  // 引注类型，可选值：intext-citation、note-citation
+  id: "my-first-style",
+  title: "我的第一个样式",
+  description: "一个最小的 Banyan 样式",
   citationType: "intext-citation",
   creator: [{ type: "author", name: "Your Name" }],
   tags: [],
@@ -596,17 +49,678 @@ const INFO = {
   updated: "2026-01-01",
 };
 
-// 可选：在引注/引用弹窗中定义参数控件
-const UI = {
-  citation: [
-    { id: "showDOI", type: "checkbox", label: "显示 DOI", value: false },
+function generate() {
+  return {
+    citations: contexts.map((ctx) => ({
+      id: ctx.id,
+      content: group(
+        ctx.cites.map((cite) => cite.item.title || "无题"),
+        "; ",
+      ),
+    })),
+    bibliography: [],
+  };
+}
+```
+
+这段代码做了三件事：
+
+1. `INFO` 描述样式本身；
+2. `generate()` 读取 `contexts`，把每次引注变成一个字符串；
+3. 返回 `citations` 和 `bibliography`，交给 Banyan 显示。
+
+`contexts` 和 `text` 由 Banyan 注入，样式无需定义这些对象或函数。
+
+`text(...)` 会把文字变成一个 **Unit**。Unit 是 Banyan 表示“一段文字及其格式”的对象；最简单的 Unit 也可以直接是字符串。后文会再介绍怎样组合和格式化 Unit。
+
+> 多个标题用 `group(...)` 连接；`group` 会跳过空值，并在两个实际内容之间插入分隔符。
+
+## 2. 样式文件结构
+
+一个样式文件包含：
+
+- **必需**：`INFO` 对象；
+- **必需**：`generate()` 函数；
+- **可选**：`CITATION_PARAMS`、`CITE_PARAMS`，让用户在引用窗口中输入；
+- **进阶可选**：`STYLE_OPTIONS`、`ITEM_FIELD_PRESETS`、`ITEM_FIELD_VALIDATORS`。
+
+后三项不是写一个样式所必需的，放在第 5 节讲。
+
+### INFO 对象
+
+`INFO` 描述样式的名称、作者、类型等信息。下面是最常见的写法：
+
+```javascript
+const INFO = {
+  id: "your-style-id",
+  title: "样式名称",
+  description: "一句话说明这个样式适合什么场景",
+  // intext-citation：正文中显示 [1]、(Smith, 2024) 等标记
+  // note-citation：正文中显示脚注标记，内容写在脚注里
+  citationType: "intext-citation",
+  creator: [
+    {
+      type: "author",
+      name: "Your Name",
+      email: "you@example.com",
+      uri: "https://example.com/",
+    },
   ],
-  cite: [],
+  tags: ["numeric"],
+  documentation: ["https://example.com/docs"],
+  license: "MIT",
+  updated: "2026-01-01",
 };
+```
+
+| 字段            | 作用                                 |
+| --------------- | ------------------------------------ |
+| `id`            | 样式的唯一标识，不要和别的样式重复   |
+| `title`         | 显示给用户的名称                     |
+| `description`   | 样式说明                             |
+| `citationType`  | `intext-citation` 或 `note-citation` |
+| `creator`       | 作者/维护者列表                      |
+| `tags`          | 搜索和筛选用的标签                   |
+| `documentation` | 文档链接                             |
+| `license`       | 许可协议                             |
+| `updated`       | 更新时间                             |
+
+### generate 函数
+
+`generate()` 无需声明参数。运行时从 Banyan 注入的全局数据读取输入，并返回：
+
+```javascript
+function generate() {
+  return {
+    citations: [], // 引注
+    bibliography: [], // 参考文献列表
+  };
+}
+```
+
+`generate()` 可以写成 `async`，也可以返回 Promise。需要读取文件、查询多语言条目时，用异步写法会更方便。
+
+### 编写与预览
+
+- 推荐使用 Banyan 内置样式编辑器创建或编辑样式。编辑器提供模板、代码片段、语法
+  高亮、错误提示和渲染预览。
+- 也可在 Zotero 首选项的样式管理器中选择样式，并使用当前文库的条目生成预览。
+- 外部编辑器可用于编辑 Zotero 数据目录中的样式文件。插件仓库内的开发与检查命令
+  仅适用于仓库开发环境；样式作者可使用内置编辑器检查并预览样式。
+
+建议先验证最小样式能够运行，再逐步增加参数和格式规则。
+
+## 3. 输入数据
+
+写样式时，数据主要来自这几处：
+
+| 来源          | 提供什么                   | 从哪里读                |
+| ------------- | -------------------------- | ----------------------- |
+| `contexts`    | 文档里已经有的引注和条目   | `contexts`、`ctx.cites` |
+| Citation 参数 | 用户对这一条引注的选择     | `ctx.params`            |
+| Cite 参数     | 用户对这一个被引条目的选择 | `cite.params`           |
+
+`contexts` 表示文档中已有的引注和条目；参数表示用户为样式提供的补充输入。两者共同构成
+`generate()` 的输入。
+
+### 3.1 contexts：文档里的引注和条目
+
+`contexts` 是一个数组，每个元素代表文档中的一条引注：
+
+```javascript
+for (const ctx of contexts) {
+  console.log(ctx.id); // 引注 ID
+  console.log(ctx.page); // 引注所在页码
+  console.log(ctx.cites); // 这条引注引用的条目
+}
+```
+
+每个 `ctx` 有：
+
+- `id`：引注 ID，返回结果时沿用该值，以便 Banyan 将生成结果对应到原引注；
+- `cites`：这条引注包含的引用；
+- `page`：引注所在页码；
+- `params`：Citation 参数的值，见 3.2。
+
+每个 `cite` 有：
+
+- `item`：被引用的 Zotero 条目；
+- `params`：Cite 参数的值，见 3.3。
+
+例如：
+
+```javascript
+const firstCite = contexts[0].cites[0];
+const title = firstCite.item.title;
+const year = String(firstCite.item.date || "").slice(0, 4);
+```
+
+`contexts` 和条目数据是只读的。读取不存在的字段时，通常会得到空字符串 `""`，而不是 `undefined`；因此可以安全地写 `item.title || "无题"`。
+
+### 3.2 Citation 参数：整条引注的输入
+
+如果用户需要在每次插入引注时选择“完整引用/略写”“是否显示 DOI”等，就声明 `CITATION_PARAMS`：
+
+```javascript
+const CITATION_PARAMS = [
+  {
+    id: "mode",
+    kind: "state",
+    label: "引用方式",
+    states: {
+      full: "完整",
+      short: "略写",
+    },
+    defaultValue: "full",
+  },
+];
+```
+
+用户在引注窗口里选择后，`generate()` 里这样读：
+
+```javascript
+function generate() {
+  return {
+    citations: contexts.map((ctx) => ({
+      id: ctx.id,
+      content: text(ctx.params?.mode === "short" ? "略写" : "完整"),
+    })),
+    bibliography: [],
+  };
+}
+```
+
+要点：
+
+- 每个参数必须有 `id`、`kind`、`label`；
+- `kind` 是 `state` 或 `value`；
+- `defaultValue` 是默认值；
+- 读值时用 `ctx.params.<id>`；
+- 没有声明参数时，`ctx.params` 是空对象。
+
+### 3.3 Cite 参数：单个条目的输入
+
+如果用户需要为“这一条引注中的这个条目”填写页码、章节、卷号等，就声明 `CITE_PARAMS`：
+
+```javascript
+const CITE_PARAMS = [
+  {
+    id: "locator",
+    kind: "value",
+    label: "页码",
+    defaultValue: "",
+  },
+];
+```
+
+读取方式：
+
+```javascript
+function generate() {
+  return {
+    citations: contexts.map((ctx) => ({
+      id: ctx.id,
+      content: group(
+        ctx.cites.map((cite) => affix(cite.params?.locator, "，第", "页")),
+        "；",
+      ),
+    })),
+    bibliography: [],
+  };
+}
+```
+
+Cite 参数的值属于**这一次引用**，不是条目的永久属性。同一条目在不同引注里可以有不同的页码。
+
+大多数样式只需要 Citation 参数和 Cite 参数这两类输入；`STYLE_OPTIONS` 属于第 5 节的进阶功能，不写也不影响样式工作。
+
+### 3.4 参数类型速览
+
+| 类型    | 适合做什么                     | 值的样子                           |
+| ------- | ------------------------------ | ---------------------------------- |
+| `state` | 开/关或固定选项                | 布尔，或 `states` 的 key（字符串） |
+| `value` | 普通文字、数字、日期、富文本   | 字符串（rich 是受限标记字符串）    |
+| `list`  | 可重复的多行输入，例如多个页码 | 行对象数组；仅 Cite 级可用         |
+
+几个例子：
+
+```javascript
+// 开关
+{ id: "showDOI", kind: "state", label: "显示 DOI", defaultValue: false }
+
+// 固定选项
+{
+  id: "mode",
+  kind: "state",
+  label: "引用方式",
+  states: { full: "完整", short: "略写" },
+  defaultValue: "full",
+}
+
+// 普通文本，可给推荐值
+{
+  id: "locator",
+  kind: "value",
+  label: "页码",
+  defaultValue: "",
+  presets: ["1", "2", "3"],
+}
+
+// 富文本：值是受限标记字符串，编辑器负责预览/编辑
+{
+  id: "comment",
+  kind: "value",
+  label: "说明",
+  format: "rich",
+  defaultValue: "",
+}
+```
+
+`list` 只用在 `CITE_PARAMS`，适合“多个页码、多个条款”这类重复输入：
+
+```javascript
+const CITE_PARAMS = [
+  {
+    id: "pages",
+    kind: "list",
+    label: "页码",
+    fields: [
+      { id: "start", kind: "value", label: "起" },
+      { id: "end", kind: "value", label: "止" },
+    ],
+  },
+];
+```
+
+它的值是行对象数组，例如 `[{ start: "33", end: "35" }]`。
+
+> `format: "rich"` 与普通 `value` 的区别：普通值适合普通文字；rich 值适合“说明文字里有局部斜体/上标”的情况。样式拿到的是标记字符串，可按输出层规则使用。
+
+### 3.5 参数的适用性、强制值和校验（进阶）
+
+大多数样式只需要 `defaultValue`。需要根据其他值隐藏、锁定或校验参数时，再加
+`applicable`、`forcedValue` 或 `validate`。
+
+```javascript
+const CITE_PARAMS = [
+  {
+    id: "locator",
+    kind: "value",
+    label: "页码",
+    defaultValue: "",
+    applicable: (cite, citation, options) => true,
+    forcedValue: (cite, citation, options) => null,
+    validate: (value, cite, citation, options) =>
+      value === "" || /^\d+$/.test(value) || "只能填数字",
+  },
+];
+```
+
+- `applicable`：返回 `false` 时参数不适用，宿主隐藏；不执行 `forcedValue` / `validate`；
+- `forcedValue`：返回一个值表示锁定；返回 `null` 表示自由；不要返回 `undefined`；
+- `validate`：第一个参数是当前值，返回 `true` 表示合法，返回字符串表示错误提示；
+- 强制值、隐藏值不跑用户级 `validate`。
+
+依赖按声明顺序从前至后求值：后面的参数能看到前面参数的 effective 值；依赖应写在被
+依赖参数之后。输入阶段拿不到全文位置，首引/紧邻/前注号仍在 `generate()` 里判断。
+
+不需要这些能力时，完全不用写它们。
+
+## 4. 输出：citations 和 bibliography
+
+`generate()` 返回两个数组。
+
+### 4.1 citations
+
+`intext-citation` 的每一项：
+
+```javascript
+{
+  id: ctx.id,
+  content: text("(Smith, 2024)"),
+}
+```
+
+`note-citation` 的每一项多一个 `reference`：
+
+```javascript
+{
+  id: ctx.id,
+  content: text("Smith, John. Book Title. 2024."),
+  reference: text("1"),
+}
+```
+
+- `id`：沿用 `ctx.id`，用来替换文档里的原引注；
+- `content`：引注正文，单个 Unit；
+- `reference`：脚注标记，单个 Unit，可省略。
+
+### 4.2 bibliography
+
+参考文献列表是数组，每一项可以是：
+
+- `bibliography-entry`：一条参考文献；
+- `bibliography-title`：列表标题，例如“参考文献”。
+
+```javascript
+const bibliography = [
+  {
+    id: "item-1",
+    type: "bibliography-entry",
+    content: text("Smith, John. Book Title. 2024."),
+  },
+];
+```
+
+如果多个引注引用同一条目，通常先去重再生成：
+
+```javascript
+const unique = new Map();
+for (const ctx of contexts) {
+  for (const cite of ctx.cites) {
+    unique.set(cite.item.id, cite.item);
+  }
+}
+
+const bibliography = Array.from(unique.values()).map((item) => ({
+  id: String(item.id),
+  type: "bibliography-entry",
+  content: text(`${item.firstCreator || "佚名"}. ${item.title || "无题"}.`),
+}));
+```
+
+## 5. 按需扩展：全局选项、快捷标记、字段检查
+
+这一节的功能不是写样式所必需的。只有在确实需要时再使用。
+
+### 5.1 全局选项：整篇文档共用
+
+`STYLE_OPTIONS` 声明文档级参数，用户在一个地方设置，所有引注共享。值通过全局 `options` 读取：
+
+```javascript
+const STYLE_OPTIONS = [
+  {
+    id: "showDOI",
+    kind: "state",
+    label: "显示 DOI",
+    defaultValue: false,
+  },
+  {
+    id: "maxNames",
+    kind: "value",
+    label: "最多列作者数",
+    defaultValue: "3",
+  },
+];
+
+function generate() {
+  const showDOI = options.showDOI;
+  const maxNames = Number(options.maxNames || 3);
+  // ...
+}
+```
+
+样式级参数使用同一套 `state` / `value`；不支持 `list`，也不支持 `applicable`。它适合“整篇文档统一”的设置；只影响一条引注的选择，仍应使用 Citation/Cite 参数。
+
+### 5.2 条目快捷标记
+
+`ITEM_FIELD_PRESETS` 在条目右键菜单里增加“快捷标记”，用来批量写入某个字段：
+
+```javascript
+const ITEM_FIELD_PRESETS = [
+  {
+    id: "classic",
+    label: "古籍",
+    visible: (item) => item.itemType === "book",
+    fields: { type: "classic" },
+  },
+];
+```
+
+把值写成 `null` 时，应用标记会询问用户要填什么：
+
+```javascript
+{
+  id: "foreign-law",
+  label: "外国法（补法域）",
+  fields: { jurisdiction: null },
+}
+```
+
+这类功能用于维护样式要求的条目字段，不直接参与引注或参考文献的输出生成。
+
+### 5.3 条目字段检查
+
+`ITEM_FIELD_VALIDATORS` 在条目右键菜单里增加“检查字段”，按条目类型声明检查规则：
+
+```javascript
+const ITEM_FIELD_VALIDATORS = {
+  book: [
+    {
+      description: "必须填写标题",
+      check: (item) => String(item.title || "").trim() !== "" || "缺少标题",
+    },
+  ],
+};
+```
+
+`check` 可以返回 `true`、`false` 或错误说明；也可以写成异步函数，Banyan 会等待结果。它只读取条目，不会修改数据。
+
+## 6. Unit 工具速查
+
+`content` 里可以放字符串，也可以放 Unit。Unit 工具用来组合文字、加格式、处理空值。
+
+| 工具         | 作用                           | 例子                                 |
+| ------------ | ------------------------------ | ------------------------------------ |
+| `text`       | 创建普通文字                   | `text("Smith")`                      |
+| `group`      | 把多个 Unit 连起来，可加分隔符 | `group([a, b], ", ")`                |
+| `affix`      | 给 Unit 加前后缀               | `affix(year, " (", ")")`             |
+| `fallback`   | 取第一个有内容的候选           | `fallback([title, text("无题")])`    |
+| `when`       | 条件成立时输出                 | `when(item.doi, text("DOI"))`        |
+| `textCase`   | 转换大小写                     | `textCase(name, "title")`            |
+| `withStyle`  | 给整段加格式                   | `withStyle(title, { italic: true })` |
+| `link`       | 给整段加链接                   | `link(text("PDF"), url)`             |
+| `plainText`  | 取纯文本，适合排序             | `plainText(unit)`                    |
+| `htmlToUnit` | 把外部标记字符串转成 Unit      | `htmlToUnit(markup)`                 |
+| `unitToHtml` | 把 Unit 转成标记字符串         | `unitToHtml(unit)`                   |
+
+几个常用写法：
+
+```javascript
+// 加粗
+withStyle(text("注意"), { bold: true });
+
+// 斜体 + 上标
+text("2", { script: "superscript" });
+
+// 年份加括号
+affix(text("2024"), " (", ")");
+
+// 空值回退
+fallback([text(item.title), text("无题")]);
+
+// 条件输出
+when(item.doi, text(` DOI: ${item.doi}`));
+```
+
+`text` 和 `withStyle` 的样式对象支持 `italic`、`bold`、`script`（`superscript` / `subscript`）、`color` 和 `backgroundColor`。颜色使用 HEX 格式，可以用 [HTML Color Picker](https://htmlcolorcodes.com/color-picker/) 这样的工具选取。
+
+`group` 会自动跳过空片段，只在两个有内容的片段之间插入分隔符；`affix` 的主体为空时，前后缀也不会输出。
+
+`textCase` 支持：
+
+- `lower`：全小写；
+- `upper`：全大写；
+- `small-caps`：小型大写；
+- `title`：标题格式；
+- `sentence`：句子格式；
+- `name`：人名格式。
+
+`htmlToUnit` 用于外部输入或旧数据里的受限标记；普通条目字段通常直接 `text(item.title)` 即可。`unitToHtml` 主要用于调试、测试或需要字符串的场景，不是生成引注的常规步骤。
+
+### 其他常用工具
+
+| 工具                           | 作用                          |
+| ------------------------------ | ----------------------------- |
+| `callStyle(id, contexts)`      | 运行声明的另一个样式          |
+| `loadResource(id)`             | 读取 `assets/<id>` 声明的资产 |
+| `getExtraValue(item, key)`     | 读取条目 `extra` 字段中的值   |
+| `uuid()`                       | 生成 UUID                     |
+| `console.log` / `console.warn` | 调试输出 / 报告问题           |
+| `safeString(value)`            | 安全地转成字符串              |
+| `safeRecord(value)`            | 安全地按对象读取              |
+
+`callStyle()` 与 `loadResource()` 都必须先声明（`STYLE_DEPENDENCIES` 最多 4 个，`STYLE_RESOURCES` 最多 8 个）。两者都返回 `{ ok: true, … }` 或 `{ ok: false, reason, message }`，失败时不抛出：调用方要自己写回退分支。被调用的样式必须已安装，且 `INFO.citationType` 与调用方一致；资源 id 就是 `banyan/assets/<id>` 的文件名（小写字母、数字和短横线，无扩展名），读取有 4 MiB 与 10 秒上限，成功结果是实例级冻结快照。没有 `readText` / `readJSON` / `readBytes` 这类低层读取工具。
+
+## 7. 进阶功能
+
+### 7.1 引注超链接
+
+给引注加网页链接：
+
+```javascript
+return {
+  id: ctx.id,
+  content: link(content, "https://example.com"),
+};
+```
+
+让引注跳到参考文献列表中的对应条目：
+
+```javascript
+content: link(content, `banyan://entry/${item.id}`),
+```
+
+参考文献项目的 `id` 要与这里的目标一致。
+
+### 7.2 多语言条目
+
+Banyan 可以把两个条目关联成“多语言条目”。样式里用 `getMultilingualItem()` 读取另一种语言：
+
+```javascript
+async function generate() {
+  const citations = contexts.map((ctx) => ({
+    id: ctx.id,
+    content: text(ctx.cites[0].item.title || ""),
+  }));
+
+  const unique = new Map();
+  for (const ctx of contexts) {
+    for (const cite of ctx.cites) {
+      unique.set(cite.item.id, cite.item);
+    }
+  }
+
+  const bibliography = [];
+  for (const item of unique.values()) {
+    const enItem = await getMultilingualItem(item, "en");
+    bibliography.push({
+      id: String(item.id),
+      type: "bibliography-entry",
+      content: text(enItem.title || item.title || ""),
+    });
+  }
+
+  return { citations, bibliography };
+}
+```
+
+`getMultilingualItem()` 是异步函数，记得在 `generate()` 里 `await`。没有找到对应语言时，它会返回原条目。
+
+## 8. 常见错误
+
+### content 必须是单个 Unit
+
+错误：
+
+```javascript
+content: [text("A"), text("B")];
+```
+
+正确：
+
+```javascript
+content: group([text("A"), text("B")], " ");
+```
+
+### 使用 group 组合 Unit
+
+`group` 能保留每段的格式；直接用 `+` 或先拼成字符串，会丢掉格式，甚至得到 `"[object Object]"`。给 Unit 数组加分隔符时，把分隔符交给 `group` 的第二个参数：
+
+```javascript
+group(
+  names.map((name) => withStyle(name, { italic: true })),
+  ", ",
+);
+```
+
+### 读取缺失字段
+
+`contexts` 和条目是安全视图，缺失字段通常是 `""`。不要假设它一定是 `undefined`，用 `||` 或 `safeString()` 处理空值。
+
+### 异常处理
+
+建议用 `try/catch` 包住主流程，出错时返回空结果，避免整个刷新失败：
+
+```javascript
+function generate() {
+  try {
+    // 主逻辑
+    return { citations: [], bibliography: [] }; // 换成实际结果
+  } catch {
+    return { citations: [], bibliography: [] };
+  }
+}
+```
+
+### 其他约定
+
+- 不要使用 `eval`、`with`、`new Function`；
+- 不要依赖 `window` 或 `globalThis` 上的自定义属性；
+- 不要使用 `setTimeout` / `setInterval`；
+- 提交前用样式编辑器的预览检查一次。
+
+## 9. 完整模板
+
+下面是一个不依赖进阶功能的完整骨架：
+
+```javascript
+const INFO = {
+  id: "my-style",
+  title: "我的样式",
+  description: "作者-年份示例",
+  citationType: "intext-citation",
+  creator: [{ type: "author", name: "Your Name" }],
+  tags: [],
+  documentation: [],
+  license: "MIT",
+  updated: "2026-01-01",
+};
+
+const CITATION_PARAMS = [
+  {
+    id: "mode",
+    kind: "state",
+    label: "引用方式",
+    states: {
+      full: "完整",
+      short: "略写",
+    },
+    defaultValue: "full",
+  },
+];
+
+const CITE_PARAMS = [
+  {
+    id: "locator",
+    kind: "value",
+    label: "页码",
+    defaultValue: "",
+  },
+];
 
 function generate() {
   try {
-    // 去重收集所有被引条目
     const unique = new Map();
     for (const ctx of contexts) {
       for (const cite of ctx.cites) {
@@ -614,24 +728,34 @@ function generate() {
       }
     }
 
-    // 生成 citations
-    const citations = contexts.map((ctx) => ({
-      id: ctx.id,
-      content: text(
-        ctx.cites.map((c) => c.item.firstCreator || c.item.title).join("; "),
-      ),
-    }));
+    const citations = contexts.map((ctx) => {
+      const cites = ctx.cites.map((cite) => {
+        const locator = safeString(cite.params?.locator);
+        const year = String(cite.item.date || "").slice(0, 4);
+        return group([
+          text(cite.item.firstCreator || cite.item.title || "佚名"),
+          text(year ? ` (${year})` : ""),
+          text(locator ? `，第${locator}页` : ""),
+        ]);
+      });
+      const mode = ctx.params?.mode === "short" ? "略：" : "";
+      return {
+        id: ctx.id,
+        content: group([text(mode), group(cites, "；")]),
+      };
+    });
 
-    // 生成 bibliography
     const bibliography = Array.from(unique.values()).map((item) => ({
       id: String(item.id),
       type: "bibliography-entry",
-      content: text((item.firstCreator || "Unknown") + ". " + item.title),
+      content: text(`${item.firstCreator || "佚名"}. ${item.title || "无题"}.`),
     }));
 
     return { citations, bibliography };
-  } catch (e) {
+  } catch {
     return { citations: [], bibliography: [] };
   }
 }
 ```
+
+需要全局选项、快捷标记或字段检查时，再参考第 5 节加入即可。

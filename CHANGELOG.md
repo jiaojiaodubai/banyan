@@ -16,17 +16,47 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit this
 - **field validation:** Styles can declare an `ITEM_FIELD_VALIDATORS` object to add "Check Fields" to the item context menu; checks may be synchronous or async (10-second per-check timeout), run on each selected editable item, and open a non-modal report tree grouped by item, showing every checker's description and result
 - Only one style feeds the item menu at a time; quick marks and field checks share the same style preference
 - **style chooser:** When no style is supplied, preselect the style chosen for the item menu (or the last used style) before falling back to the first entry
+- **style chooser:** Show the selected style's title, citation type, update date, description and global options in a resizable details pane; the splitter is keyboard-operable, and Cancel returns no selection
+- **style options:** Styles declare `STYLE_OPTIONS` for document-wide options; `generate()` receives the values through the readonly global `options`. The core resolves effective values, while the settings UI and automation retain the stored values.
+- **style editor:** Preview a style's global options and the last run's sandbox findings beside the output; trace lines stay in their own console section
+- **parameters:** `CITATION_PARAMS` / `CITE_PARAMS` describe author inputs as `state` (boolean or `states` enum), `value` (plain or rich markup string) or `list` (repeated value fields). `defaultValue`, `applicable`, `forcedValue` and `validate` cover defaults, applicability, locked values and free-value checks without exposing widgets.
+- The core resolves all three scopes before `generate()`; hidden values fall back to `defaultValue`, forced values are read-only, and `citation.source` preserves stored values instead of writing defaults back.
 - **item list:** Show one `extra` key's value as its own item-list column, chosen in a new "Item list" section of the preferences (the column appears in Zotero's column settings once a key is set)
 
 ### 🩹 Fixes
 
 - **extra field:** Keep key/value lines at the top of `extra` and sort them by key, as Zotero's own documentation requires and citeproc reads them contiguously
+- **controls:** Align native Zotero inputs and menus with their labels; match rich-text previews to native input dimensions; open rich-text editing from the preview; keep list controls on one line with inline labels and native add/remove buttons; size the cite popup to its content; show descriptions in tooltips
+- **validation:** Block citation confirmation as soon as a citation or cite parameter is invalid, mark the offending bubble/field, and show errors in a dialog that focuses the first invalid control instead of reserving lines under controls
+- **rich-text dialog:** Use the shared dialog footer metrics and button order, unify the heading and inner padding, and mark the confirm button as the default action
+- **style editor:** Wrap long lint/error lines and keep their containers within the output pane; wrap the copied runtime-error text instead of scrolling horizontally
+- **bibliography:** Match the uncited-items tree's icon/title spacing to Zotero's item tree
+- **debug:** Open the citation and bibliography dialogs with the last used style instead of the alphabetically first style, so a style without cite parameters does not produce an empty cite popup during manual checks
 
 ### 💅 Styles
 
+- **breaking:** Style inputs use `STYLE_OPTIONS` / `CITATION_PARAMS` / `CITE_PARAMS`. Each entry declares `kind: "state" | "value" | "list"` with `defaultValue`, and optional `applicable` / `forcedValue` / `validate`; no compatibility aliases are kept.
+- **breaking:** rich parameter values are restricted markup strings with `format: "rich"`; `list` rows contain string fields only.
 - **breaking:** Keys of `item.extra` follow Zotero's own variable-line syntax now, so lines such as `tex.shorttitle: Foo` or `see:` stay prose and are no longer read as keys
-- **preferences:** Give each setting its own heading (for example "Citation window") with its description underneath, instead of one "General settings" section whose labels were crowded by the help text
+- **breaking:** Item identity is the opaque string `id`; `key`, `uri` and `relations` are no longer exposed to styles, and the durable reference is the host-private `z:uri` extension key
+- **preferences:** Give each setting a separate heading and place its description below the heading, avoiding crowded labels
 - The style editor validates `ITEM_FIELD_PRESETS` (`banyanStyle/validate-field-presets`) and `ITEM_FIELD_VALIDATORS` (`banyanStyle/validate-item-field-validators`)
+
+### 💅 Refactors
+
+- **core:** Extract the host-agnostic style runtime into `@banyan/core`; the plugin now supplies the Gecko sandbox, the three host capabilities and item conversion, while the core owns loading, parameters, output normalization and diagnostics
+- **comments:** Remove stale, scaffold-style and prompt-style comments across the sandbox, dialogs and preferences; drop the unused `exportHostObject` helper and refresh the core-extraction notes
+
+### ✅ Tests
+
+- Add `test/sandboxHost.test.ts` to cover the Gecko host adapter: host-global isolation, readonly contexts, utility/console replacement, HTML parsing, file boundaries, validator/list provenance, generate timeouts, diagnostics and binary bridging
+- Prefix style findings with `[style=<id> / <title>]` so batch `style-load` problems can be traced back to a file
+- Remove the tracked manual GUI checklist, browser harness, generated test narratives and pre-push gate; keep the Local API fixture set and injection tooling, now public under `test-gui/`
+
+### 📖 Documentation
+
+- Add `docs/CONTRIBUTING.md` for environment setup, directory ownership, engineering constraints, test layers and release instructions; link it from both READMEs
+- Move the GUI acceptance document, fixtures and injection tooling to `test-gui/`; replace local core references with links to the published core repository and keep the document as a status-free test specification for both humans and agents. Move the host obligations mapping to `docs/HOST_OBLIGATIONS.md`
 
 ## v0.4.0 (2026-10-07)
 
