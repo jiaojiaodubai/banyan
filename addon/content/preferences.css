@@ -52,3 +52,10 @@
 #style-table .virtualized-table {
   -moz-user-select: none;
 }
+
+/* Match the item list's inner padding instead of leaving labels flush with
+   the row edge. */
+#style-table .virtualized-table-header .cell,
+#style-table .virtualized-table-body .row .cell {
+  padding-inline: 8px;
+}
