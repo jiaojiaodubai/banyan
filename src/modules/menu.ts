@@ -41,16 +41,17 @@ let itemMenuKey: string | false = false;
 /**
  * The entries of the "Banyan" item submenu, in registration order. Every
  * feature owns its own entry (label, applicability, command); this module only
- * collects them and keeps the registration in sync.
+ * collects them and keeps the registration in sync. The order follows how often
+ * the actions are used: creators first, rendering last.
  */
 const ITEM_MENU_CONTRIBUTIONS: readonly ItemMenuContribution[] = [
-  createOutputItemMenu,
-  writeExtraFieldItemMenu,
-  createMultilingualItemItemMenu,
   creatorsExtItemMenu,
-  relateItemsItemMenu,
+  writeExtraFieldItemMenu,
   fieldPresetsItemMenu,
+  createMultilingualItemItemMenu,
+  relateItemsItemMenu,
   itemFieldValidatorsItemMenu,
+  createOutputItemMenu,
 ];
 
 /**
