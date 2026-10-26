@@ -105,7 +105,7 @@ Zotero，检查生产模式、启动失败、样式索引、引用生成和菜�
 
 | Job                                           | 是否需要集成产物                                              |
 | --------------------------------------------- | ------------------------------------------------------------- |
-| CI lint（非 type-aware）                      | 否                                                            |
+| CI lint（非 type-aware）                      | 是（`src/modules/integration.ts` 导入生成的 WPS 清单）        |
 | CI build                                      | 是（`pnpm build` 内含 `gen:wps-addin-manifest` + 产物进 XPI） |
 | CI test（`zotero-plugin test` 会 bundle src） | 是                                                            |
 | Release                                       | 是                                                            |
