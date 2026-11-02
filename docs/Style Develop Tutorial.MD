@@ -570,7 +570,7 @@ when(item.doi, text(` DOI: ${item.doi}`));
 | `safeString(value)`            | 安全地转成字符串              |
 | `safeRecord(value)`            | 安全地按对象读取              |
 
-`callStyle()` 与 `loadResource()` 都必须先声明（`STYLE_DEPENDENCIES` 最多 4 个，`STYLE_RESOURCES` 最多 8 个）。两者都返回 `{ ok: true, … }` 或 `{ ok: false, reason, message }`，失败时不抛出：调用方要自己写回退分支。被调用的样式必须已安装，且 `INFO.citationType` 与调用方一致；资源 id 就是 `banyan/assets/<id>` 的文件名（小写字母、数字和短横线，无扩展名），读取有 4 MiB 与 10 秒上限，成功结果是实例级冻结快照。没有 `readText` / `readJSON` / `readBytes` 这类低层读取工具。
+`callStyle()` 与 `loadResource()` 都必须先声明（`STYLE_DEPENDENCIES` 最多 4 个，`STYLE_RESOURCES` 最多 8 个）。两者都返回 `{ ok: true, … }` 或 `{ ok: false, reason, message }`，失败时不抛出：调用方要自己写回退分支。被调用的样式必须已安装，且 `INFO.citationType` 与调用方一致；资源 id 就是 `banyan/assets/<id>` 的文件名（小写字母、数字和短横线，无扩展名），也是这份公开资产的唯一名称：请像 npm 包名一样带范围前缀（如 `bluebook-terms`、`chinese-surname-pinyin`），避免 `terms` 这类容易撞车的通用名；同一 id 在所有样式间指向同一份共享资产。读取有 4 MiB 与 10 秒上限，成功结果是实例级冻结快照。没有 `readText` / `readJSON` / `readBytes` 这类低层读取工具。
 
 ## 7. 进阶功能
 

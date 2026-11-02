@@ -1,7 +1,7 @@
 {
   "source": "https://github.com/jiaojiaodubai/banyan-toolchain",
   "manifest": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/toolchain.manifest.json",
-  "toolchainRevision": "3a0c8dbba2f8b78cd7acd397ee16ada4565371a0",
+  "toolchainRevision": "dc1e71b43d64885dba8e9461333d63fd4b92facf",
   "contractRevision": "d82d5fd2fea3bc31746f20ac24776de12b1f548bb403bf2ae80ad4423fa1b376",
   "schemaRevision": "zotero-45+csl-0ee62cac6648+cslm-e507b2fb131c",
   "packages": {
@@ -13,7 +13,7 @@
     "contractArtifact": "banyan-style-contract-0.1.0.tgz",
     "contractArtifactSha256": "48cb554c403e5fa879dfbe9d29e8eeac124d9a1748f7eaef7ce9d6a5091f2329",
     "coreArtifact": "banyan-core-0.1.0.tgz",
-    "coreArtifactSha256": "c11d3e53b0889fe83fc2b2fbad79bd10ff169fc9761ced3e1a0e374b1379e8a0",
+    "coreArtifactSha256": "dccefa5f96f8e372cb756ba834b7ca555cf9ffeb80c104de7cc2c705fd3bcbd2",
     "lintArtifact": "eslint-plugin-banyan-style-0.1.0.tgz",
     "lintArtifactSha256": "e72ac238bc4ff4ed96bda6fc7cca79fa950d10bfced495de54574ca83248639a",
     "lintBundle": "eslint-plugin-banyan-style.mjs",
@@ -22,8 +22,8 @@
     "lintMetadataSha256": "5c1b97c34faa5c4721697ac88262ad8506fe343cc1d86bc9a437943d7e79ef65"
   },
   "addonAssets": {
-    "eslint-plugin-banyan-style.mjs": "8eb7a6bd46fb986898fec5862c34aa0c7005c5caaa4563ba338950d8dffa0acf",
-    "eslint-plugin-banyan-style.build.json": "95f2f01309f1e39207cdc9c8131bc5a369e5e6b146a307fd92c39d84480c9a7b"
+    "eslint-plugin-banyan-style.mjs": "6990eb5f00f5a9ff4dccafb0a7b6faf62911238be6483aa76d01cc6ac688f4e0",
+    "eslint-plugin-banyan-style.build.json": "501b23f8d343dbff7cc177d3d0571c574a5352bdbef8c6429e171e0a715c133d"
   },
   "note": "Pins one published toolchain revision and its hashed artifacts; do not add independent core/lint Git pins. To hack on the toolchain, link a local checkout instead of editing the lock. addonAssets are the generated, header-prefixed copies under addon/content/styleEditor. The release assets are re-issued under the same tag, so the dependency URLs carry ?rev=<toolchainRevision> to keep pnpm from serving a previously cached tarball."
 }

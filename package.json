@@ -1,7 +1,7 @@
 {
   "name": "banyan",
   "type": "module",
-  "version": "0.4.0",
+  "version": "0.5.0-beta.1",
   "packageManager": "pnpm@10.24.0",
   "description": "Fully customize citation styles using JavaScript in Zotero",
   "config": {
@@ -49,9 +49,8 @@
     "update-deps": "pnpm update"
   },
   "dependencies": {
-    "@banyan/core": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-core-0.1.0.tgz?rev=3a0c8db",
-    "@banyan/style-contract": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=3a0c8db",
-    "@banyan/style-contract": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=3a0c8db",
+    "@banyan/core": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-core-0.1.0.tgz?rev=dc1e71b",
+    "@banyan/style-contract": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=dc1e71b",
     "zotero-plugin-toolkit": "6.0.0"
   },
   "devDependencies": {
@@ -63,11 +62,7 @@
     "chai": "^6.3.0",
     "changelogen": "^0.6.2",
     "eslint": "^10.14.0",
-    "eslint-plugin-banyan-style": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=3a0c8db",
-
-
-
-
+    "eslint-plugin-banyan-style": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=dc1e71b",
     "mocha": "^12.0.3",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",

@@ -4,4 +4,4 @@
 packages: []
 
 overrides:
-  "@banyan/style-contract": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=db7eca9"
+  "@banyan/style-contract": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=dc1e71b"

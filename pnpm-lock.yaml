@@ -5,18 +5,18 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@banyan/style-contract': https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=db7eca9
+  '@banyan/style-contract': https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=dc1e71b
 
 importers:
 
   .:
     dependencies:
       '@banyan/core':
-        specifier: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-core-0.1.0.tgz?rev=3a0c8db
-        version: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-core-0.1.0.tgz?rev=3a0c8db
+        specifier: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-core-0.1.0.tgz?rev=dc1e71b
+        version: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-core-0.1.0.tgz?rev=dc1e71b
       '@banyan/style-contract':
-        specifier: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=db7eca9
-        version: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=db7eca9
+        specifier: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=dc1e71b
+        version: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=dc1e71b
       zotero-plugin-toolkit:
         specifier: 6.0.0
         version: 6.0.0
@@ -46,8 +46,8 @@ importers:
         specifier: ^10.14.0
         version: 10.14.0(jiti@2.7.0)
       eslint-plugin-banyan-style:
-        specifier: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=3a0c8db
-        version: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=3a0c8db(eslint@10.14.0(jiti@2.7.0))
+        specifier: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=dc1e71b
+        version: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=dc1e71b(eslint@10.14.0(jiti@2.7.0))
       mocha:
         specifier: ^12.0.3
         version: 12.0.3
@@ -69,12 +69,12 @@ importers:
 
 packages:
 
-  '@banyan/core@https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-core-0.1.0.tgz?rev=3a0c8db':
-    resolution: {tarball: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-core-0.1.0.tgz?rev=3a0c8db}
+  '@banyan/core@https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-core-0.1.0.tgz?rev=dc1e71b':
+    resolution: {tarball: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-core-0.1.0.tgz?rev=dc1e71b}
     version: 0.1.0
 
-  '@banyan/style-contract@https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=db7eca9':
-    resolution: {tarball: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=db7eca9}
+  '@banyan/style-contract@https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=dc1e71b':
+    resolution: {tarball: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=dc1e71b}
     version: 0.1.0
     engines: {node: '>=20'}
 
@@ -772,8 +772,8 @@ packages:
     peerDependencies:
       eslint: ^9.5.0 || ^10.0.0
 
-  eslint-plugin-banyan-style@https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=3a0c8db:
-    resolution: {tarball: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=3a0c8db}
+  eslint-plugin-banyan-style@https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=dc1e71b:
+    resolution: {tarball: https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=dc1e71b}
     version: 0.1.0
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
     peerDependencies:
@@ -1312,11 +1312,11 @@ packages:
 
 snapshots:
 
-  '@banyan/core@https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-core-0.1.0.tgz?rev=3a0c8db':
+  '@banyan/core@https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-core-0.1.0.tgz?rev=dc1e71b':
     dependencies:
-      '@banyan/style-contract': https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=db7eca9
+      '@banyan/style-contract': https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=dc1e71b
 
-  '@banyan/style-contract@https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=db7eca9': {}
+  '@banyan/style-contract@https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/banyan-style-contract-0.1.0.tgz?rev=dc1e71b': {}
 
   '@cacheable/memory@2.2.0':
     dependencies:
@@ -1962,7 +1962,7 @@ snapshots:
       '@eslint/compat': 2.1.1(eslint@10.14.0(jiti@2.7.0))
       eslint: 10.14.0(jiti@2.7.0)
 
-  eslint-plugin-banyan-style@https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=3a0c8db(eslint@10.14.0(jiti@2.7.0)):
+  eslint-plugin-banyan-style@https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=dc1e71b(eslint@10.14.0(jiti@2.7.0)):
     dependencies:
       eslint: 10.14.0(jiti@2.7.0)
 
