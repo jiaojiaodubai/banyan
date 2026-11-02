@@ -52,7 +52,7 @@
     "@zotero-plugin/eslint-config": "^0.6.10",
     "chai": "^5.3.3",
     "changelogen": "^0.6.2",
-    "eslint": "^9.39.5",
+    "eslint": "^10.13.0",
     "mocha": "^11.8.0",
     "prettier": "^3.9.9",
     "tsx": "^4.23.15",
