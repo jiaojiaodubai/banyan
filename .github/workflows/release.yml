@@ -43,8 +43,15 @@ jobs:
 
       - name: Release to GitHub
         run: |
+          # Tags are re-issued while a beta line is rebuilt, and the scaffold
+          # always creates a release, so drop the previous release first. The
+          # git tag itself stays: GitHub accepts creating a release for an
+          # existing tag.
+          gh release delete "$GITHUB_REF_NAME" --yes || true
           pnpm run release
           sleep 1s
+        env:
+          GH_TOKEN: ${{ secrets.GitHub_TOKEN }}
 
       - name: Notify release
         uses: apexskier/github-release-commenter@v1
