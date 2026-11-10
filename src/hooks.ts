@@ -28,6 +28,10 @@ import { ensureStyleEditorRuntimeAssets } from "./modules/styleEditor";
 import { initializeServer, shutdownServer } from "./modules/server";
 import { DIALOG_WINDOW_NAME } from "./modules/multilingualItem";
 import { findWindowByName } from "./utils/window";
+import { createLogger } from "./utils/logger";
+import { runStartupSteps } from "./utils/startup";
+
+const log = createLogger("hooks");
 
 function registerAPIs(): void {
   addon.api.reloadStyles = loadStyles;
@@ -46,23 +50,49 @@ async function onStartup() {
   ]);
 
   addon.data.ztoolkit = createZToolkit();
-  registerAPIs();
-  registerPrefs();
-  // Registered once per session: `Zotero.MenuManager` keys menus by `menuID`
-  // and injects them into each popup as it opens, so every main window
-  // (including ones opened later) gets them. Per-window registration would be
-  // rejected by its unique-`menuID` check.
-  registerToolsMenu();
-  registerContextMenu();
-  registerRetypeObserver();
-  await initializeServer();
-  await ensureStyleEditorRuntimeAssets();
-  await loadStyles();
-  await installPresetStyles();
 
-  await Promise.all(
-    Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
+  // Every step owns its failure: a deleted asset or an unreadable file must
+  // not take down the steps after it, and the log entry names the step so a
+  // report can be traced back to the module that failed. `startupFailures` keeps
+  // the names readable from the running client (`Zotero.Banyan.data`).
+  const windowSteps = Zotero.getMainWindows().map((win, index) => ({
+    name: `main-window:${index + 1}`,
+    run: () => onMainWindowLoad(win),
+  }));
+  const failures = await runStartupSteps(
+    [
+      { name: "api", run: registerAPIs },
+      { name: "prefs", run: registerPrefs },
+      // Registered once per session: `Zotero.MenuManager` keys menus by
+      // `menuID` and injects them into each popup as it opens, so every main
+      // window (including ones opened later) gets them. Per-window
+      // registration would be rejected by its unique-`menuID` check.
+      { name: "menu:tools", run: registerToolsMenu },
+      { name: "menu:context", run: registerContextMenu },
+      { name: "observer:retype", run: registerRetypeObserver },
+      // The style index is the plugin's core data and the style table reads it
+      // directly, so it loads before the optional style-editor runtime assets:
+      // a missing editor asset must not leave the table empty.
+      { name: "styles:load", run: () => loadStyles() },
+      { name: "styles:presets", run: () => installPresetStyles() },
+      {
+        name: "style-editor:runtime-assets",
+        run: () => ensureStyleEditorRuntimeAssets(),
+      },
+      { name: "server", run: () => initializeServer() },
+      ...windowSteps,
+    ],
+    (failure) => {
+      log.error(`Startup step '${failure.name}' failed`, failure.error);
+    },
   );
+
+  addon.data.startupFailures = failures.map((failure) => failure.name);
+  if (addon.data.startupFailures.length) {
+    log.warn(
+      `Plugin started with ${addon.data.startupFailures.length} failed startup step(s): ${addon.data.startupFailures.join(", ")}`,
+    );
+  }
 
   // Mark initialized as true to confirm plugin loading status
   // outside of the plugin (e.g. scaffold testing process)
@@ -71,12 +101,16 @@ async function onStartup() {
 
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   const t = useL10n();
-  // Create ztoolkit for every window
-  addon.data.ztoolkit = createZToolkit();
 
+  // Attach the plugin's Fluent file before anything else: menu labels resolve
+  // asynchronously, and a later failure in window setup must not leave the
+  // plugin's menus without labels.
   win.MozXULElement.insertFTLIfNeeded(
     `${addon.data.config.addonRef}-mainWindow.ftl`,
   );
+
+  // Create ztoolkit for every window
+  addon.data.ztoolkit = createZToolkit();
 
   const popupWin = new ztoolkit.ProgressWindow(addon.data.config.addonName, {
     closeOnClick: true,

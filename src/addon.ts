@@ -16,6 +16,8 @@ class Addon {
     config: typeof config;
     env: "development" | "production";
     initialized?: boolean;
+    /** Names of the startup steps that threw; empty when startup was clean. */
+    startupFailures: string[];
     ztoolkit: ZToolkit;
     locale: Localization;
     prefs?: {
@@ -52,6 +54,7 @@ class Addon {
       config,
       env: __env__,
       initialized: false,
+      startupFailures: [],
       ztoolkit: createZToolkit(),
       locale: createLocale(),
       styles: {
