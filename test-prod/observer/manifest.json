@@ -1,0 +1,14 @@
+{
+  "manifest_version": 2,
+  "name": "Banyan Production Test Observer",
+  "version": "1.0.0",
+  "description": "Observes Banyan in an isolated test profile",
+  "applications": {
+    "zotero": {
+      "id": "banyan-test-observer@example.org",
+      "update_url": "https://example.invalid/banyan-test-observer.json",
+      "strict_min_version": "8.0",
+      "strict_max_version": "999.*"
+    }
+  }
+}

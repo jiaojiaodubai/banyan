@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       GITHUB_TOKEN: ${{ secrets.GitHub_TOKEN }}
     steps:
@@ -28,7 +28,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install deps
@@ -37,14 +37,34 @@ jobs:
       - name: Build integration add-ins
         run: pnpm run integrations:build
 
+      - name: Install Zotero beta
+        uses: ./.github/actions/setup-zotero
+
+      - name: Test development
+        run: xvfb-run -a pnpm test:dev
+        env:
+          ZOTERO_SETUP_COMPLETE: "1"
+
       - name: Build
         run: |
           pnpm run build
 
+      - name: Test production XPI
+        run: xvfb-run -a pnpm test:prod
+
       - name: Release to GitHub
         run: |
+          pnpm verify:prod
           pnpm run release
-          sleep 1s
+
+      - name: Upload production test log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-production-smoke-log
+          path: .scaffold/prod-smoke.log
+          if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Notify release
         uses: apexskier/github-release-commenter@v1

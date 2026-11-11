@@ -20,13 +20,11 @@ function appendLog(value) {
   appendFileSync(logPath, stripAnsi(value), "utf8");
 }
 
-const command = process.platform === "win32" ? "zotero-plugin.cmd" : "zotero-plugin";
-// Node cannot spawn .cmd/.bat directly on Windows without a shell.
-const child = spawn(command, ["test"], {
+const command = path.join(rootDir, "node_modules/zotero-plugin-scaffold/bin/zotero-plugin.mjs");
+const child = spawn(process.execPath, [command, "test", ...process.argv.slice(2)], {
   cwd: rootDir,
   env: process.env,
   stdio: ["inherit", "pipe", "pipe"],
-  shell: process.platform === "win32",
 });
 
 function pipe(stream, target) {

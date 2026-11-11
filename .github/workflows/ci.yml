@@ -10,7 +10,7 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       GITHUB_TOKEN: ${{ secrets.GitHub_TOKEN }}
     steps:
@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
       - name: Install deps
         run: pnpm install --frozen-lockfile
@@ -29,7 +29,7 @@ jobs:
         run: pnpm run lint:check
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       GITHUB_TOKEN: ${{ secrets.GitHub_TOKEN }}
     steps:
@@ -42,7 +42,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
       - name: Install deps
         run: pnpm install --frozen-lockfile
@@ -50,16 +50,27 @@ jobs:
         run: pnpm run integrations:build
       - name: Run Build
         run: pnpm run build
+      - name: Install Zotero beta
+        uses: ./.github/actions/setup-zotero
+      - name: Test production XPI
+        run: xvfb-run -a pnpm test:prod
+      - name: Upload production test log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-production-smoke-log
+          path: .scaffold/prod-smoke.log
+          if-no-files-found: ignore
+          include-hidden-files: true
       - name: Upload build result
         uses: actions/upload-artifact@v4
         with:
           name: build-result
           path: .scaffold/build
+          include-hidden-files: true
 
   test:
-    runs-on: ubuntu-latest
-    needs:
-      - build
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,10 +78,13 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run integrations:build
-      - run: pnpm run test
+      - uses: ./.github/actions/setup-zotero
+      - run: xvfb-run -a pnpm test --no-watch
+        env:
+          ZOTERO_SETUP_COMPLETE: "1"
       - name: Run Node tests (style lint)
         run: pnpm run test:node

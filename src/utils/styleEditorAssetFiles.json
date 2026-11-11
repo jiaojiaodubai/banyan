@@ -1,0 +1,12 @@
+{
+  "defaultCode": "defaultStyle.js",
+  "itemTypesDTS": "item.d.ts",
+  "unitTypesDTS": "unit.d.ts",
+  "styleTypesDTS": "style.d.ts",
+  "styleUtilsDTS": "styleUtils.d.ts",
+  "jsConfigText": "jsconfig.json",
+  "snippetsText": "snippets.jsonc",
+  "eslintConfigText": "eslint.config.mjs",
+  "eslintPluginText": "eslint-plugin-banyan-style.mjs",
+  "packageJSONText": "package.json"
+}

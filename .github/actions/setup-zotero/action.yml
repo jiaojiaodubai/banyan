@@ -1,0 +1,17 @@
+name: Setup Zotero beta
+description: Install the official Linux beta and its headless runtime dependencies
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y xvfb xauth libasound2t64 libdbus-glib-1-2 libx11-xcb1
+        curl --fail --location --retry 3 --output "$RUNNER_TEMP/zotero.tar" \
+          'https://www.zotero.org/download/client/dl?platform=linux-x86_64&channel=beta'
+        mkdir -p "$RUNNER_TEMP/zotero"
+        tar -xf "$RUNNER_TEMP/zotero.tar" -C "$RUNNER_TEMP/zotero"
+        binary="$RUNNER_TEMP/zotero/Zotero_linux-x86_64/zotero"
+        test -x "$binary"
+        sed -n '/^Version=/p' "$RUNNER_TEMP/zotero/Zotero_linux-x86_64/app/application.ini"
+        printf 'ZOTERO_PLUGIN_ZOTERO_BIN_PATH=%s\n' "$binary" >> "$GITHUB_ENV"

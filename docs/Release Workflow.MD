@@ -56,7 +56,9 @@ Scaffold 采用“本地打 tag → CI 出资产”两段式，避免 GitHub Rel
    `execute: pnpm build`（用新版本号构建）→ 用
    `chore(publish): release v%s` 提交**全部已跟踪改动**
    （`release.bumpp.all: true`，包含子模块指针/CHANGELOG）→ 打 `v<版本>` tag
-   → push（commit + tag）。
+   → push（commit + tag）。`pre-commit` 会运行 `pnpm test:dev`；推送 `v*` 标签时，
+   `pre-push` 会运行 `pnpm test:release`。本地钩子验证当前工作树，发布前应检查
+   工作树与标签一致；CI 以标签提交为准重新构建和验证。
 
    > 预发布可 `pnpm release prerelease` 等；类型也可在命令行覆盖。
 
@@ -65,10 +67,28 @@ Scaffold 采用“本地打 tag → CI 出资产”两段式，避免 GitHub Rel
    - 检出（`submodules: recursive`、`fetch-depth: 0`）
    - `pnpm install --frozen-lockfile`
    - `pnpm integrations:build`（从**锁定的子模块 commit** 装配产物，保证可复现）
+   - 下载官方 Linux Zotero **beta**，在 Xvfb 中运行 `pnpm test:dev`
    - `pnpm build`
+   - 在 Xvfb 中运行 `pnpm test:prod`
+   - `pnpm verify:prod` 校验标签、测试记录、XPI SHA-256、更新清单和 SHA-512
+   - 删除旧 release 前和 scaffold 上传前再次验证；CI 中不会重新构建已测试的 XPI
    - `pnpm release`：CI 下不 bump，直接创建 GitHub Release
      （tag `v<版本>`，上传 `*.xpi`；notes 由约定式提交自动生成），并把
      `update.json`/`update-beta.json` 上传到 `release` tag。
+
+## 生产测试
+
+`pnpm test:release` 依次运行 `pnpm build`、`pnpm test:prod` 和 `pnpm verify:prod`。
+单独运行 `pnpm test:prod` 时，需先构建 XPI 并设置
+`ZOTERO_PLUGIN_ZOTERO_BIN_PATH`（可在 `.env` 中配置）。测试先检查 XPI 清单、编辑器
+资源、Fluent 文件和集成清单所列资源，再把同一 XPI 安装到独立 profile 中，启动并重启
+Zotero，检查生产模式、启动失败、样式索引、引用生成和菜单本地化。静态清单覆盖关键
+资源，但不声称覆盖所有动态加载路径。
+
+测试成功后，`.scaffold/prod-tested.json` 记录 XPI 路径和 SHA-256；任何失败都会清除
+旧记录。运行时日志保存在 `.scaffold/prod-smoke.log`，CI 失败时上传该日志。观察器仅
+存在于临时 profile，正常退出、超时或中断后会清理 profile、数据、观察器与进程。
+不要在其他 Zotero 实例或更新运行时执行测试。
 
 > GitHub Release notes 可在发布后于网页手工编辑补充；若希望 notes 与提交的
 > `CHANGELOG.md` 完全一致，可将 `zotero-plugin.config.ts` 的

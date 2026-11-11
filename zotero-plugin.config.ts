@@ -1,5 +1,10 @@
 import { defineConfig } from "zotero-plugin-scaffold";
+import { execFileSync } from "node:child_process";
+import { isCI } from "std-env";
 import pkg from "./package.json";
+
+const runtimeEnvironment =
+  process.env.NODE_ENV === "production" ? "production" : "development";
 
 export default defineConfig({
   source: ["src", "addon"],
@@ -7,6 +12,7 @@ export default defineConfig({
   name: pkg.config.addonName,
   id: pkg.config.addonID,
   namespace: pkg.config.addonRef,
+  xpiName: pkg.config.addonRef,
   updateURL: `https://github.com/{{owner}}/{{repo}}/releases/download/release/${
     pkg.version.includes("-") ? "update-beta.json" : "update.json"
   }`,
@@ -35,7 +41,7 @@ export default defineConfig({
       {
         entryPoints: ["src/index.ts"],
         define: {
-          __env__: `"${process.env.NODE_ENV}"`,
+          __env__: JSON.stringify(runtimeEnvironment),
         },
         bundle: true,
         target: "firefox115",
@@ -65,7 +71,7 @@ export default defineConfig({
           },
         ],
         define: {
-          __env__: `"${process.env.NODE_ENV}"`,
+          __env__: JSON.stringify(runtimeEnvironment),
         },
         bundle: true,
         target: "firefox115",
@@ -87,13 +93,26 @@ export default defineConfig({
       // dependency lockfile) in the release commit.
       all: true,
       // Build with the freshly bumped version before committing/tagging.
-      execute: "pnpm build",
+      execute: isCI ? "pnpm verify:prod" : "pnpm build",
     },
     github: {
       // Create the GitHub Release + upload XPI/update manifests in CI only;
       // locally `pnpm release` just bumps, commits, tags and pushes.
       enable: "ci",
       updater: "release",
+    },
+    hooks: {
+      "release:push": () => {
+        if (isCI) {
+          execFileSync(
+            process.execPath,
+            ["scripts/verifyProductionReceipt.mjs"],
+            {
+              stdio: "inherit",
+            },
+          );
+        }
+      },
     },
   },
 

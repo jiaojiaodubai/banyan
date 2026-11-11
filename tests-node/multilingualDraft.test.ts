@@ -9,9 +9,11 @@ import {
   normalizeLanguageCode,
   normalizeStyleLanguageTag,
   switchCreatorNameMode,
-  type CreatorSnapshot,
-  type ItemContentSnapshot,
 } from "../src/utils/multilingualDraft";
+import type {
+  CreatorSnapshot,
+  ItemContentSnapshot,
+} from "../typings/multilingualItem";
 
 const content = (
   overrides: Partial<ItemContentSnapshot> = {},

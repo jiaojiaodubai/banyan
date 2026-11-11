@@ -19,7 +19,9 @@ Banyan is a Zotero plugin that enables users to fully customize citation styles 
 - Two separate lint contexts:
   1. Main plugin code: [eslint.config.mjs](eslint.config.mjs)
   2. Style editor: [addon/content/styleEditor/eslint.config.mjs](addon/content/styleEditor/eslint.config.mjs)
+
 - After finishing a session's code edit, always run `pnpm lint:fix` first (covers both contexts), then run `pnpm lint:check` to verify a clean result.
+- Git hooks shared by contributors and agents run `pnpm test:dev` before commits and `pnpm test:release` before pushing `v*` release tags. `pnpm install` installs them without replacing existing hooks; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md). Do not bypass these checks without explicit user approval; CI independently enforces the release gate.
 
 ## References
 

@@ -43,7 +43,7 @@ function createStubState(overrides: Partial<StubState> = {}): StubState {
 }
 
 /** Shape accepted by `toBanyanItem`, backed by a `StubItem`. */
-function createLiveItem(item: StubItem) {
+function createLiveItem(item: StubItem): Zotero.Item {
   return {
     id: item.id,
     deleted: item.deleted,
@@ -51,7 +51,7 @@ function createLiveItem(item: StubItem) {
     firstCreator: "Smith",
     toJSON: () => ({ itemType: "book", title: item.title }),
     getField: (field: string) => (field === "year" ? "2024" : ""),
-  };
+  } as unknown as Zotero.Item;
 }
 
 /**
