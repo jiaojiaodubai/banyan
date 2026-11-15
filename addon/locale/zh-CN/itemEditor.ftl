@@ -1,0 +1,17 @@
+# 分隔符、顺序由各语言决定；label 为样式 label 或原始 key。
+item-editor-extra-key-placeholder =
+  .placeholder = 字段名
+  .aria-label = 字段名
+item-editor-extra-other-placeholder =
+  .placeholder = 未能解析的额外内容
+  .aria-label = 其他内容
+item-editor-column-role = 角色
+item-editor-column-nationality = 国籍
+item-editor-column-dynasty = 朝代
+item-editor-role-placeholder = 角色
+item-editor-nationality-placeholder = 国籍
+item-editor-dynasty-placeholder = 朝代
+item-editor-swap-names = 交换名字/姓氏
+item-editor-fix-case = 修正大小写
+item-editor-drag-reorder = 拖拽调整顺序
+item-editor-view-online = 在线查看

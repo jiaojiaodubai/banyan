@@ -1,0 +1,478 @@
+item-editor,
+item-field-editor,
+creator-editor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+item-editor > item-field-editor,
+item-editor > creator-editor {
+  display: flex;
+  width: 100%;
+}
+
+/* Scrollbar belongs to the field area below the toolbar, not the toolbar. */
+.field-editor-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 0 8px;
+  box-sizing: border-box;
+  /* Match `.zotero-view-item`: thin native scrollbar with a transparent track.
+     Use the theme colors so Zotero's overlay scrollbar runs its own show/
+     fade-out timing; forcing it transparent until hover made the thumb vanish
+     the moment the pointer left the window. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar) var(--color-scrollbar-background);
+}
+
+item-editor > item-field-editor {
+  flex: 1 1 auto;
+}
+
+#info-table .creator-section-row {
+  display: block;
+  grid-column: span 2;
+  padding: 0;
+}
+
+/* Keep the title visible at the top of the field area while it scrolls. The
+   6px matches the table's top margin, so the title does not jump closer to the
+   toolbar when it sticks. */
+#info-table .title-row {
+  position: sticky;
+  top: 6px;
+  z-index: 2;
+  background: var(--material-sidepane);
+  box-shadow: 0 -6px 0 var(--material-sidepane);
+}
+
+#info-table .creator-section-row creator-editor {
+  display: block;
+  width: 100%;
+}
+
+/* Field table, extracted from multilingualItemDialog.css. */
+#info-table {
+  display: grid;
+  grid-template-columns: var(--item-editor-label-width, max-content) 1fr;
+  column-gap: 8px;
+  row-gap: 2px;
+  width: calc(100% - 16px);
+  margin: 6px 8px 0;
+  align-content: start;
+  grid-auto-rows: max-content;
+  align-items: start;
+}
+
+#info-table .meta-row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: span 2;
+}
+
+#info-table .meta-row .meta-label {
+  display: flex;
+  font-weight: normal;
+  text-align: end;
+  color: var(--fill-secondary);
+}
+
+#info-table .meta-row .meta-label > label {
+  margin-top: 2px;
+}
+
+[zoteroUIDensity="comfortable"] #info-table .meta-row .meta-label > label {
+  margin-top: 3px;
+}
+
+#info-table .meta-row .key {
+  width: 100%;
+}
+
+#info-table .meta-row .meta-data {
+  display: flex;
+  width: 0;
+  min-width: 100%;
+}
+
+/* As the item pane: link fields get a "View Online" button after the value. */
+#info-table .meta-row .meta-data > toolbarbutton {
+  margin-inline-start: 4px;
+}
+
+#info-table .meta-row .zotero-clicky-open-link {
+  align-self: baseline;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+#info-table .meta-row editable-text {
+  flex: 1;
+  max-width: 100%;
+}
+
+#info-table .meta-row editable-text .input {
+  min-width: 0;
+}
+
+#info-table .meta-row toolbarbutton {
+  appearance: none;
+  align-self: baseline;
+  width: auto;
+  height: auto;
+  padding: 0.25em 1px 1px;
+  border-radius: 2px;
+}
+
+#info-table .meta-row:not(:hover):not(:focus-within) .show-on-hover {
+  clip-path: inset(50%);
+}
+
+#info-table .date-box .date-status {
+  align-self: center;
+  padding-inline-start: 5px;
+  color: var(--fill-secondary);
+  white-space: nowrap;
+}
+
+#info-table .meta-row:not(:hover):not(:focus-within) .show-on-hover.no-display {
+  position: absolute;
+  width: 0;
+  height: 0;
+  padding: 0;
+}
+
+/* Extra rows: editable key in the label column, value plus add/remove buttons. */
+#info-table .extra-row .meta-label {
+  align-items: center;
+}
+
+#info-table .extra-row .meta-label > editable-text {
+  width: 100%;
+}
+
+#info-table .extra-row .extra-key .input {
+  text-align: end;
+}
+
+#info-table .extra-row .meta-data {
+  align-items: center;
+}
+
+#info-table .extra-row .extra-value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#info-table .extra-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
+  margin-inline-start: 4px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#info-table .extra-row:hover .extra-controls,
+#info-table .extra-row:focus-within .extra-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#info-table .extra-controls toolbarbutton {
+  appearance: none;
+  align-self: center;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+#info-table .extra-controls toolbarbutton:hover {
+  background: var(--fill-quinary);
+}
+
+#info-table .extra-other-row .meta-data {
+  align-items: stretch;
+}
+
+#info-table .extra-other-row editable-text {
+  flex: 1 1 auto;
+}
+
+#info-table .extra-other-row editable-text .input {
+  min-height: 3.5em;
+}
+
+textarea {
+  font: inherit;
+  resize: none;
+}
+
+/* Creator rows. */
+creator-editor {
+  min-width: 0;
+}
+
+.creator-scroll {
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+.creator-rows {
+  display: flex;
+  flex-direction: column;
+  row-gap: 2px;
+}
+
+.creator-row {
+  display: grid;
+  grid-template-columns: var(--item-editor-label-width, 100px) minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: center;
+  min-height: 0;
+}
+
+.creator-row.drag-hidden-creator {
+  opacity: 0;
+}
+
+.creator-label-cell {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+  padding-inline-start: 18px;
+}
+
+.creator-grippy {
+  position: absolute;
+  inset-inline-start: 0;
+  width: 18px;
+  cursor: grab;
+  opacity: 0;
+}
+
+.creator-row:hover .creator-grippy,
+.creator-row:focus-within .creator-grippy {
+  opacity: 1;
+}
+
+.creator-data-cell {
+  display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.creator-type-label {
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+  margin-inline-end: -4px;
+  border-radius: 6px;
+  color: var(--fill-secondary);
+  white-space: nowrap;
+}
+
+.creator-type-label:focus-visible {
+  outline: var(--color-focus-outer-border) solid var(--width-focus-outer-border);
+  outline-offset: var(--width-focus-border);
+  box-shadow: 0 0 0 var(--width-focus-border) var(--color-focus-border);
+}
+
+.creator-type-dropmarker {
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  padding-right: 4px;
+  background: url("chrome://zotero/skin/8/universal/chevron-8.svg") no-repeat
+    center/contain;
+  fill: currentColor;
+  -moz-context-properties: fill, fill-opacity;
+  color: var(--fill-secondary);
+  visibility: hidden;
+}
+
+.creator-type-label:hover .creator-type-dropmarker,
+.creator-type-label:focus .creator-type-dropmarker {
+  visibility: visible;
+}
+
+.creator-name-box {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: none;
+}
+
+.creator-name-box editable-text {
+  flex: 0 0 auto;
+  max-width: none;
+  min-width: 0;
+}
+
+.creator-name-box editable-text[hidden] {
+  display: none;
+}
+
+.creator-name-box editable-text .input,
+.creator-extension-input .input {
+  min-width: 0;
+}
+
+.creator-name-box editable-text[fieldMode="0"]:first-child {
+  flex-grow: 3;
+  position: relative;
+  margin-inline-end: 4px;
+}
+
+.creator-name-box editable-text[fieldMode="0"]:first-child::after {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: var(--editable-text-padding-block);
+  content: var(--comma-character, ",");
+  pointer-events: none;
+}
+
+.creator-name-box editable-text[fieldMode="0"]:first-child.overflowing {
+  --ellipsis: var(--ellipsis-and-comma-character, "…,");
+}
+
+.creator-name-box editable-text[fieldMode="0"]:first-child.overflowing::after {
+  display: none;
+}
+
+.creator-name-box editable-text[fieldMode="0"]:first-child.focused::after {
+  visibility: hidden;
+}
+
+.creator-extension-input {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: none;
+}
+
+.creator-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
+  margin-inline-start: auto;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.creator-row:hover .creator-controls,
+.creator-row:focus-within .creator-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.creator-controls toolbarbutton {
+  appearance: none;
+  align-self: center;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.creator-controls toolbarbutton:hover {
+  background: var(--fill-quinary);
+}
+
+.creator-swap-button {
+  box-sizing: border-box;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 3px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--fill-secondary);
+  cursor: pointer;
+}
+
+.creator-swap-button:disabled {
+  opacity: 45%;
+  cursor: default;
+}
+
+/* Field checks mark the offending inputs instead of inserting a panel. */
+#info-table .meta-row.has-field-error .input {
+  outline: 1px solid var(--color-red, #c00);
+  outline-offset: -1px;
+}
+
+/* The multilingual dialog still renders the old report panel. */
+#validation-panel {
+  flex: 0 0 auto;
+  max-height: 40vh;
+  overflow: auto;
+  padding: 8px 12px;
+  border-top: 1px solid var(--fill-quinary);
+  background: var(--material-toolbar, transparent);
+}
+
+#validation-panel[hidden] {
+  display: none;
+}
+
+#validation-summary {
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+#validation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.validation-row {
+  display: grid;
+  grid-template-columns: 6em 1fr;
+  column-gap: 8px;
+  row-gap: 2px;
+}
+
+.validation-status {
+  color: var(--fill-secondary);
+}
+
+.validation-status.is-fail,
+.validation-status.is-error {
+  color: var(--color-red);
+}
+
+.validation-description {
+  font-weight: 600;
+}
+
+.validation-detail {
+  grid-column: 2;
+  color: var(--fill-secondary);
+}
+
+.validation-actions {
+  display: flex;
+  justify-content: end;
+  gap: 6px;
+  margin-top: 8px;
+}

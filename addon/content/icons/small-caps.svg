@@ -1,0 +1,7 @@
+<!-- Original small-caps glyph for Banyan (AGPL-3.0-or-later).
+     Outlined letters share the native toolbar icon baseline at y=17 and use a
+     larger cap height than the first draft; the two fills do not overlap. -->
+<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M 12.784375,17 H 9.6828125 L 8.878125,14.648438 h -4.3125 L 3.7609375,17 H 0.73750001 L 5.034375,5.3671875 H 8.4875 Z M 8.1515625,12.515625 6.721875,8.34375 5.2921875,12.515625 Z" fill="context-fill"/>
+<path d="M 18.981836,17 H 17.237207 L 16.784571,15.677246 H 14.358789 L 13.906153,17 h -1.700684 l 2.416992,-6.543457 h 1.942383 z m -2.605957,-2.522461 -0.804199,-2.34668 -0.804199,2.34668 z" fill="context-fill"/>
+</svg>

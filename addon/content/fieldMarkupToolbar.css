@@ -1,0 +1,67 @@
+/* Shared by the multilingual dialog and the item editor window. */
+item-field-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.field-markup-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 41px;
+  min-height: 41px;
+  padding: 0 4px;
+  /* The official `.zotero-toolbar` divider: one 41px content row plus this
+     1px border, so the splitter's divider row lines up with it. */
+  border-bottom: var(--material-panedivider);
+  background: var(--material-toolbar);
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  user-select: none;
+}
+
+.field-markup-button {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background-color: transparent;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 20px;
+  color: var(--fill-secondary);
+  -moz-context-properties: fill;
+  fill: currentColor;
+  cursor: default;
+}
+
+.field-markup-button:hover:not(:disabled) {
+  background-color: var(--fill-quinary);
+}
+
+.field-markup-button:active:not(:disabled) {
+  background-color: var(--fill-quarternary);
+}
+
+.field-markup-button:focus-visible {
+  outline: var(--color-focus-outer-border) solid var(--width-focus-outer-border);
+  outline-offset: var(--width-focus-border);
+  box-shadow: 0 0 0 var(--width-focus-border) var(--color-focus-border);
+}
+
+.field-markup-button:disabled {
+  opacity: 50%;
+}
+
+.field-markup-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--fill-quinary);
+}

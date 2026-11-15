@@ -82,6 +82,7 @@ describe("style index isolation", function () {
   it("remains rebuildable through the main-window API", async function () {
     const api = plugin().api;
     assert.isFunction(api.reloadStyles);
+    assert.isFunction(api.runItemFieldChecks);
     await api.reloadStyles();
     assert.isAbove(plugin().data.styles.files.size, 0);
     assertSerializable(plugin().data.styles, "addon.data.styles");

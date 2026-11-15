@@ -273,7 +273,7 @@ export async function withStyleIndexBatch<T>(
   }
 }
 
-/** Styles that declare quick marks or field checks, sorted by title. */
+/** Styles that declare Fill Preset Fields or field checks, sorted by title. */
 export function getItemMenuStyles(): { id: string; title: string }[] {
   return Array.from(addon.data.styles.files.values())
     .filter(
@@ -284,7 +284,7 @@ export function getItemMenuStyles(): { id: string; title: string }[] {
     .sort((a, b) => a.title.localeCompare(b.title));
 }
 
-/** Whether a style currently contributes quick marks. */
+/** Whether a style currently contributes Fill Preset Fields. */
 export function hasFieldPresets(styleId: string): boolean {
   return addon.data.styles.files.get(styleId)?.hasFieldPresets === true;
 }

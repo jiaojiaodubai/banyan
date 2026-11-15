@@ -1,4 +1,5 @@
 import { runItemFieldValidators } from "@banyan/core/validation/itemFieldValidators";
+import type { FieldCheckEntry } from "@banyan/core/validation/itemFieldValidators";
 import type {
   FieldValidator,
   ItemFieldValidators,
@@ -67,6 +68,32 @@ function getEffectiveValidators(): IndexedItemFieldValidators | null {
     return null;
   }
   return getStyleItemFieldValidators(styleId) ?? null;
+}
+
+export type ItemFieldCheckRun = {
+  styleTitle: string;
+  checks: FieldCheckEntry[];
+};
+
+/**
+ * Run the effective style's checks for one item. Returns null when the style
+ * has no declaration or no checker for this item type, so callers can skip the
+ * whole save-time check without showing an empty report.
+ */
+export async function runItemFieldChecks(
+  item: Zotero.Item,
+  options: { timeoutMs?: number } = {},
+): Promise<ItemFieldCheckRun | null> {
+  const indexed = getEffectiveValidators();
+  if (!indexed) return null;
+  const validators = getTypeValidators(indexed.byType, String(item.itemType));
+  if (!validators.length) return null;
+  const checks = await runItemFieldValidators(
+    validators,
+    toBanyanItem(item),
+    options,
+  );
+  return { styleTitle: indexed.styleTitle, checks };
 }
 
 /** Editable selected items with at least one checker for their type. */

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<html
+  id="banyan-item-editor-dialog"
+  persist="screenX screenY"
+  xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+  width="480"
+  height="760"
+  resizable="true"
+>
+  <head>
+    <title data-l10n-id="item-editor-dialog-title"></title>
+    <link rel="localization" href="zotero.ftl" />
+    <link rel="localization" href="__addonRef__-itemEditorDialog.ftl" />
+    <link rel="localization" href="__addonRef__-itemEditor.ftl" />
+
+    <link rel="stylesheet" href="chrome://global/skin/global.css" />
+    <link rel="stylesheet" href="chrome://zotero/skin/zotero.css" />
+    <link rel="stylesheet" href="chrome://zotero/skin/overlay.css" />
+    <link rel="stylesheet" href="chrome://zotero-platform/content/zotero.css" />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/dialogFooter.css"
+    />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/fieldMarkupToolbar.css"
+    />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/itemEditor.css"
+    />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/itemEditorDialog.css"
+    />
+
+    <script src="chrome://zotero/content/include.js"></script>
+    <script src="chrome://zotero/content/customElements.js"></script>
+    <script>
+      const addon = Zotero.__addonInstance__;
+      const ztoolkit = addon.data.ztoolkit;
+    </script>
+    <script src="chrome://__addonRef__/content/scripts/itemEditorDialog.js"></script>
+  </head>
+
+  <body>
+    <main id="item-editor-root">
+      <div id="editor-scroll">
+        <xul:item-editor id="item-editor" />
+      </div>
+      <div id="editor-status" role="status" hidden="true"></div>
+      <footer class="dialog-footer">
+        <button id="cancel-button" type="button"></button>
+        <button id="save-button" type="button" default="true"></button>
+      </footer>
+    </main>
+  </body>
+</html>
