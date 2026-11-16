@@ -48,8 +48,6 @@ relate-multilingual-item-warning-skipped = { $count ->
    *[other] { $count } pairs were not related: those items differ in item type or library.
 }
 
-extra-field-write-failed = Failed to write extra field: { $message }
-extra-field-error-invalid-key = Invalid field key. Please enter a valid key.
 field-preset-value-hint = This preset fill asks you to enter “{ $key }” — enter the value that fits “{ $item }”.
 extra-field-conflict-title = Field value conflict
 extra-field-conflict-message = “{ $key }” on “{ $item }” already has the value “{ $existing }”. Overwrite it with “{ $newValue }”?

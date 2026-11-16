@@ -24,6 +24,7 @@ import {
   type StyleWriteTarget,
   type StyleWriteTargetIO,
 } from "../utils/styleFiles";
+import type { StyleFile } from "../../typings/styleIndex";
 import { StyleInstanceCache } from "../utils/styleInstanceCache";
 
 /** A style file while the directory is being loaded, before it is indexed. */
@@ -43,7 +44,7 @@ const styleInstances = new StyleInstanceCache<Style>();
 /**
  * Item-menu declarations are executable (`visible`, `check`). They belong to
  * the main-window bundle, which installs these hooks from `styleIndex.ts`;
- * dialogs only produce the serializable summary below.
+ * dialogs only ever produce the serializable summary below.
  */
 export type StyleDeclarationSummary = {
   hasFieldPresets: boolean;
@@ -222,13 +223,14 @@ async function readStylePresetFile(fileName: string): Promise<string> {
  * the preference list.
  */
 function indexLoadedStyle(style: Style, filename: string): void {
+  const styleId = style.INFO.id;
   addon.data.styles.epoch += 1;
   const declarations = styleIndexHooks?.load(style) ?? {
-    hasFieldPresets: false,
-    itemFieldValidatorTypes: [],
+    hasFieldPresets: Boolean(style.ITEM_FIELD_PRESETS?.length),
+    itemFieldValidatorTypes: Object.keys(style.ITEM_FIELD_VALIDATORS ?? {}),
   };
-  addon.data.styles.files.set(style.INFO.id, {
-    id: style.INFO.id,
+  const entry: StyleFile = {
+    id: styleId,
     title: style.INFO.title,
     citationType: style.INFO.citationType ?? "intext-citation",
     description: style.INFO.description,
@@ -237,7 +239,8 @@ function indexLoadedStyle(style: Style, filename: string): void {
     optionParams: toStyleOptionParamInfos(style.STYLE_OPTIONS),
     hasFieldPresets: declarations.hasFieldPresets,
     itemFieldValidatorTypes: declarations.itemFieldValidatorTypes,
-  });
+  };
+  addon.data.styles.files.set(styleId, entry);
   notifyStyleIndexChanged();
 }
 
@@ -539,7 +542,8 @@ export async function promptImportStyle(): Promise<boolean> {
     }
 
     await writeStyleFile(target.path, code);
-    // The caller asks the main window to reload the index.
+    // The caller asks the main window to reload the index: indexing executable
+    // declarations must not happen in the dialog bundle that ran the import.
     return true;
   } catch (e) {
     log.error("Failed to save style code", e);

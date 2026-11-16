@@ -45,8 +45,6 @@ relate-multilingual-item-error-different-library = 只能将同一文库中的�
 relate-multilingual-item-error-different-item-type = 只能将相同条目类型的条目标记为多语关联。
 relate-multilingual-item-warning-skipped = 有 { $count } 对条目因条目类型或文库不同，未能建立多语关联。
 
-extra-field-write-failed = 写入其他字段失败：{ $message }
-extra-field-error-invalid-key = 字段名无效，请重新输入。
 field-preset-value-hint = 这条填充预设字段要求为“{ $key }”填写具体值，请按条目“{ $item }”的实际情况填写。
 extra-field-conflict-title = 字段值冲突
 extra-field-conflict-message = 条目“{ $item }”的“{ $key }”字段已有值“{ $existing }”，是否用“{ $newValue }”覆盖它？

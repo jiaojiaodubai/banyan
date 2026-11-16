@@ -6,27 +6,20 @@ const log = createLogger("extra-field-write");
 
 const t = useL10n(["mainWindow.ftl"]);
 
-type ExtraFieldDialogResult = {
+/** What the preset-value dialog reads from `window.arguments[0]`. */
+type PresetValueDialogIO = {
   key: string;
-  value: string;
-};
-
-/** What the write dialog reads from `window.arguments[0]`. */
-type ExtraFieldDialogIO = {
-  initialKey?: string;
-  initialValue?: string;
-  lockKey?: boolean;
-  hint?: string;
-  result: ExtraFieldDialogResult | null;
+  hint: string;
+  result: string | null;
   deferred: {
     promise: Promise<void>;
     resolve: () => void;
   };
 };
 
-function openExtraFieldDialog(io: ExtraFieldDialogIO): void {
+function openPresetValueDialog(io: PresetValueDialogIO): void {
   openDialogWindow(
-    `chrome://${addon.data.config.addonRef}/content/extraFieldDialog.xhtml`,
+    `chrome://${addon.data.config.addonRef}/content/presetValueDialog.xhtml`,
     "modal,resizable=yes",
     io,
   );
@@ -58,26 +51,25 @@ export async function recoverItemAfterFailedSave(
   restoreFallback();
 }
 
-/** Ask for one field's value with its key fixed, reusing the write dialog. */
+/** Ask for a preset's value with its key fixed. */
 export async function promptExtraFieldValue(options: {
   key: string;
   hint: string;
 }): Promise<string | null> {
   return new Promise((resolve) => {
-    const io: ExtraFieldDialogIO = {
-      initialKey: options.key,
-      lockKey: true,
+    const io: PresetValueDialogIO = {
+      key: options.key,
       hint: options.hint,
       result: null,
       deferred: {
         promise: Promise.resolve(),
         resolve: () => {
-          resolve(io.result?.value ?? null);
+          resolve(io.result);
         },
       },
     };
 
-    openExtraFieldDialog(io);
+    openPresetValueDialog(io);
   });
 }
 
