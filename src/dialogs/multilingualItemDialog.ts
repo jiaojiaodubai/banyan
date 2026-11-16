@@ -12,8 +12,14 @@ import { useL10n } from "../utils/locale";
 import { unwrapMultilingualDialogIO } from "../utils/multilingualDialogIO";
 import { createRetargetScheduler } from "../utils/retargetScheduler";
 // Side-effect import: registers the custom element (a type import is dropped).
-import "./multilingualItemEditor";
-import type { MultilingualItemEditor } from "./multilingualItemEditor";
+import "../ui/itemEditor";
+import type { ItemEditor } from "../ui/itemEditor";
+import {
+  fieldCheckStatusText,
+  formatFieldCheckDetail,
+  hasBlockingFieldChecks,
+} from "../utils/itemFieldCheckText";
+import { type ItemFieldCheckRun } from "../modules/itemFieldValidators";
 import type { ItemContentSnapshot } from "../../typings/multilingualItem";
 import type { MultilingualItemDialogIO as IO } from "../../typings/multilingualItemDialog";
 import { createLogger } from "../utils/logger";
@@ -22,7 +28,7 @@ const log = createLogger("multilingual-item-dialog");
 
 type SourceSnapshot = ItemContentSnapshot;
 
-const t = useL10n(["multilingualItemDialog.ftl"]);
+const t = useL10n(["multilingualItemDialog.ftl", "itemEditorDialog.ftl"]);
 const ATTACHMENT_PRIORITY: Record<string, number> = {
   pdf: 0,
   epub: 1,
@@ -44,6 +50,9 @@ let reloadGeneration = 0;
 let busy = false;
 // Guards `onAccept()` before `busy` rises; its first check is async.
 let accepting = false;
+let validationVisible = false;
+// Set by "Save Anyway": skip the field checks for this one accept attempt.
+let skipFieldValidation = false;
 // Set before our own `window.close()` so the `close` guard lets it pass.
 let closing = false;
 // `reader.lastSidebarTab` captured on open and restored on dispose.
@@ -247,14 +256,124 @@ function initItemEditor(item: Zotero.Item): void {
   if (!editor) {
     throw new Error(t("multilingual-item-error-init"));
   }
+  hideValidation();
+  skipFieldValidation = false;
   // Both at once: the single setters would rebuild the table twice.
   editor.configure(item, true);
+  window.setTimeout(updateEditorMinWidth, 0);
+}
+
+/** Let the editor's natural creator width drive the right pane. */
+function updateEditorMinWidth(): void {
+  const editor = getItemEditor();
+  const workspace = document.getElementById("workspace") as HTMLElement | null;
+  if (!editor || !workspace) return;
+  const minimum = Math.max(336, Math.ceil(editor.contentMinWidth) + 16);
+  workspace.style.setProperty("--item-info-content-width", `${minimum}px`);
+}
+
+function editorPaneMinWidth(): number {
+  const editor = getItemEditor();
+  return editor ? Math.max(336, Math.ceil(editor.contentMinWidth) + 16) : 336;
+}
+
+function showValidation(run: ItemFieldCheckRun): void {
+  validationVisible = true;
+  const panel = document.getElementById(
+    "validation-panel",
+  ) as HTMLElement | null;
+  const list = document.getElementById("validation-list");
+  const summary = document.getElementById("validation-summary");
+  if (!panel || !list || !summary) return;
+  list.replaceChildren();
+  let failed = 0;
+  let errored = 0;
+  for (const check of run.checks) {
+    if (check.status === "pass") continue;
+    if (check.status === "fail") failed++;
+    else errored++;
+    const row = document.createElement("div");
+    row.className = "validation-row";
+    const status = document.createElement("span");
+    status.className = `validation-status is-${check.status}`;
+    status.textContent = fieldCheckStatusText(check.status);
+    const description = document.createElement("span");
+    description.className = "validation-description";
+    description.textContent = check.description;
+    const detail = document.createElement("span");
+    detail.className = "validation-detail";
+    detail.textContent = formatFieldCheckDetail(check);
+    row.append(status, description, detail);
+    list.appendChild(row);
+  }
+  summary.textContent = t("multilingual-item-validation-summary", {
+    args: {
+      style: run.styleTitle,
+      failed,
+      errors: errored,
+    },
+  });
+  panel.hidden = false;
+  setSubmissionControls(true);
+}
+
+function showValidationError(error: unknown): void {
+  validationVisible = true;
+  const panel = document.getElementById(
+    "validation-panel",
+  ) as HTMLElement | null;
+  const list = document.getElementById("validation-list");
+  const summary = document.getElementById("validation-summary");
+  if (!panel || !list || !summary) return;
+  list.replaceChildren();
+  const row = document.createElement("div");
+  row.className = "validation-row";
+  row.textContent = error instanceof Error ? error.message : String(error);
+  list.appendChild(row);
+  summary.textContent = t("multilingual-item-validation-error");
+  panel.hidden = false;
+  setSubmissionControls(true);
+}
+
+function hideValidation(): void {
+  validationVisible = false;
+  const panel = document.getElementById(
+    "validation-panel",
+  ) as HTMLElement | null;
+  const list = document.getElementById("validation-list");
+  if (panel) panel.hidden = true;
+  if (list) list.replaceChildren();
+  if (!busy && !accepting) setSubmissionControls(false);
+}
+
+function localizeValidationActions(): void {
+  const edit = document.getElementById("validation-edit");
+  const saveAnyway = document.getElementById("validation-save-anyway");
+  if (edit) edit.textContent = t("multilingual-item-validation-edit");
+  if (saveAnyway) saveAnyway.textContent = t("item-editor-save-anyway");
 }
 
 function bindEvents(): void {
+  localizeValidationActions();
+  document.getElementById("accept-button")?.addEventListener("click", () => {
+    skipFieldValidation = false;
+    void onAccept();
+  });
+  document.getElementById("validation-edit")?.addEventListener("click", () => {
+    hideValidation();
+    focusField("title");
+  });
   document
-    .getElementById("accept-button")
-    ?.addEventListener("click", () => void onAccept());
+    .getElementById("validation-save-anyway")
+    ?.addEventListener("click", () => {
+      if (!validationVisible || busy) return;
+      skipFieldValidation = true;
+      hideValidation();
+      void onAccept();
+    });
+  document.addEventListener("creator-layout-changed", () => {
+    window.setTimeout(updateEditorMinWidth, 0);
+  });
   document.getElementById("cancel-button")?.addEventListener("click", onCancel);
   document
     .getElementById("duplicate-use-existing")
@@ -1341,7 +1460,9 @@ async function acceptDraft(): Promise<void> {
   const activeSnapshot = sourceSnapshot;
   if (!activeSource || !activeDraft || !activeIO || !activeSnapshot) return;
   clearError();
-  getItemEditor()?.blurOpenField();
+  const editor = getItemEditor();
+  editor?.blurOpenField();
+  editor?.applyCreatorsTo(activeDraft);
 
   const language = normalizeLanguageCode(activeDraft.getField("language"));
   if (!language) {
@@ -1361,6 +1482,25 @@ async function acceptDraft(): Promise<void> {
     showError(t("multilingual-item-error-no-other-changes"), true);
     return;
   }
+
+  if (!skipFieldValidation) {
+    setBusy(true, t("item-editor-checking"));
+    let run: ItemFieldCheckRun | null;
+    try {
+      run = await addon.api.runItemFieldChecks(activeDraft);
+    } catch (error) {
+      setBusy(false);
+      showValidationError(error);
+      return;
+    }
+    setBusy(false);
+    if (run && hasBlockingFieldChecks(run.checks)) {
+      showValidation(run);
+      return;
+    }
+  }
+  skipFieldValidation = false;
+
   try {
     if (
       !(await isSourceSessionCurrent(activeSource, activeSnapshot, activeDraft))
@@ -1444,10 +1584,8 @@ async function acceptDraft(): Promise<void> {
 }
 
 /** The editor element; bridges the markup's `HTMLElement` to its class. */
-function getItemEditor(): MultilingualItemEditor | null {
-  return document.getElementById(
-    "item-editor",
-  ) as MultilingualItemEditor | null;
+function getItemEditor(): ItemEditor | null {
+  return document.getElementById("item-editor") as ItemEditor | null;
 }
 
 function focusField(fieldName: string): void {
@@ -1585,16 +1723,16 @@ function onSplitPointerMove(event: PointerEvent): void {
   const workspace = document.getElementById("workspace") as HTMLElement | null;
   if (!workspace) return;
   const rect = workspace.getBoundingClientRect();
-  const splitterWidth = 5;
-  const editorPaneMinWidth = 336;
+  const splitterWidth = 1;
+  const minEditorWidth = editorPaneMinWidth();
   const leftWidth = Math.max(
     300,
     Math.min(
       event.clientX - rect.left,
-      rect.width - splitterWidth - editorPaneMinWidth,
+      rect.width - splitterWidth - minEditorWidth,
     ),
   );
-  workspace.style.gridTemplateColumns = `${leftWidth}px ${splitterWidth}px minmax(${editorPaneMinWidth}px, 1fr)`;
+  workspace.style.gridTemplateColumns = `${leftWidth}px ${splitterWidth}px minmax(${minEditorWidth}px, 1fr)`;
 }
 
 function onSplitPointerUp(event: PointerEvent): void {

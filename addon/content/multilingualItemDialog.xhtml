@@ -12,6 +12,7 @@
     <title data-l10n-id="multilingual-item-dialog-title"></title>
     <link rel="localization" href="zotero.ftl" />
     <link rel="localization" href="__addonRef__-multilingualItemDialog.ftl" />
+    <link rel="localization" href="__addonRef__-itemEditorDialog.ftl" />
 
     <link rel="stylesheet" href="chrome://global/skin/global.css" />
     <link rel="stylesheet" href="chrome://zotero/skin/zotero.css" />
@@ -28,6 +29,10 @@
     <link
       rel="stylesheet"
       href="chrome://__addonRef__/content/fieldMarkupToolbar.css"
+    />
+    <link
+      rel="stylesheet"
+      href="chrome://__addonRef__/content/itemEditor.css"
     />
 
     <script src="chrome://zotero/content/include.js"></script>
@@ -181,10 +186,18 @@
           its sidepane background keeps this editor identical to the item pane.
         -->
         <div id="editor-scroll" class="zotero-item-pane-content">
-          <xul:multilingual-item-editor id="item-editor" />
+          <xul:item-editor id="item-editor" />
         </div>
       </section>
     </main>
+    <section id="validation-panel" hidden="true">
+      <div id="validation-summary" role="alert"></div>
+      <div id="validation-list"></div>
+      <div class="validation-actions">
+        <button id="validation-edit" type="button"></button>
+        <button id="validation-save-anyway" type="button"></button>
+      </div>
+    </section>
     <footer class="dialog-footer">
       <button
         id="cancel-button"

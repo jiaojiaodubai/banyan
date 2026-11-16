@@ -56,3 +56,6 @@ multilingual-item-confirm-discard-keep = Keep editing
 multilingual-item-confirm-discard-discard = Discard changes
 multilingual-item-saving = Saving…
 multilingual-item-checking-duplicate = Checking for an existing item with this language…
+multilingual-item-validation-summary = { $style }: { $failed } failed, { $errors } errored checks.
+multilingual-item-validation-error = Field checks could not run.
+multilingual-item-validation-edit = Back to Editing
