@@ -57,8 +57,8 @@ export default defineConfig({
             out: "createOutputDialog",
           },
           {
-            in: "src/dialogs/extraFieldDialog.ts",
-            out: "extraFieldDialog",
+            in: "src/dialogs/presetValueDialog.ts",
+            out: "presetValueDialog",
           },
           {
             in: "src/dialogs/multilingualItemDialog.ts",

@@ -33,12 +33,21 @@ export type StyleSummary = Pick<
   "id" | "title" | "citationType" | "description" | "updated"
 >;
 
-/** A style in the plugin's index, with the file it was read from. */
+/**
+ * A style in the plugin's index, with the file it was read from.
+ *
+ * Everything reachable from this record must stay serializable: it is shared by
+ * every window bundle, while the executable style instances (and the closures
+ * they produce) belong to one window. The style's item-menu declarations are
+ * therefore represented by their serializable presence only; the executable
+ * presets/validators live in the main-window bundle, which rebuilds the index
+ * and serves dialogs through `addon.api`.
+ */
 export type StyleFile = StyleSummary & {
   filename: string;
   /** Serializable style parameter declarations, captured on index. */
   optionParams?: ParamInfo[];
-  /** Whether the style declares item-menu presets. */
+  /** Whether the style declares item-context-menu presets. */
   hasFieldPresets?: boolean;
   /** Item types with at least one declared field check. */
   itemFieldValidatorTypes?: string[];

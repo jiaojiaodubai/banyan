@@ -2,31 +2,23 @@ import type {
   FieldPreset,
   ItemFieldValidators,
   Style,
-} from "../../typings/style";
+} from "@banyan/core/types/style";
 import { registerStyleIndexHooks } from "./styles";
 
 /**
- * Executable style declarations, owned by the main-window bundle.
+ * Executable style declarations, owned by one window bundle.
  *
- * `styles.ts` is bundled into every window. Its shared file index lives in
- * `addon.data.styles`; the closures a style instance produces for the item menu
- * (`visible`, `check`) live here instead. This module is imported only by the
- * main window's startup/menu modules, so those closures are created and invoked
- * in the main window. Dialogs ask `addon.api` to rebuild the index or run field
- * checks and never import this module.
+ * `styles.ts` is bundled into every window and its serializable index lives in
+ * `addon.data.styles`. The closures produced by a style instance (`visible`,
+ * `check`) stay here instead: this module is imported only by the main window's
+ * startup/menu modules, so the maps are created in the main window and are
+ * populated by the index reload that runs there. Dialogs request a reload or a
+ * field check through `addon.api` and never import this module.
  */
 
-/** The item-menu declarations a style may expose; structural until the style
- * contract gains the dedicated author types later in the history. */
-type ItemMenuStyle = Style & {
-  ITEM_FIELD_PRESETS?: FieldPreset[];
-  ITEM_FIELD_VALIDATORS?: ItemFieldValidators;
-};
-
 /** A preset declaration carrying its owning style's metadata. */
-export type IndexedFieldPreset = NonNullable<
-  ItemMenuStyle["ITEM_FIELD_PRESETS"]
->[number] & {
+export type IndexedFieldPreset = FieldPreset & {
+  /** `<styleId>:<presetId>` — stable identifier for logs and menu keys. */
   key: string;
   styleId: string;
   styleTitle: string;
@@ -36,13 +28,7 @@ export type IndexedFieldPreset = NonNullable<
 export type IndexedItemFieldValidators = {
   styleId: string;
   styleTitle: string;
-  byType: NonNullable<ItemMenuStyle["ITEM_FIELD_VALIDATORS"]>;
-};
-
-/** Serializable summary of one style's item-menu declarations. */
-export type StyleDeclarationSummary = {
-  hasFieldPresets: boolean;
-  itemFieldValidatorTypes: string[];
+  byType: ItemFieldValidators;
 };
 
 const indexedFieldPresets = new Map<string, IndexedFieldPreset[]>();
@@ -51,12 +37,17 @@ const indexedItemFieldValidators = new Map<
   IndexedItemFieldValidators
 >();
 
+/** Serializable summary of one style's item-menu declarations. */
+export type StyleDeclarationSummary = {
+  hasFieldPresets: boolean;
+  itemFieldValidatorTypes: string[];
+};
+
 function loadStyleDeclarations(style: Style): StyleDeclarationSummary {
   const styleId = style.INFO.id;
   const styleTitle = style.INFO.title || styleId;
-  const menuStyle = style as ItemMenuStyle;
 
-  const presets = menuStyle.ITEM_FIELD_PRESETS;
+  const presets = style.ITEM_FIELD_PRESETS;
   if (presets?.length) {
     indexedFieldPresets.set(
       styleId,
@@ -71,7 +62,7 @@ function loadStyleDeclarations(style: Style): StyleDeclarationSummary {
     indexedFieldPresets.delete(styleId);
   }
 
-  const byType = menuStyle.ITEM_FIELD_VALIDATORS;
+  const byType = style.ITEM_FIELD_VALIDATORS;
   const itemTypes = Object.keys(byType ?? {});
   if (itemTypes.length) {
     indexedItemFieldValidators.set(styleId, {
@@ -113,6 +104,9 @@ export function getStyleItemFieldValidators(
   return indexedItemFieldValidators.get(styleId);
 }
 
+// `styles.ts` is bundled into dialogs too; installing the hooks here means only
+// the bundles that import this module (the main window) can create executable
+// declarations, while the shared index keeps just the serializable summary.
 registerStyleIndexHooks({
   load: loadStyleDeclarations,
   remove: removeStyleDeclarations,

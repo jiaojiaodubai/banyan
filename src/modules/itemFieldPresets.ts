@@ -21,8 +21,8 @@ import {
 } from "./extraFieldWrite";
 import { getFieldPresetMenuLabel } from "@banyan/core/validation/fieldPresets";
 import { getEffectiveItemMenuStyleId } from "./itemMenu";
-import type { ItemMenuContribution, ItemMenuData } from "../../typings/menu";
 import { getIndexedFieldPresets, type IndexedFieldPreset } from "./styleIndex";
+import type { ItemMenuContribution, ItemMenuData } from "../../typings/menu";
 import { createLogger } from "../utils/logger";
 
 const log = createLogger("field-presets");

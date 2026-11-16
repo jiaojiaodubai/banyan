@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <html
-  id="banyan-extra-field-dialog"
+  id="banyan-preset-value-dialog"
   persist="screenX screenY width height sizemode"
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
   resizable="true"
 >
   <head>
-    <title data-l10n-id="extra-field-dialog-title"></title>
+    <title data-l10n-id="preset-value-dialog-title"></title>
     <link rel="localization" href="zotero.ftl" />
-    <link rel="localization" href="__addonRef__-extraFieldDialog.ftl" />
+    <link rel="localization" href="__addonRef__-presetValueDialog.ftl" />
 
     <link rel="stylesheet" href="chrome://global/skin/global.css" />
     <link rel="stylesheet" href="chrome://zotero/skin/zotero.css" />
@@ -21,7 +21,7 @@
     />
     <link
       rel="stylesheet"
-      href="chrome://__addonRef__/content/extraFieldDialog.css"
+      href="chrome://__addonRef__/content/presetValueDialog.css"
     />
 
     <script src="chrome://zotero/content/include.js"></script>
@@ -30,45 +30,33 @@
       const addon = Zotero.__addonInstance__;
       const ztoolkit = addon.data.ztoolkit;
     </script>
-    <script src="chrome://__addonRef__/content/scripts/extraFieldDialog.js"></script>
+    <script src="chrome://__addonRef__/content/scripts/presetValueDialog.js"></script>
   </head>
   <body>
     <div class="dialog-container">
       <div id="hint-info" class="info-row" hidden="true"></div>
 
       <div class="form-row form-row-stack">
-        <xul:menulist
-          id="key-preset-select"
-          native="true"
-          data-l10n-id="extra-field-key-placeholder"
-          data-l10n-attrs="aria-label"
-        >
-          <xul:menupopup id="key-preset-popup" />
-        </xul:menulist>
-        <input
-          id="key-input"
-          type="text"
-          data-l10n-id="extra-field-key-placeholder"
-          data-l10n-attrs="placeholder"
-        />
+        <div id="key-label" class="key-row"></div>
         <input
           id="value-input"
           type="text"
-          data-l10n-id="extra-field-value-placeholder"
+          data-l10n-id="preset-value-placeholder"
           data-l10n-attrs="placeholder"
         />
+        <div id="error-info" class="error-row" hidden="true"></div>
       </div>
     </div>
     <footer class="dialog-footer">
       <button
         id="cancel-button"
         type="button"
-        data-l10n-id="extra-field-cancel"
+        data-l10n-id="preset-value-cancel"
       ></button>
       <button
         id="accept-button"
         type="button"
-        data-l10n-id="extra-field-accept"
+        data-l10n-id="preset-value-accept"
         default="true"
       ></button>
     </footer>
