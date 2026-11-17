@@ -21,9 +21,9 @@ import { getItemDisplayLabel, syncCitesWithLiveItems } from "../../utils/item";
 import { updateStyleCodeUpdatedTimestamp } from "../../utils/styleUpdated";
 import {
   ensureDataDir,
-  getStyleFilePathById,
   readStyleFile,
-  saveStyleCodeById,
+  resolveStyleWriteTargetForId,
+  writeStyleFile,
 } from "../../modules/styles";
 import { parseStyleSnippets, type SnippetItem } from "./snippets";
 import {
@@ -3057,14 +3057,18 @@ async function saveStyle(): Promise<void> {
     const code = editor.getValue();
     const style = await createStyle(code);
     const id = String(style.INFO?.id || "untitled-style");
-    const fullPath = await getStyleFilePathById(id);
+    // Resolve by id, not by a fresh unique name: a file that already declares
+    // the id (even one the index does not know about) is the file to overwrite,
+    // otherwise the save would leave a second copy of the same style.
+    const target = await resolveStyleWriteTargetForId(id);
+    const fullPath = target.path;
     const targetFilename = PathUtils.filename(fullPath);
     const fullPathExists = await IOUtils.exists(fullPath);
 
     const indexedStyle = addon.data.styles.files.get(id);
     const shouldPromptIndexedOverwrite =
-      Boolean(indexedStyle) &&
-      (!fullPathExists || indexedStyle!.filename !== targetFilename);
+      target.kind === "indexed" &&
+      (!fullPathExists || indexedStyle?.filename !== targetFilename);
 
     if (shouldPromptIndexedOverwrite && indexedStyle) {
       const overwriteIndexed = Services.prompt.confirm(
@@ -3096,7 +3100,7 @@ async function saveStyle(): Promise<void> {
     }
 
     const updatedCode = updateStyleCodeUpdatedTimestamp(code);
-    await saveStyleCodeById(id, updatedCode);
+    await writeStyleFile(fullPath, updatedCode);
     if (updatedCode !== code) {
       applyEditorValue(updatedCode);
     }
