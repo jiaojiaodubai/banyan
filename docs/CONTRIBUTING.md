@@ -2,7 +2,8 @@
 
 本文说明 Banyan 插件仓库的开发环境、代码归属、验证流程和发布步骤。样式作者接口见
 [样式开发教程](Style%20Develop%20Tutorial.MD)；本地集成协议见
-[本地集成开发指南](Integration%20Develope%20Guidelines.MD)。
+[本地集成开发指南](Integration%20Develope%20Guidelines.MD)。项目层面的决策、修复、
+提交信息与历史重写原则见[开发原则](DEVELOPMENT_PRINCIPLES.md)。
 
 ## 开发环境
 
@@ -54,32 +55,8 @@ pnpm start
 
 ## 实现约定
 
-- 文件 I/O 使用 `IOUtils`，路径处理使用 `PathUtils`。
-- 日志通过 `src/utils/logger` 的 `createLogger()` 输出；禁止直接调用 `console.log`、
-  `console.error` 或 `ztoolkit.log`。记录错误时将 `Error` 作为第二个参数传入。
-- 使用 Zotero/Gecko API 前，先查 `zotero-types`；类型或行为不完整时，再核对
-  `dev/Zotero-Source`，并在 `typings/` 中补充声明，不用局部断言掩盖类型缺口。
-- `src/utils/compat/` 只处理已由源码确认的最新稳定版与 beta 之间的 API 差异。
-- 比较 Zotero API 时，使用 Git 对象检查稳定版 tag 与 `origin/main`；忽略
-  `dev/Zotero-Source` 工作树中的改动。
-
-仓库使用三个 lint/类型检查区域：
-
-| 区域       | 配置或项目                                       | 命令                                                   |
-| ---------- | ------------------------------------------------ | ------------------------------------------------------ |
-| 插件主代码 | `eslint.config.mjs`                              | `pnpm lint:main`、`pnpm lint:fix:main`                 |
-| 样式编辑器 | `addon/content/styleEditor/eslint.config.mjs`    | `pnpm lint:style-editor`、`pnpm lint:fix:style-editor` |
-| 测试项目   | `test/tsconfig.json`、`tests-node/tsconfig.json` | `pnpm typecheck:tests`                                 |
-
-样式作者的 lint 规则与 `@banyan/core` 都由同一个已发布的工具链修订提供，修订号和
-产物哈希记录在 `toolchain.lock.json`；依赖安装的是该修订的发布 tarball。
-`addon/content/styleEditor/eslint-plugin-banyan-style.mjs` 与
-`eslint-plugin-banyan-style.build.json` 是从工具链生成的副本。要改规则或核心，去
-`Banyan-Toolchain` 修改并发布新修订，更新依赖与 lock 后运行 `pnpm gen:style-lint`。
-`pnpm lint:check` 会运行 `pnpm check:style-lint` 检查副本是否漂移。
-
-完成代码修改后运行 `pnpm lint:fix`，再运行 `pnpm lint:check`。构建和类型检查使用
-`pnpm build`。
+文件与日志、类型与宿主 API、lint/typecheck 区域、生成文件与工具链约定见
+[编码约定](CODING_CONVENTIONS.md)。环境配置、代码归属和发布流程仍见本文。
 
 ## Git 钩子
 

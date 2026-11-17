@@ -1,32 +1,42 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+Banyan is a Zotero plugin that lets users write JavaScript citation styles. The plugin loads
+style files from `<Zotero-data-dir>/banyan/`, evaluates them in a restricted sandbox, and renders
+citations and bibliographies. The style runtime is `@banyan/core`; the Zotero host integration
+lives in this repository.
 
-## Project Overview
+This file is a task index, not a rules manual. Read only the document(s) routed for the current
+task. Detailed rules live in those documents so this file stays small and high-signal.
 
-Banyan is a Zotero plugin that enables users to fully customize citation styles using JavaScript. Users write JavaScript style files that implement a specific interface, and the plugin executes these scripts in a sandboxed environment to generate citations and bibliographies.
+## Non-negotiables
 
-**Key Concept**: User-authored JavaScript files define citation styles. The plugin loads these files from `<Zotero-data-dir>/banyan/`, evaluates them in a restricted sandbox, and calls their exported functions to generate formatted citations.
+- Every commit must independently pass `npx tsc --noEmit`, `pnpm lint:check`, `pnpm test:node`,
+  `pnpm build`, and `pnpm test --no-watch`. Never validate only the final tip.
+- Do not rewrite released history or move release tags. Before rewriting unreleased history,
+  ask the user, stating both what will change and why; keep a backup and verify the final tree.
+- Commit messages: short imperative subject (72 characters max), blank line, then a bullet body
+  wrapped at 72 characters explaining what changed and why.
+- For non-obvious architecture, API, or compatibility decisions, research the host source,
+  official docs, and mature products; compare alternatives and record the decision before
+  implementing.
+- Keep commits atomic and the worktree clean; do not commit generated or untracked noise.
 
-## Code Style
+## Task routing
 
-- Use `IOUtils` for file I/O, `PathUtils` for paths
-- Log through the scoped logger: `const log = createLogger("<module>")` from `src/utils/logger`, then `log.debug/info/warn/error`. Never `console.log` / `console.error`, and no raw `ztoolkit.log`. `debug`/`info` go to Zotero's debug output, `warn`/`error` also to its error console; pass the `Error` as the second argument so its stack survives.
-- Resolve Zotero/Gecko host API types in this order: check `zotero-types` first, then confirm the latest behavior in `dev/Zotero-Source` if the types are missing or incomplete. After that, add or extend the declaration under `typings/` instead of using local `as` assertions. Organize the file to mirror `zotero-types` so the declaration can be contributed upstream later.
-- Keep plugin-wide shared base types under `typings/` as well, including cross-module domain types such as `server` and the style index. Types used only inside one module should stay in that module, placed after imports and before file-level constants. The author contract is owned by the core: `typings/{item,style,styleUtils,unit}.d.ts` only re-export `@banyan/core/types/*`, and `pnpm gen:style-editor-dts` generates the editor and AI-workplace copies from the core's `src/types/`, so shapes only the plugin keeps (the style index, for example) belong in `typings/styleIndex.d.ts`.
-- Compatibility helpers in `src/utils/compat` are only for confirmed API gaps between the latest stable Zotero release and the current beta target. Do not add compatibility branches for older releases, and do not introduce speculative compat code without source-level evidence.
-- When checking Zotero API compatibility, compare the latest stable release tag and the live `origin/main` branch in `dev/Zotero-Source` with Git object commands. Ignore all local working-tree changes there; the directory contains submodule-related files that do not represent the upstream API baseline.
-- Three lint/typecheck areas, each with its own command:
-  1. Main plugin code: [eslint.config.mjs](eslint.config.mjs) → `pnpm lint:main` / `pnpm lint:fix:main`
-  2. Style editor: [addon/content/styleEditor/eslint.config.mjs](addon/content/styleEditor/eslint.config.mjs) → `pnpm lint:style-editor` / `pnpm lint:fix:style-editor`
-  3. Test projects: [test/tsconfig.json](test/tsconfig.json) and [tests-node/tsconfig.json](tests-node/tsconfig.json) → `pnpm typecheck:tests`
-- `@banyan/core` and the style author rules come from one published toolchain revision recorded in `toolchain.lock.json`: the dependencies install its release tarballs, and `addon/content/styleEditor/eslint-plugin-banyan-style.mjs` plus `eslint-plugin-banyan-style.build.json` are generated copies. To change the core or the rules, edit the Banyan Toolchain, publish a revision, update the dependencies and lock, then run `pnpm gen:style-lint`. `pnpm lint:check` runs `pnpm check:style-lint` to catch drift.
-- After finishing a session's code edit, always run `pnpm lint:fix` first (covers the two eslint areas), then run `pnpm lint:check` (which also typechecks the test projects) to verify a clean result.
-- Git hooks shared by contributors and agents run `pnpm test:dev` before commits and `pnpm test:release` before pushing `v*` release tags. `pnpm install` installs them without replacing existing hooks; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md). Do not bypass these checks without explicit user approval; CI independently enforces the release gate.
+| If the task involves...                               | Read                                                                                                              |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Editing code (style, logging, types, lint)            | [CODING_CONVENTIONS.md](docs/CODING_CONVENTIONS.md)                                                               |
+| Workflow, fix placement, commits, history, validation | [DEVELOPMENT_PRINCIPLES.md](docs/DEVELOPMENT_PRINCIPLES.md)                                                       |
+| Zotero host/realm/window contracts                    | [HOST_OBLIGATIONS.md](docs/HOST_OBLIGATIONS.md); local case study: `dev/issues/STYLE-LIFECYCLE-LESSONS.md`        |
+| Test strategy and real-GUI validation                 | [CONTRIBUTING.md §测试](docs/CONTRIBUTING.md#测试); local manual UI checks live in the untracked `dev/` workspace |
+| Release, tags, submodules                             | [Release Workflow](docs/Release%20Workflow.MD)                                                                    |
+| Persistent incident or architecture decision          | [INCIDENT-REVIEW.md](docs/templates/INCIDENT-REVIEW.md)                                                           |
+| Maintaining AGENTS.md or adding agent rules           | [AGENTS_MAINTENANCE.md](docs/AGENTS_MAINTENANCE.md)                                                               |
+| Style author contract, core, toolchain                | [Style Develop Tutorial](docs/Style%20Develop%20Tutorial.MD); `typings/`; `toolchain.lock.json`                   |
+| Repository layout                                     | [CONTRIBUTING.md §代码归属](docs/CONTRIBUTING.md#代码归属)                                                        |
 
-## References
+Read a routed document fully only when its task applies. Do not preload the whole repository
+documentation before starting a task.
 
-- Zotero source code: `dev/Zotero-Source/` (especially `chrome/content/zotero/integration`)
-- Zotero types: `node_modules/zotero-types/types/`
-- Plugin toolkit: `node_modules/zotero-plugin-toolkit/`
-- Copilot instructions (Chinese): `.github/copilot-instructions.md`
+When a change is complete, use the Definition of Done in
+[DEVELOPMENT_PRINCIPLES.md §10](docs/DEVELOPMENT_PRINCIPLES.md#10-definition-of-done).
