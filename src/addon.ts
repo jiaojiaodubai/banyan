@@ -8,7 +8,11 @@ import hooks from "./hooks";
 import { createZToolkit } from "./utils/ztoolkit";
 import { StyleFile } from "../typings/styleIndex";
 import { createLocale } from "./utils/locale";
-import { generateStyle, getStyleUI, loadStyles } from "./modules/styles";
+import {
+  generateStyle,
+  getParamDeclarations,
+  loadStyles,
+} from "./modules/styles";
 
 class Addon {
   public data: {
@@ -41,7 +45,7 @@ class Addon {
   public hooks: typeof hooks;
   // APIs
   public api: {
-    getStyleUI: typeof getStyleUI;
+    getParamDeclarations: typeof getParamDeclarations;
     /** Render contexts with a style through the main-window bundle. */
     generate: typeof generateStyle;
     /** Rebuild the style index in the main-window bundle (reload from disk). */
@@ -64,7 +68,7 @@ class Addon {
     };
     this.hooks = hooks;
     this.api = {
-      getStyleUI,
+      getParamDeclarations,
       generate: generateStyle,
       reloadStyles: loadStyles,
     };

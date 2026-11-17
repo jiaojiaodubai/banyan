@@ -1,0 +1,40 @@
+/*
+ * Rich-text editor window: native title bar on top, then the editor surface
+ * (toolbar + text area) as the window body, then the shared dialog footer.
+ * The surface owns the frame, so the editor adds no card inside the window.
+ */
+html {
+  height: 100%;
+  min-width: 420px;
+  min-height: 240px;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--fill-primary);
+  background: var(--material-background);
+}
+
+#rich-text-editor {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The window edge is the frame, so the editor surface draws no frame inside
+   it and uses the window's own content inset for the text. */
+#rich-text-editor .banyan-richtext {
+  border: 0;
+  border-radius: 0;
+}
+
+#rich-text-editor .banyan-richtext-editor {
+  padding: 12px 16px;
+}

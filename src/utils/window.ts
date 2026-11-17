@@ -19,6 +19,41 @@ export function findWindowByName(name: string): Window | null {
   return null;
 }
 
+/** Window names of the dialogs that are single-instance across all sources. */
+export const CITATION_DIALOG_NAME = "banyan-citation-dialog";
+export const STYLE_DIALOG_NAME = "banyan-style-dialog";
+export const BIBLIOGRAPHY_DIALOG_NAME = "banyan-bibliography-dialog";
+
+/**
+ * Raise an already-open dialog of the given name instead of opening a second
+ * one. Requests come from several front-ends (a word processor per document,
+ * the debug window, the style editor), but the windows carry no visible source,
+ * so two of them on screen would be indistinguishable. The dialog is a
+ * singleton; a second request while it is open activates it and is answered
+ * with `null`, exactly like a second request for the same document.
+ */
+export function activateSingletonDialog(name: string): boolean {
+  const existing = findWindowByName(name);
+  if (!existing || !isWindowAlive(existing)) {
+    return false;
+  }
+  // @ts-expect-error activate is not typed
+  Zotero.Utilities.Internal.activate(existing);
+  return true;
+}
+
+/**
+ * Topmost chrome window, typed as `Window`.
+ *
+ * `Services.wm.getMostRecentWindow()` is declared as a `mozIDOMWindowProxy`,
+ * which has no `Window` members; chrome callers need the real window shape.
+ * A dialog on top is usually the one that must own a message box: an alert
+ * parented to the main window underneath an app-modal dialog is never shown.
+ */
+export function getTopWindow(): Window | null {
+  return Services.wm.getMostRecentWindow("") as unknown as Window | null;
+}
+
 /** `alwaysRaised`/`popup`, as Zotero raises its integration dialogs. */
 export function getDialogRaiseFeature(): string {
   if (
@@ -37,7 +72,11 @@ function getCommonDialogFeatures(): string {
     : "chrome,centerscreen";
 }
 
-/** Open a dialog with no parent. Modality in `features` is inert here. */
+/**
+ * Open a dialog with no parent. A parentless `modal` blocks the caller until
+ * the window closes (and returns null in current Zotero), so dialogs that need
+ * the handle are opened non-modal and raised with `activate()` instead.
+ */
 export function openDialogWindow<T extends object>(
   url: string,
   features: string,
@@ -71,10 +110,32 @@ export function unwrapDialogIO<T extends object>(value: unknown): T | null {
 }
 
 /**
+ * Open a dialog owned by the calling window.
+ *
+ * Secondary windows (the citation dialog, the style editor) must parent their
+ * own modals to themselves: a main-window parent would put the dialog behind
+ * the caller, and a parentless modal would block the whole application. The
+ * calling window keeps focus and is restored by the window manager afterwards.
+ */
+export function openChildDialog<T extends object>(
+  url: string,
+  features: string,
+  io: T,
+  name = "",
+): Window {
+  return window.openDialog(
+    url,
+    name,
+    `${getCommonDialogFeatures()},${features}`,
+    io,
+  ) as Window;
+}
+
+/**
  * Open a dialog owned by the main window, so a `modal` in `features` really
  * blocks it; falls back to `openDialogWindow` without one. Integration dialogs
- * must *not* use this: Zotero opens those parentless and always-raised, so the
- * word processor stays reachable.
+ * use `openDialogWindow` instead: Zotero opens those parentless and
+ * always-raised, keeping the word processor reachable.
  */
 export function openMainWindowDialog<T extends object>(
   url: string,

@@ -2,13 +2,13 @@ import {
   analyzeExtraField,
   mergeExtraField,
   needsConflictDecision,
-} from "../utils/extraField";
+} from "@banyan/core/items/extraField";
 import {
   isValidExtraKey,
   normalizeExtraKey,
-  toBanyanItem,
   toTitleCaseExtraKey,
-} from "../utils/item";
+} from "@banyan/core/items/extra";
+import { toBanyanItem } from "./sandbox/items";
 import { getLocaleID, useL10n } from "../utils/locale";
 import { showSimpleMessage } from "../utils/message";
 import { getRegularSelection } from "../utils/selection";
@@ -19,7 +19,7 @@ import {
   recoverItemAfterFailedSave,
   type ConflictAction,
 } from "./extraFieldWrite";
-import { getFieldPresetMenuLabel } from "./sandbox/fieldPresets";
+import { getFieldPresetMenuLabel } from "@banyan/core/validation/fieldPresets";
 import { getEffectiveItemMenuStyleId } from "./itemMenu";
 import type { ItemMenuContribution, ItemMenuData } from "../../typings/menu";
 import { getIndexedFieldPresets, type IndexedFieldPreset } from "./styleIndex";

@@ -1,16 +1,4 @@
-/** Host-side report shape shared by the validator runner and its dialog. */
-export type FieldCheckStatus = "pass" | "fail" | "error";
-
-export type FieldCheckErrorReason = "thrown" | "invalid-result" | "timeout";
-
-/** One checker's outcome, ready to be rendered in the report window. */
-export type FieldCheckEntry = {
-  description: string;
-  status: FieldCheckStatus;
-  messages: string[];
-  /** Set when `status` is `error`; the dialog localizes the reason. */
-  error?: FieldCheckErrorReason;
-};
+import type { FieldCheckEntry } from "@banyan/core/validation/itemFieldValidators";
 
 /** One item's field-check result, as the report window receives it. */
 export type ItemFieldCheckReport = {

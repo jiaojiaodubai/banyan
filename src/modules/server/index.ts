@@ -14,26 +14,32 @@ import type {
   ResponsePayload,
   RouteTable,
   ShowInLibraryRequestData,
-  StyleIdentifier,
   StyleListEntry,
+  StyleRequestData,
   StyleResponseData,
 } from "../../../typings/server";
 import { getPref, setPref } from "../../utils/prefs";
 import { getStyle } from "../styles";
 import { ProgressBar } from "../../utils/progressBar";
 import {
+  activateSingletonDialog,
+  BIBLIOGRAPHY_DIALOG_NAME,
+  CITATION_DIALOG_NAME,
   getDialogRaiseFeature,
   isWindowAlive,
   openDialogWindow,
+  STYLE_DIALOG_NAME,
 } from "../../utils/window";
-import { syncContextsWithLiveItems } from "../../utils/item";
+import { syncContextsWithLiveItems } from "../sandbox/items";
+import { getStyleFaultCode } from "../sandbox/faults";
 import {
   scanInaccessibleItems,
   showInaccessibleItemsDialog,
   importInaccessibleItems,
 } from "../inaccessibleItems";
 import { convertCitationFields } from "../converter";
-import type { CallbackStyle } from "../sandbox";
+import type { CitationContext } from "@banyan/core/types/style";
+import { normalizeCitationContexts } from "@banyan/core/validation/contexts";
 import {
   enableBanyanCORS,
   restoreBanyanCORS as restoreBanyanCORSPatch,
@@ -47,6 +53,10 @@ import {
 import { updateCitationColumnFromRefresh } from "../citedItemsSearch";
 import { initializeHttpsProxy, stopHttpsProxy } from "./httpsProxy";
 import { useL10n } from "../../utils/locale";
+import { createLogger } from "../../utils/logger";
+
+const log = createLogger("server");
+
 export { restoreBanyanCORSPatch as restoreBanyanCORS };
 
 type EndpointData<P extends HttpPath> = RouteTable[P]["req"] extends never
@@ -267,7 +277,7 @@ function confirmUnknownOriginAccess(
     }
     return allowed;
   } catch (error) {
-    ztoolkit.logError(error);
+    log.warn("authorization prompt failed; denying the request", error);
     return false;
   }
 }
@@ -391,62 +401,22 @@ async function getItemByStrictUri(uri: string): Promise<Zotero.Item | null> {
   return Zotero.URI.getItemURI(item) === uri ? item : null;
 }
 
-function summarizeUnknownError(error: unknown): string {
-  if (error instanceof Error) {
-    return `${error.name}: ${error.message}`;
-  }
-
-  try {
-    const record = error as
-      | {
-          name?: unknown;
-          message?: unknown;
-          result?: unknown;
-          filename?: unknown;
-          lineNumber?: unknown;
-        }
-      | undefined;
-    const parts = [
-      typeof record?.name === "string" ? record.name : undefined,
-      typeof record?.message === "string" ? record.message : undefined,
-      record?.result !== undefined
-        ? `result=${String(record.result)}`
-        : undefined,
-      typeof record?.filename === "string"
-        ? `file=${record.filename}`
-        : undefined,
-      record?.lineNumber !== undefined
-        ? `line=${String(record.lineNumber)}`
-        : undefined,
-    ].filter(Boolean);
-    if (parts.length) {
-      return parts.join(" ");
-    }
-  } catch {
-    // Fall through to String(error).
-  }
-
-  return String(error);
-}
-
 function buildRefreshFailureResult(
   requestStartedAt: number,
   error: unknown,
 ): JsonEndpointResult<"refresh"> {
   const errorMessage = error instanceof Error ? error.message : String(error);
-  const isStyleOutputError =
-    errorMessage.includes("has no return value") ||
-    errorMessage.includes("returned invalid value") ||
-    errorMessage.includes("timed out after");
+  const styleFaultCode = getStyleFaultCode(error);
 
-  if (isStyleOutputError) {
-    // Surface style-script contract failures to frontend as 4xx errors.
-    ztoolkit.logError(error);
+  if (styleFaultCode) {
+    // Surface style-script failures to frontend as 4xx errors.
+    log.warn(`style script failure (${styleFaultCode})`, error);
     return json(400, responseError<"refresh">("invalid_params", errorMessage));
   }
 
-  ztoolkit.logError(
-    `[server] refresh.internal-error elapsedMs=${Date.now() - requestStartedAt} message=${summarizeUnknownError(error)}`,
+  log.error(
+    `refresh: internal error after ${Date.now() - requestStartedAt}ms`,
+    error,
   );
   return json(
     500,
@@ -485,8 +455,8 @@ function json<P extends HttpPath>(
  * - It reads instance properties `supportedMethods` and `supportedDataTypes`.
  * - It dispatches init using `endpoint.init.length` (1-arg, 2-arg, or 3-arg mode).
  *
- * Therefore we still register a class with an instance `init` method, but we expose
- * a function-based, path-typed API to improve readability and enforce route IO types.
+ * The wrapper still registers a class with an instance `init` method, while
+ * exposing a function-based, path-typed API for route IO types.
  */
 function registerJsonEndpoint<P extends HttpPath>(
   path: P,
@@ -557,7 +527,7 @@ function registerJsonCallbackEndpoint<P extends HttpPath>(
 
           handler({ data: request.data }, send);
         } catch (error) {
-          ztoolkit.logError(error);
+          log.error("endpoint handler failed", error);
           send(json(500, responseError<P>("internal_error", "Internal error")));
         }
       });
@@ -573,6 +543,7 @@ async function getStyleList(): Promise<RouteTable["style/list"]["res"]> {
       citationType: style.citationType,
       description: style.description,
       updated: style.updated,
+      optionParams: style.optionParams ?? [],
     }))
     .toSorted((a, b) => a.title.localeCompare(b.title));
 
@@ -591,7 +562,7 @@ function handleRefreshRequest(
     !data.style ||
     !Array.isArray(data.contexts)
   ) {
-    ztoolkit.logError("[server] refresh.invalid-payload");
+    log.warn("refresh: invalid payload");
     send(
       json(
         400,
@@ -606,13 +577,26 @@ function handleRefreshRequest(
 
   const refreshData = data as RefreshRequestData;
   const documentId = refreshData.documentId;
+
+  // The core re-checks the same shape and answers `generate-input`; doing it
+  // here first turns a bad request into 400 instead of a 500.
+  let contexts: CitationContext[];
+  try {
+    contexts = normalizeCitationContexts(refreshData.contexts);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log.warn("refresh: invalid contexts", error);
+    send(json(400, responseError<"refresh">("invalid_params", message)));
+    return;
+  }
+
   let settled = false;
   let documentLock: LockHandle | undefined;
   let styleLock: LockHandle | undefined;
 
   const finish = (result: JsonEndpointResult<"refresh">) => {
     if (settled) {
-      ztoolkit.logError("[server] refresh.finish.duplicate");
+      log.warn("refresh: finish called twice; ignoring the duplicate");
       return;
     }
     settled = true;
@@ -639,11 +623,8 @@ function handleRefreshRequest(
       const style = await getStyle(refreshData.style);
       const shouldSyncItems = refreshData.syncItems !== false;
 
-      let contexts = refreshData.contexts;
       if (shouldSyncItems) {
-        const inaccessibleItems = await scanInaccessibleItems(
-          refreshData.contexts,
-        );
+        const inaccessibleItems = await scanInaccessibleItems(contexts);
 
         let importedItemsMap = new Map<string, Zotero.Item>();
         if (inaccessibleItems.length > 0) {
@@ -668,45 +649,38 @@ function handleRefreshRequest(
           }
         }
 
-        contexts = await syncContextsWithLiveItems(
-          refreshData.contexts,
-          importedItemsMap,
+        contexts = await syncContextsWithLiveItems(contexts, importedItemsMap);
+      }
+
+      const { citations, bibliography } = await style.generate(
+        contexts,
+        refreshData.style.options,
+      );
+
+      // The watchdog force-released our lock, so a later request may already
+      // own this document/style. Abandon this stale result instead of racing
+      // its write-back (both the cited-items search update and the response
+      // the front-end applies to the document).
+      if (documentLock?.forceReleased || styleLock?.forceReleased) {
+        finishWithError(
+          new Error(
+            "Refresh exceeded the lock watchdog timeout and was superseded",
+          ),
         );
+        return;
       }
 
-      const generateWithCallbacks = (style as CallbackStyle)
-        .__banyanGenerateWithCallbacks;
-      if (typeof generateWithCallbacks !== "function") {
-        throw new Error("Style callback bridge is unavailable for refresh.");
-      }
-
-      generateWithCallbacks(contexts, {
-        resolve: ({ citations, bibliography }) => {
-          // The watchdog force-released our lock, so a later request may
-          // already own this document/style. Abandon this stale result instead
-          // of racing its write-back (both the cited-items search update and
-          // the response the front-end applies to the document).
-          if (documentLock?.forceReleased || styleLock?.forceReleased) {
-            finishWithError(
-              new Error(
-                "Refresh exceeded the lock watchdog timeout and was superseded",
-              ),
-            );
-            return;
-          }
-          void updateCitationColumnFromRefresh(
-            {
-              documentId,
-              contexts,
-            },
-            { citations, bibliography },
-          ).catch((error) => {
-            ztoolkit.logError(error);
-          });
-          finish(json(200, responseOk<"refresh">({ citations, bibliography })));
-        },
-        reject: finishWithError,
+      // The call's synchronous prefix updates the cited-items state and search
+      // conditions before `finish()` releases the locks; only the tree repaint
+      // is deferred. That repaint reads the live state, so a later refresh can
+      // replace it but this one cannot write an older citation set back.
+      void updateCitationColumnFromRefresh(
+        { documentId, contexts },
+        { citations, bibliography },
+      ).catch((error) => {
+        log.error("citation column update failed", error);
       });
+      finish(json(200, responseOk<"refresh">({ citations, bibliography })));
     } catch (error) {
       finishWithError(error);
     }
@@ -757,8 +731,8 @@ export function registerEndpoints(): void {
       });
 
       if (!shown) {
-        ztoolkit.logError(
-          `[server] show-in-library.item.select.failed uri=${uri} itemID=${item.id}`,
+        log.warn(
+          `showInLibrary: item could not be selected uri=${uri} itemID=${item.id}`,
         );
         return json(
           409,
@@ -774,7 +748,7 @@ export function registerEndpoints(): void {
       mainWindow.focus();
       return json(200, responseOk<"showInLibrary">({ uri, shown: true }));
     } catch (e) {
-      ztoolkit.logError(e);
+      log.error("showInLibrary failed", e);
       return json(
         500,
         responseError<"showInLibrary">(
@@ -793,15 +767,14 @@ export function registerEndpoints(): void {
       );
     }
 
-    const documentId = data.documentId;
+    const request = data as StyleRequestData;
 
-    return withDocumentLock(documentId, async () => {
+    return withDocumentLock(request.documentId, async () => {
       try {
-        const styleData = "id" in data ? data : undefined;
-        const result = await openStyleDialog(styleData, documentId);
+        const result = await openStyleDialog(request);
         return json(200, responseOk<"style">(result));
       } catch (e) {
-        ztoolkit.logError(e);
+        log.error("style endpoint failed", e);
         return json(
           500,
           responseError<"style">(
@@ -835,7 +808,7 @@ export function registerEndpoints(): void {
         const result = await openCitationDialog(data);
         return json(200, responseOk<"citation">(result));
       } catch (e) {
-        ztoolkit.logError(e);
+        log.error("citation endpoint failed", e);
         return json(
           500,
           responseError<"citation">(
@@ -865,7 +838,7 @@ export function registerEndpoints(): void {
         const result = await openBibliographyDialog(data);
         return json(200, responseOk<"bibliography">(result));
       } catch (e) {
-        ztoolkit.logError(e);
+        log.error("bibliography endpoint failed", e);
         return json(
           500,
           responseError<"bibliography">(
@@ -914,7 +887,7 @@ export function registerEndpoints(): void {
         const result = await convertCitationFields(data as ConvertRequestData);
         return json(200, responseOk<"convert">(result));
       } catch (e) {
-        ztoolkit.logError(e);
+        log.error("convert endpoint failed", e);
         return json(
           500,
           responseError<"convert">(
@@ -959,7 +932,7 @@ export function registerEndpoints(): void {
       );
     } catch (e) {
       progressBar.close("progress_action_failed");
-      ztoolkit.logError(e);
+      log.error("progress endpoint failed", e);
       return json(
         500,
         responseError<"progress">("internal_error", "Internal error"),
@@ -975,7 +948,7 @@ export async function initializeServer(): Promise<void> {
     const httpPort = Number(Zotero.Prefs.get("httpServer.port"));
     await initializeHttpsProxy(httpPort);
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("HTTPS proxy initialization failed", error);
   }
 }
 
@@ -1012,7 +985,7 @@ function closeOpenDialogs(): void {
         win.close();
       }
     } catch (e) {
-      ztoolkit.logError(e);
+      log.warn("closing a dialog window failed", e);
     }
   }
   openWindowsByDocument.clear();
@@ -1020,16 +993,14 @@ function closeOpenDialogs(): void {
 
 /**
  * Opens the style selection dialog.
- * @param style - Optional style identifier
- * @param documentId - Document identifier (file path) for throttling
- * @returns The selected style ID, or null if cancelled
+ * @param request - Style binding, stored option values and document ID
+ * @returns The selected style with its stored option values, or null if cancelled
  */
 export async function openStyleDialog(
-  style: StyleIdentifier | undefined,
-  documentId: string,
+  request: StyleRequestData,
 ): Promise<StyleResponseData | null> {
   // Throttle: if this document already has a style dialog open, activate it instead
-  const windowKey = `${documentId}:style`;
+  const windowKey = `${request.documentId}:style`;
   const existingWindow = openWindowsByDocument.get(windowKey);
 
   if (existingWindow && !existingWindow.closed) {
@@ -1038,13 +1009,19 @@ export async function openStyleDialog(
     return null;
   }
 
+  // Another document (or a debug entry point) already has this dialog open.
+  if (activateSingletonDialog(STYLE_DIALOG_NAME)) {
+    return null;
+  }
+
   return new Promise((resolve, reject) => {
-    const io: StyleDialogIO = { data: style, resolve };
+    const io: StyleDialogIO = { data: request, resolve };
     try {
       const win = openDialogWindow(
         `chrome://${addon.data.config.addonRef}/content/styleDialog.xhtml`,
-        `modal,resizable${getDialogRaiseFeature()}`,
+        "resizable=true",
         io,
+        STYLE_DIALOG_NAME,
       );
       openWindowsByDocument.set(windowKey, win);
 
@@ -1076,6 +1053,11 @@ export async function openCitationDialog(
     return null;
   }
 
+  // Another document (or a debug entry point) already has this dialog open.
+  if (activateSingletonDialog(CITATION_DIALOG_NAME)) {
+    return null;
+  }
+
   return new Promise<CitationResponseData | null>((resolve, reject) => {
     const io: CitationDialogIO = {
       data,
@@ -1086,6 +1068,7 @@ export async function openCitationDialog(
         `chrome://${addon.data.config.addonRef}/content/citationDialog.xhtml`,
         `resizable=true${getDialogRaiseFeature()}`,
         io,
+        CITATION_DIALOG_NAME,
       );
       openWindowsByDocument.set(windowKey, win);
 
@@ -1117,6 +1100,11 @@ export async function openBibliographyDialog(
     return null;
   }
 
+  // Another document (or a debug entry point) already has this dialog open.
+  if (activateSingletonDialog(BIBLIOGRAPHY_DIALOG_NAME)) {
+    return null;
+  }
+
   return new Promise((resolve, reject) => {
     const io: BibliographyDialogIO = {
       data,
@@ -1125,8 +1113,9 @@ export async function openBibliographyDialog(
     try {
       const win = openDialogWindow(
         `chrome://${addon.data.config.addonRef}/content/bibliographyDialog.xhtml`,
-        `modal,resizable${getDialogRaiseFeature()}`,
+        "resizable=true",
         io,
+        BIBLIOGRAPHY_DIALOG_NAME,
       );
       openWindowsByDocument.set(windowKey, win);
 

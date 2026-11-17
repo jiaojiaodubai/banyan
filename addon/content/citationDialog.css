@@ -1,3 +1,5 @@
+@namespace xul url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
 /* Styles specific to the Citation Dialog */
 html {
   display: flex;
@@ -127,10 +129,10 @@ footer {
   -moz-window-dragging: no-drag;
 }
 
-/* Dynamic citation UI container inserted by script */
+/* Container for the style-declared citation controls (inserted by script) */
 #citation-options-container {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
   column-gap: 12px;
   row-gap: 4px;
@@ -294,6 +296,16 @@ footer {
   outline-offset: 1px;
 }
 
+.bubble.is-invalid {
+  outline: 1px solid var(--color-error);
+  outline-offset: -1px;
+}
+
+.bubble.is-invalid.is-focused {
+  outline: 2px solid var(--color-error);
+  outline-offset: 1px;
+}
+
 /* ItemTree selection highlight color (matches official dialog behavior) */
 #zotero-items-tree {
   --highlight-color: var(--accent-blue30);
@@ -340,7 +352,9 @@ footer {
   padding: 16px;
   z-index: 1000;
   box-sizing: border-box;
-  width: 364px;
+  width: fit-content;
+  min-width: 364px;
+  max-width: min(760px, calc(100vw - 24px));
   font-size: 13px;
   line-height: 1.4;
   display: flex;
@@ -353,18 +367,23 @@ footer {
   margin: 0;
 }
 
-/* Popup content: mimic Zotero itemDetails panel grid spacing */
+/* Popup content: one field per row; descriptions live in tooltips. */
 .bubble-popup-content {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px 1px;
-  align-items: center;
-  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+  min-width: 0;
+  margin: 14px 0;
 }
 
 /* Allow existing row wrappers without changing DOM structure */
 .bubble-popup-row {
   display: contents;
+}
+
+.bubble-popup-empty {
+  color: var(--fill-secondary);
 }
 
 .bubble-popup-label {
@@ -373,14 +392,9 @@ footer {
 }
 
 .bubble-popup-control,
-.bubble-popup-content input[type="text"],
 .bubble-popup-content xul|textbox,
 .bubble-popup-content xul|menulist {
   min-width: 120px;
-  padding-inline-start: 5px;
-  border-radius: 5px;
-  border: none;
-  box-shadow: 0px 0.5px 2.5px 0px rgba(0, 0, 0, 0.3);
 }
 
 .bubble-popup-actions {
@@ -391,7 +405,190 @@ footer {
   margin-top: 0;
 }
 
+/* Windows puts the primary action first; the markup keeps the auxiliary one
+   first so the other platforms get it on the left of the primary. */
+@media (-moz-platform: windows) {
+  .bubble-popup-actions {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+  }
+}
+
 .bubble-popup-actions button {
   max-width: 100%;
   white-space: nowrap;
+}
+
+/* A list value reads as one framed group: rows abut and are separated by
+   full-width dividers, like Zotero's advanced-search condition list. */
+.bubble-list-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+  padding: 0 8px;
+  border: var(--material-border-quinary);
+  border-radius: 6px;
+  background: var(--fill-senary);
+}
+
+.bubble-list-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding-block: 6px;
+  border-top: var(--material-border-quinary);
+}
+
+.bubble-list-row:first-child {
+  border-top: 0;
+}
+
+.bubble-list-row:last-child {
+  border-bottom: 0;
+}
+
+.bubble-list-fields {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bubble-list-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.bubble-list-add,
+.bubble-list-remove {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  padding: 2px;
+  border: 0;
+  border-radius: 6px;
+  background-color: transparent;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+  color: var(--fill-secondary);
+  fill: currentColor;
+  -moz-context-properties: fill, fill-opacity;
+}
+
+.bubble-list-add {
+  background-image: url("chrome://zotero/skin/16/universal/plus-circle.svg") !important;
+}
+
+.bubble-list-remove {
+  background-image: url("chrome://zotero/skin/16/universal/minus-circle.svg") !important;
+}
+
+/* Set only the color: `background` as a shorthand would clear the icon. */
+.bubble-list-add:hover:not([disabled]),
+.bubble-list-remove:hover:not([disabled]) {
+  background-color: var(--fill-quinary);
+}
+
+.bubble-list-add:active:not([disabled]),
+.bubble-list-remove:active:not([disabled]) {
+  background-color: var(--fill-quarternary);
+}
+
+.bubble-list-add[disabled],
+.bubble-list-remove[disabled] {
+  opacity: 0.5;
+}
+
+.bubble-list-field {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 0.9em;
+}
+
+.bubble-list-inline-label {
+  flex: 0 0 auto;
+  font-weight: normal;
+  white-space: nowrap;
+}
+
+.bubble-list-field input {
+  width: 10em;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.bubble-list-rich {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bubble-list-rich-preview {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 100px;
+  min-height: 26px;
+  box-sizing: border-box;
+  padding: 0 0 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(255, 255, 255, 0.5442);
+  border-radius: 3px;
+  background-color: var(--fill-quinary);
+  line-height: normal;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+
+.bubble-list-rich-preview:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.bubble-list-rich-preview[aria-disabled="true"] {
+  cursor: default;
+}
+
+@media (prefers-color-scheme: light) {
+  .bubble-list-rich-preview {
+    border-color: rgba(0, 0, 0, 0.0578);
+    border-bottom-color: rgba(0, 0, 0, 0.4458);
+    background-color: var(--color-background70);
+  }
+}
+
+.bubble-list-rich-preview.is-empty {
+  color: var(--fill-secondary);
+}
+
+.bubble-list-rich-preview.is-empty::before {
+  content: attr(data-placeholder);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bubble-list-editor.is-disabled {
+  opacity: 0.6;
+}
+
+.bubble-list-field [aria-invalid="true"] {
+  outline: 1px solid #c00;
+  outline-offset: -1px;
 }

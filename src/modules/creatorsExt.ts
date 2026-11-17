@@ -1,4 +1,5 @@
 import { getLocaleID, useL10n } from "../utils/locale";
+import { createLogger } from "../utils/logger";
 import { getRegularSelection } from "../utils/selection";
 import { unwrapCreatorExtDialogIO } from "../utils/creatorsExtDialogIO";
 import {
@@ -8,12 +9,11 @@ import {
 } from "../utils/window";
 import type { CreatorExtDialogIO } from "../../typings/creatorsExtDialog";
 import type { ItemMenuContribution } from "../../typings/menu";
-import { createLogger } from "../utils/logger";
-
-const log = createLogger("creators-ext");
 
 const CREATOR_ROW_FIELD_PATTERN =
   /^creator-(\d+)-(?:lastName|firstName|typeID)$/;
+const log = createLogger("creators-ext");
+
 const t = useL10n(["mainWindow.ftl"]);
 
 /** Matches the dialog root's `id`, so the window is findable while loading. */

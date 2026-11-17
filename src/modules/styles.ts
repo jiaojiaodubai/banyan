@@ -1,11 +1,20 @@
 import { StyleIdentifier } from "../../typings/server";
-import type { CitationContext, Style, StyleUI } from "../../typings/style";
+import type {
+  ParamDeclarations,
+  Style,
+  StyleOptionParam,
+  StyleOptionValues,
+} from "@banyan/core/types/style";
+import {
+  resolveStyleOptionState,
+  type StyleOptionState,
+} from "@banyan/core/validation/paramValues";
 import { useL10n } from "../utils/locale";
 import { getPref, setPref } from "../utils/prefs";
 import { createStyle } from "./sandbox";
+import { toStyleOptionParamInfos } from "./styleList";
 import presetsManifest from "../../addon/content/styleEditor/presets/presets-manifest.json";
 import { createLogger } from "../utils/logger";
-import { StyleInstanceCache } from "../utils/styleInstanceCache";
 import {
   parseStyleUpdatedTime,
   pickStyleDuplicateKeeper,
@@ -15,6 +24,7 @@ import {
   type StyleWriteTarget,
   type StyleWriteTargetIO,
 } from "../utils/styleFiles";
+import { StyleInstanceCache } from "../utils/styleInstanceCache";
 
 /** A style file while the directory is being loaded, before it is indexed. */
 type LoadedStyleFile = StyleFileRecord & { style: Style };
@@ -33,7 +43,7 @@ const styleInstances = new StyleInstanceCache<Style>();
 /**
  * Item-menu declarations are executable (`visible`, `check`). They belong to
  * the main-window bundle, which installs these hooks from `styleIndex.ts`;
- * dialogs only ever produce the serializable summary below.
+ * dialogs only produce the serializable summary below.
  */
 export type StyleDeclarationSummary = {
   hasFieldPresets: boolean;
@@ -63,33 +73,48 @@ export async function ensureDataDir(): Promise<string> {
       ignoreExisting: true,
     });
   } catch (e) {
-    log.error("Failed to create the styles data directory", e);
+    log.error("Failed to create styles data directory", e);
     throw e;
   }
   return dirPath;
 }
 
-export async function getStyleUI(style: StyleIdentifier): Promise<StyleUI> {
-  const instant = await getStyle(style);
-  return instant.UI ?? { cite: [], citation: [] };
-}
-
-/**
- * Render citation contexts with a style in the calling bundle. External
- * automation (the production smoke observer) calls this instead of reaching
- * into the plugin's private style cache.
- */
-export async function generateStyle(
+export async function getParamDeclarations(
   style: StyleIdentifier,
-  contexts: CitationContext[],
-) {
-  const instant = await getStyle(style);
-  return instant.generate(contexts);
+): Promise<ParamDeclarations> {
+  const instant = await getStyle(style, { recordLastUsed: false });
+  return {
+    style: instant.STYLE_OPTIONS ?? [],
+    citation: instant.CITATION_PARAMS ?? [],
+    cite: instant.CITE_PARAMS ?? [],
+  };
+}
+
+/** Reading a style for display only must not change what the item menu uses. */
+type ReadStyleOptions = { recordLastUsed?: boolean };
+
+/**
+ * Declarations plus stored/effective values for one style.
+ *
+ * The settings UI and the refresh path both go through the core resolver, so
+ * what the dialog shows and what `generate()` reads cannot drift.
+ *
+ * This is a read: a chooser previewing rows must not rewrite `lastUsedStyleId`
+ * (and re-index the item menu) merely because the user browsed a style.
+ */
+export async function getStyleOptionState(
+  style: StyleIdentifier,
+  values?: StyleOptionValues,
+): Promise<{ params: StyleOptionParam[]; state: StyleOptionState }> {
+  const instant = await getStyle(style, { recordLastUsed: false });
+  const params = instant.STYLE_OPTIONS ?? [];
+  return { params, state: resolveStyleOptionState(params, values) };
 }
 
 /**
- * Style id of the last style parsed for rendering (document refresh, citation
- * dialog, "Create Output"), not counting an edit in the style editor.
+ * Style id of the last style used to generate output (document refresh,
+ * "Create Output"), not counting a read for display or an edit in the style
+ * editor.
  */
 export const LAST_USED_STYLE_PREF = "lastUsedStyleId" as const;
 
@@ -101,22 +126,31 @@ function recordLastUsedStyle(styleId: string): void {
     setPref(LAST_USED_STYLE_PREF, styleId);
     notifyStyleIndexChanged();
   } catch (e) {
-    log.error("Failed to create styles data directory", e);
+    log.error("Failed to record recently used style", e);
   }
 }
 
 /**
  * Get style from plugin styles index by id
+ *
+ * `recordLastUsed` is for the paths that are about to render with the style;
+ * a chooser previewing rows must leave the preference alone.
+ *
  * @throws Error if:
  *  - Data directory cannot be ensured
  *  - Style with given id not found
  *  - Style file cannot be read
  */
-export async function getStyle(style: StyleIdentifier): Promise<Style> {
+export async function getStyle(
+  style: StyleIdentifier,
+  { recordLastUsed = true }: ReadStyleOptions = {},
+): Promise<Style> {
   const epoch = addon.data.styles.epoch;
   const cached = styleInstances.get(style.id, epoch);
   if (cached) {
-    recordLastUsedStyle(style.id);
+    if (recordLastUsed) {
+      recordLastUsedStyle(style.id);
+    }
     return cached;
   }
 
@@ -134,7 +168,7 @@ export async function getStyle(style: StyleIdentifier): Promise<Style> {
   try {
     code = await IOUtils.readUTF8(fullPath);
   } catch (e) {
-    log.error("Failed to read the style file", e);
+    log.error(`Failed to read style file: ${fullPath}`, e);
     throw e;
   }
 
@@ -145,7 +179,9 @@ export async function getStyle(style: StyleIdentifier): Promise<Style> {
   if (addon.data.styles.epoch === epoch) {
     styleInstances.set(style.id, instant, epoch);
   }
-  recordLastUsedStyle(style.id);
+  if (recordLastUsed) {
+    recordLastUsedStyle(style.id);
+  }
 
   return instant;
 }
@@ -154,7 +190,7 @@ export async function readStyleFile(path: string): Promise<string> {
   try {
     return await IOUtils.readUTF8(path);
   } catch (e) {
-    log.error("Failed to create styles data directory", e);
+    log.error(`Failed to read style file: ${path}`, e);
     throw e;
   }
 }
@@ -181,10 +217,9 @@ async function readStylePresetFile(fileName: string): Promise<string> {
 }
 
 /**
- * Index one style. Bumping the shared epoch invalidates the executable instance
- * caches of every window, and announcing the change keeps every path (startup,
- * import, overwrite, preset install, style-editor save) in sync with the item
- * menu and the preference list.
+ * Index one style. Announcing the change here keeps every path (startup, import,
+ * overwrite, preset install, style-editor save) in sync with the item menu and
+ * the preference list.
  */
 function indexLoadedStyle(style: Style, filename: string): void {
   addon.data.styles.epoch += 1;
@@ -199,6 +234,7 @@ function indexLoadedStyle(style: Style, filename: string): void {
     description: style.INFO.description,
     updated: style.INFO.updated,
     filename,
+    optionParams: toStyleOptionParamInfos(style.STYLE_OPTIONS),
     hasFieldPresets: declarations.hasFieldPresets,
     itemFieldValidatorTypes: declarations.itemFieldValidatorTypes,
   });
@@ -274,7 +310,7 @@ function notifyStyleIndexChanged(): void {
     try {
       listener();
     } catch (e) {
-      log.error("Failed to create styles data directory", e);
+      log.error("Style index listener failed", e);
     }
   }
 }
@@ -336,7 +372,7 @@ async function findStyleFilePathsById(styleID: string): Promise<string[]> {
 /**
  * (Re)build the style index from the data directory.
  *
- * Two files may declare the same `INFO.id` - an import that ran while the index
+ * Two files may declare the same `INFO.id` — an import that ran while the index
  * was empty, a copy made outside Banyan, a leftover alias from an older build.
  * Only one can be indexed, and leaving the other on disk means it shadows or
  * resurrects on the next load, so the duplicate is resolved the way Zotero
@@ -353,63 +389,60 @@ export async function loadStyles(reset?: boolean): Promise<void> {
     // the menu has to hear about the cleared index before the files are read.
     notifyStyleIndexChanged();
   }
+  const paths = (await IOUtils.getChildren(dirPath))
+    .filter((path) => path.endsWith(STYLE_FILE_EXTENSION))
+    .toSorted();
+  const loaded = new Map<string, LoadedStyleFile>();
+  const duplicates: Array<{
+    keeper: LoadedStyleFile;
+    discarded: LoadedStyleFile;
+  }> = [];
+
+  for (const path of paths) {
+    try {
+      const style = await createStyle(await readStyleFile(path));
+      const id = style.INFO?.id;
+      if (!id) {
+        // A one-off style may omit INFO.id, but a file in the data directory
+        // needs one so it can be indexed.
+        log.error(`Style file is missing INFO.id: ${path}`);
+        continue;
+      }
+
+      const candidate: LoadedStyleFile = {
+        id,
+        filename: PathUtils.filename(path),
+        path,
+        updated: parseStyleUpdatedTime(style.INFO.updated),
+        style,
+      };
+      const existing = loaded.get(id);
+      if (!existing) {
+        loaded.set(id, candidate);
+        continue;
+      }
+
+      const keeper = pickStyleDuplicateKeeper(existing, candidate);
+      const discarded = keeper === existing ? candidate : existing;
+      loaded.set(id, keeper);
+      duplicates.push({ keeper, discarded });
+      log.warn(
+        `样式 ID“${id}”重复：保留“${keeper.filename}”（updated: ${keeper.updated}），删除“${discarded.filename}”（updated: ${discarded.updated}）`,
+      );
+    } catch (e) {
+      log.error(`Failed to load style: ${path}`, e);
+    }
+  }
+
+  for (const { discarded } of duplicates) {
+    try {
+      await IOUtils.remove(discarded.path);
+    } catch (e) {
+      log.error(`Failed to remove duplicate style file: ${discarded.path}`, e);
+    }
+  }
+
   await withStyleIndexBatch(async () => {
-    const paths = (await IOUtils.getChildren(dirPath))
-      .filter((path) => path.endsWith(STYLE_FILE_EXTENSION))
-      .toSorted();
-    const loaded = new Map<string, LoadedStyleFile>();
-    const duplicates: Array<{
-      keeper: LoadedStyleFile;
-      discarded: LoadedStyleFile;
-    }> = [];
-
-    for (const path of paths) {
-      try {
-        const style = await createStyle(await readStyleFile(path));
-        const id = style.INFO?.id;
-        if (!id) {
-          // A one-off style may omit INFO.id, but a file in the data directory
-          // needs one so it can be indexed.
-          log.error(`Style file is missing INFO.id: ${path}`);
-          continue;
-        }
-
-        const candidate: LoadedStyleFile = {
-          id,
-          filename: PathUtils.filename(path),
-          path,
-          updated: parseStyleUpdatedTime(style.INFO.updated),
-          style,
-        };
-        const existing = loaded.get(id);
-        if (!existing) {
-          loaded.set(id, candidate);
-          continue;
-        }
-
-        const keeper = pickStyleDuplicateKeeper(existing, candidate);
-        const discarded = keeper === existing ? candidate : existing;
-        loaded.set(id, keeper);
-        duplicates.push({ keeper, discarded });
-        log.warn(
-          `样式 ID“${id}”重复：保留“${keeper.filename}”（updated: ${keeper.updated}），删除“${discarded.filename}”（updated: ${discarded.updated}）`,
-        );
-      } catch (e) {
-        log.error(`Failed to load style: ${path}`, e);
-      }
-    }
-
-    for (const { discarded } of duplicates) {
-      try {
-        await IOUtils.remove(discarded.path);
-      } catch (e) {
-        log.error(
-          `Failed to remove duplicate style file: ${discarded.path}`,
-          e,
-        );
-      }
-    }
-
     for (const entry of loaded.values()) {
       // A non-reset reload (after an import) only has to pick up new or moved
       // files; re-indexing unchanged styles would evict their executable cache.
@@ -447,7 +480,7 @@ export async function installPresetStyles(): Promise<void> {
         await IOUtils.writeUTF8(destPath, code);
         indexLoadedStyle(style, fileName);
       } catch (e) {
-        log.error("Failed to create styles data directory", e);
+        log.error(`Failed to install preset style: ${fileName}`, e);
       }
     }
   });
@@ -567,4 +600,17 @@ export async function deleteStylesById(ids: string[]): Promise<boolean> {
     notifyStyleIndexChanged();
   }
   return removed;
+}
+
+/**
+ * Render citation contexts with a style in the calling bundle. External
+ * automation (the production smoke observer) calls this instead of reaching
+ * into the plugin's private style cache.
+ */
+export async function generateStyle(
+  style: StyleIdentifier,
+  contexts: Parameters<Style["generate"]>[0],
+) {
+  const instant = await getStyle(style);
+  return instant.generate(contexts);
 }

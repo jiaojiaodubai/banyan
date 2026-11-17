@@ -1,0 +1,29 @@
+{
+  "source": "https://github.com/jiaojiaodubai/banyan-toolchain",
+  "manifest": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/toolchain.manifest.json",
+  "toolchainRevision": "3612d5b2b39c6f44772bfc9a3f91e2aeff49b01c",
+  "contractRevision": "fcb6aa8ce7dd9c57c424c7f5309551046fbfc591c0645476f85b5fcdc1d9c782",
+  "schemaRevision": "zotero-45+csl-0ee62cac6648+cslm-e507b2fb131c",
+  "packages": {
+    "@banyan/core": "0.1.0",
+    "@banyan/style-contract": "0.1.0",
+    "eslint-plugin-banyan-style": "0.1.0"
+  },
+  "artifacts": {
+    "contractArtifact": "banyan-style-contract-0.1.0.tgz",
+    "contractArtifactSha256": "e9dc5507381f146902d7e48e402fd045ac72a464d0f824164386187d8fd3b001",
+    "coreArtifact": "banyan-core-0.1.0.tgz",
+    "coreArtifactSha256": "b13d45fc4a9b1078ed670006a49fb6416afd5f9f0e9d19103aa33adebc6dc9e8",
+    "lintArtifact": "eslint-plugin-banyan-style-0.1.0.tgz",
+    "lintArtifactSha256": "685bd6701d12a6887730b102e10839e644a8fed70d5bc76a727342ea3db30105",
+    "lintBundle": "eslint-plugin-banyan-style.mjs",
+    "lintBundleSha256": "83c22ce583637ca89105bf9128e330b3bcdf2b7afdb7131c0259531e3198ae9d",
+    "lintMetadata": "eslint-plugin-banyan-style.build.json",
+    "lintMetadataSha256": "a7e7536a21d09a000fc173d0703ac7f771b1f046518765e71466d6cb738de34d"
+  },
+  "addonAssets": {
+    "eslint-plugin-banyan-style.mjs": "93536919c17d0ffa2e7aefca9f9468d3a9e6c3cc83f1925e460651ed766f04f8",
+    "eslint-plugin-banyan-style.build.json": "dc600b9d4f2cce054002e23abd67945e41af8192cbfe0dbbd335eea476ccace3"
+  },
+  "note": "Pins one published toolchain revision and its hashed artifacts; do not add independent core/lint Git pins. To hack on the toolchain, link a local checkout instead of editing the lock. addonAssets are the generated, header-prefixed copies under addon/content/styleEditor. The release assets are re-issued under the same tag, so the dependency URLs carry ?rev=<toolchainRevision> to keep pnpm from serving a previously cached tarball."
+}

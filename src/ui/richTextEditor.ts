@@ -1,14 +1,10 @@
-import type { RichText } from "../../typings/unit";
-import { richTextFromRuns, RichTextRun } from "../utils/richText";
-import {
-  renderRichTextToFragment as renderRichTextPreviewToFragment,
-  type RenderRichTextFragmentOptions,
-} from "../utils/richTextHtml";
-import { sanitizeLink } from "../utils/html";
+import type { RichText } from "@banyan/core/types/unit";
+import { richTextFromRuns, RichTextRun } from "@banyan/core/richText/richText";
+import { renderRichTextToFragment as renderRichTextPreviewToFragment } from "./richTextFragment";
+import { sanitizeLink } from "@banyan/core/richText/html";
 import { useL10n } from "../utils/locale";
 
 type UnitStyle = Omit<RichTextRun, "value">;
-type RenderRichTextOptions = RenderRichTextFragmentOptions;
 
 const NAV_KEYS = new Set([
   "ArrowLeft",
@@ -25,15 +21,21 @@ type ToolbarCommand =
   "bold" | "italic" | "superscript" | "subscript" | "removeFormat";
 
 export class RichTextEditor {
+  private readonly rootEl: HTMLDivElement;
   private readonly editorEl: HTMLDivElement;
   private readonly toolbarEl: HTMLDivElement;
   private readonly buttons: Map<ToolbarCommand, HTMLButtonElement> = new Map();
-  constructor(el: HTMLDivElement) {
-    el.classList.add("banyan-richtext");
+  constructor(host: HTMLElement) {
+    // The component owns its own root instead of styling the caller's element:
+    // the hosting container may be a layout box (a dialog body, a scroll area)
+    // whose own classes must not leak into the editor frame.
+    this.rootEl = document.createElement("div");
+    this.rootEl.classList.add("banyan-richtext");
 
     this.toolbarEl = this.createToolbar();
     this.editorEl = this.createEditor();
-    el.append(this.toolbarEl, this.editorEl);
+    this.rootEl.append(this.toolbarEl, this.editorEl);
+    host.appendChild(this.rootEl);
     this.initToolbar();
     this.patchNavKey();
     this.bindEvent();
@@ -110,11 +112,29 @@ export class RichTextEditor {
 
   setRichText(richText: RichText): void {
     this.editorEl.textContent = "";
-    this.editorEl.appendChild(renderRichTextToFragment(richText));
+    this.editorEl.appendChild(
+      renderRichTextPreviewToFragment(richText, document),
+    );
   }
 
   getRichText(): RichText {
     return richTextFromEditor(this.editorEl);
+  }
+
+  /**
+   * Focus the text area and put the caret after the current value, so the
+   * caller can keep typing where the edited value ends. A programmatic
+   * `focus()` alone would otherwise land before the first character.
+   */
+  focusAtEnd(): void {
+    this.editorEl.focus();
+    const selection = window.getSelection();
+    if (!selection) return;
+    const range = document.createRange();
+    range.selectNodeContents(this.editorEl);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
   }
 
   private patchNavKey(): void {
@@ -199,13 +219,6 @@ export class RichTextEditor {
     this.editorEl.addEventListener("input", this.updateState, true);
     document.addEventListener("selectionchange", this.updateState, true);
   }
-}
-
-export function renderRichTextToFragment(
-  richText: RichText,
-  options: RenderRichTextOptions = {},
-): DocumentFragment {
-  return renderRichTextPreviewToFragment(richText, document, options);
 }
 
 function richTextFromEditor(editor: HTMLElement): RichText {

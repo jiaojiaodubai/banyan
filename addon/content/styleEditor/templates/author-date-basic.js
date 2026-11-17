@@ -10,17 +10,14 @@ const INFO = {
   updated: "2026-03-19",
 };
 
-const UI = {
-  citation: [
-    {
-      id: "paren",
-      label: "Use parentheses",
-      type: "checkbox",
-      value: true,
-    },
-  ],
-  cite: [],
-};
+const CITATION_PARAMS = [
+  {
+    id: "paren",
+    kind: "state",
+    label: "Use parentheses",
+    defaultValue: true,
+  },
+];
 
 function generate() {
   const unique = new Map();
@@ -33,7 +30,7 @@ function generate() {
   const citations = contexts.map((ctx) => {
     const body = ctx.cites
       .map((c) => {
-        const author = c.item.firstCreator || c.item.title || c.item.key;
+        const author = c.item.firstCreator || c.item.title || "Untitled";
         const year = c.item.year || c.item.date || "n.d.";
         return author + ", " + year;
       })
@@ -53,7 +50,7 @@ function generate() {
         ". (" +
         (item.year || item.date || "n.d.") +
         "). " +
-        (item.title || item.key) +
+        (item.title || "Untitled") +
         ".",
     ),
   }));

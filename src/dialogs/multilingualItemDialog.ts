@@ -4,10 +4,10 @@ import {
   getCreatorSnapshots,
   hasNonLanguageChanges,
   isSameItemContent,
-  normalizeLanguageCode,
   reloadItemContent,
   snapshotItemContent,
 } from "../utils/multilingualDraft";
+import { normalizeLanguageCode } from "@banyan/core/items/language";
 import { useL10n } from "../utils/locale";
 import { unwrapMultilingualDialogIO } from "../utils/multilingualDialogIO";
 import { createRetargetScheduler } from "../utils/retargetScheduler";
@@ -16,6 +16,9 @@ import "./multilingualItemEditor";
 import type { MultilingualItemEditor } from "./multilingualItemEditor";
 import type { ItemContentSnapshot } from "../../typings/multilingualItem";
 import type { MultilingualItemDialogIO as IO } from "../../typings/multilingualItemDialog";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("multilingual-item-dialog");
 
 type SourceSnapshot = ItemContentSnapshot;
 
@@ -209,7 +212,7 @@ async function loadSession(next: IO): Promise<void> {
     if (generation !== reloadGeneration) {
       return;
     }
-    ztoolkit.logError(error);
+    log.error("Failed to render source material", error);
     showError(
       error instanceof Error
         ? error.message
@@ -371,7 +374,7 @@ async function renderSourceMaterial(
       if (generation !== reloadGeneration) {
         return;
       }
-      ztoolkit.logError(error);
+      log.error("Failed to render reader attachment", error);
       // Tear the reader down on failure: `_open()` may have registered observers.
       disposeSourceReader();
       viewer.replaceChildren();
@@ -431,7 +434,7 @@ async function openAttachmentExternally(
     }
     showError(t("multilingual-item-source-preview-failed"));
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("Failed to open attachment externally", error);
     showError(t("multilingual-item-source-preview-failed"));
   }
 }
@@ -561,7 +564,10 @@ async function openReaderWithoutPreview(
       }
       return await reader._waitForInternalReader();
     } catch (error) {
-      ztoolkit.logError(error);
+      log.error(
+        "Failed while waiting for the internal reader to be ready",
+        error,
+      );
       return false;
     }
   })();
@@ -610,7 +616,7 @@ async function resolvePdfOutline(
       await pdfView.setSidebarView?.("outline");
     } catch (error) {
       // The generated outline below does not depend on this fetch.
-      ztoolkit.log(error);
+      log.warn("Failed to prefetch PDF outline", error);
     }
     const deadline = Date.now() + 5000;
     while (Date.now() < deadline && sourceReader === reader) {
@@ -639,7 +645,7 @@ async function resolvePdfOutline(
       );
     }
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("Failed to synchronize PDF outline", error);
   }
 }
 
@@ -673,7 +679,7 @@ async function loadSdtData(
   try {
     return await loadSdt.call(internal);
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("Failed to read structured document data", error);
     return null;
   }
 }
@@ -1363,7 +1369,7 @@ async function acceptDraft(): Promise<void> {
       return;
     }
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("Failed to check whether the source item changed", error);
     showError(t("multilingual-item-error-save"));
     return;
   }
@@ -1373,7 +1379,7 @@ async function acceptDraft(): Promise<void> {
   try {
     duplicateItem = await activeIO.findDuplicate(activeSource, language);
   } catch (error) {
-    ztoolkit.logError(error);
+    log.error("Failed to check for duplicate items", error);
     setBusy(false);
     showError(t("multilingual-item-error-save"));
     return;
@@ -1428,7 +1434,7 @@ async function acceptDraft(): Promise<void> {
     failureMessage = outcome.message;
   } catch (error) {
     // The commit does its own rollback; only relay what failed.
-    ztoolkit.logError(error);
+    log.error("Failed to commit item", error);
   }
 
   draftItem = retryDraft;

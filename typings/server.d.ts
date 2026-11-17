@@ -5,8 +5,9 @@ import type {
   IntextCitation,
   NoteCitation,
   StyleInfo,
+  StyleOptionValues,
 } from "./style";
-import type { StyleSummary } from "./styleIndex";
+import type { ParamInfo, StyleSummary } from "./styleIndex";
 
 /**
  * Route-to-payload mapping used by the local HTTP server.
@@ -54,21 +55,55 @@ export type ShowInLibraryResponseData = {
 
 /* style dialog */
 export type StyleIdentifier = Pick<StyleInfo, "id" | "title">;
-export type StyleRequestData =
-  (StyleIdentifier & { documentId: string }) | { documentId: string };
-export type StyleResponseData = StyleSummary | null;
+
+/** Style plus the persisted document-wide option values. */
+export type StyleBinding = StyleIdentifier & {
+  options?: StyleOptionValues;
+};
+
+export type StyleRequestData = {
+  documentId: string;
+  /** Current style binding; absent when the document has no style yet. */
+  id?: string;
+  title?: string;
+  /** Current style's stored values, echoed in the dialog. */
+  options?: StyleOptionValues;
+  /** Stored values per style, used when switching styles inside the dialog. */
+  optionsByStyle?: Record<string, StyleOptionValues>;
+};
+
+export type StyleResponseData =
+  | (StyleSummary & {
+      /** Stored values of the confirmed style (not the effective ones). */
+      options: StyleOptionValues;
+    })
+  | null;
+
 export type StyleListRequestData = Record<string, never>;
-export type StyleListEntry = StyleSummary;
+export type StyleListEntry = StyleSummary & {
+  /**
+   * Declared style options for automation. These are the
+   * declarations (labels, descriptions, kinds, defaults, states, presets and
+   * lists), not a resolved value map.
+   */
+  optionParams: ParamInfo[];
+};
 export type StyleListResponseData = StyleListEntry[];
 
 /* Citation dialog */
 export type CitationRequestData = {
   documentId: string;
-  style: StyleIdentifier;
+  /** Style binding: options travel with the style for render requests. */
+  style: StyleBinding;
   source?: CitationSource;
+  /**
+   * Stored document-wide option values. Control predicates read the effective
+   * values resolved from these, exactly like the style does during generate.
+   */
+  options?: StyleOptionValues;
 };
 export type CitationDialogRequestData = Omit<CitationRequestData, "style"> & {
-  style: StyleIdentifier | import("./style").StyleUI;
+  style: StyleBinding | import("./style").ParamDeclarations;
 };
 export type CitationResponseData = CitationSource | null;
 
@@ -86,19 +121,20 @@ export type BibliographyResponseData = BibliographyLineAndSource | null;
 /* Refresh */
 export type RefreshRequestData = {
   documentId: string;
-  style: StyleIdentifier;
+  style: StyleBinding;
   contexts: CitationContext[];
   /**
    * Re-resolve the contexts against the live library before the sandbox runs.
    * When enabled (the default), `citations[].source.cites[].item` in the
-   * response carries the refreshed identity — merged duplicates resolve to the
-   * item that replaced them — and the front-end persists it into the document
-   * so that the stale identity is dropped.
+   * response carries the refreshed identity (`id` and the Zotero-private
+   * `z:uri` extension) — merged duplicates resolve to the item that
+   * replaced them — and the front-end persists it into the document so that
+   * the stale identity is dropped.
    */
   syncItems: boolean;
 };
 export type RefreshResponseData = {
-  // 与 sandbox 组装后的完整 citation 输出保持一致（含 source）
+  // 与 sandbox 组装后的完整 citation 输出一致（包含 source）
   citations: IntextCitation[] | NoteCitation[];
   bibliography: BibliographyLine[];
 };

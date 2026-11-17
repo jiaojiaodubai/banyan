@@ -14,21 +14,26 @@ body {
   margin: 0;
 }
 
-/* Only the content scrolls, so the footer stays pinned. */
+/*
+ * The window body owns the layout: fixed text rows and the footer frame two
+ * flexible rows, and the line editor and the uncited-items list share the
+ * remaining height equally. Each flexible row scrolls its own content; the
+ * window itself is resized with its frame, not with a corner grip.
+ */
 .dialog-content {
-  display: flex;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto minmax(0, 1fr) auto;
   flex: 1 1 auto;
-  flex-direction: column;
-  gap: 16px;
+  gap: 8px;
   min-height: 0;
-  padding: 8px 10px 8px 10px;
-  overflow: auto;
+  padding: 8px 10px;
+  overflow: hidden;
 }
 
-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* The section wrappers only group semantics; their children are the rows. */
+#line-section,
+#uncited-section {
+  display: contents;
 }
 
 .section-title {
@@ -36,24 +41,31 @@ section {
   font-size: 14px;
 }
 
+/* Keep the 16px separation between the two groups, on top of the row gap. */
+#uncited-section .section-title {
+  margin-top: 8px;
+}
+
 .section-desc {
   opacity: 0.8;
 }
 
-#uncited-section {
-  flex: 1;
+#line-editor {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
 }
 
 .virtualized-table-container {
   display: flex;
-  flex: 1;
-  min-height: 160px;
+  /* Zotero's base rule gives this a zero flex-basis height; as a grid row it
+     has to stretch instead. */
+  height: auto;
+  min-height: 0;
   border: 1px solid var(--fill-quarternary);
   border-radius: 5px;
   background: var(--material-sidepane);
   overflow: hidden;
-  min-height: 0;
 }
 
 #uncited-items-tree {
@@ -70,6 +82,11 @@ section {
 
 #uncited-items-tree .cell-icon {
   margin-inline-end: 4px;
+}
+
+.btn-group {
+  display: flex;
+  justify-content: flex-start;
 }
 
 /* highlight selected row even table is not focused */

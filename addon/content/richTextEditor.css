@@ -1,23 +1,35 @@
+/*
+ * One rich-text control, like Zotero's note editor: a framed surface with a
+ * toolbar header band, filling the height its host pane gives it. The toolbar
+ * and the text area share the frame; only the text area scrolls.
+ */
 .banyan-richtext {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 0;
+  min-height: 0;
+  border: 1px solid var(--fill-quarternary);
+  border-radius: 5px;
+  overflow: hidden;
 }
 
 .banyan-richtext-toolbar {
   appearance: none;
   -moz-user-select: none;
-  /* color: var(--fill-secondary); */
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   height: 41px;
   min-height: 41px;
   margin: 0;
-  padding: 0 8px;
+  padding: 0 4px;
   background: var(--material-toolbar);
-  border: 1px solid var(--fill-quarternary);
-  border-radius: 5px 5px 0 0;
+  border: 0;
+  border-bottom: var(--material-panedivider);
+  border-radius: 0;
 }
 
 .banyan-toolbar-button {
@@ -49,18 +61,20 @@
 }
 
 .banyan-richtext-editor {
-  line-height: 1.4;
-  height: calc(2 * 1.4em + 16px);
-  min-height: calc(2 * 1.4em + 16px);
-  max-height: 50vh;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
   padding: 8px 10px;
-  border: 1px solid var(--fill-quarternary);
-  border-radius: 0 0 5px 5px;
-  border-top: none;
+  border: none;
+  border-radius: 0;
   background: var(--material-background);
   white-space: pre-wrap;
-  resize: vertical;
   overflow: auto;
+  resize: none;
+  /* Zotero's overlay scrollbars: theme tokens, no simulated show/hide. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar) var(--color-scrollbar-background);
   box-sizing: border-box;
 }
 

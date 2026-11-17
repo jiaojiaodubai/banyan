@@ -5,7 +5,7 @@ import { registerPrefs, onPrefsWindowLoad } from "./modules/preferences";
 import { createZToolkit } from "./utils/ztoolkit";
 import {
   generateStyle,
-  getStyle,
+  getParamDeclarations,
   installPresetStyles,
   loadStyles,
 } from "./modules/styles";
@@ -36,12 +36,9 @@ import { runStartupSteps } from "./utils/startup";
 const log = createLogger("hooks");
 
 function registerAPIs(): void {
+  addon.api.getParamDeclarations = getParamDeclarations;
   addon.api.reloadStyles = loadStyles;
   addon.api.generate = generateStyle;
-  addon.api.getStyleUI = async (style) => {
-    const cachedStyle = await getStyle(style);
-    return cachedStyle.UI ?? { cite: [], citation: [] };
-  };
 }
 
 async function onStartup() {
@@ -135,7 +132,7 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   registerItemPaneSection();
 
   void registerCitationColumn().catch((e: unknown) => {
-    ztoolkit.logError(e);
+    log.error("Failed to register citation column", e);
   });
 
   await new Promise((resolve) => {
@@ -160,8 +157,8 @@ async function onMainWindowUnload(win: Window): Promise<void> {
 }
 
 function onShutdown(): void {
-  // Note: the multilingual item-pane section is intentionally not unregistered
-  // here. `registerSection` binds it to our `pluginID`, so Zotero removes it
+  // The multilingual item-pane section is intentionally not unregistered here.
+  // `registerSection` binds it to our `pluginID`, so Zotero removes it
   // automatically when the plugin is disabled/removed. The citation column has
   // no such owner tracking, so it must be cleaned up explicitly below.
   cleanupCitationColumn();
@@ -178,10 +175,6 @@ function onShutdown(): void {
   // @ts-expect-error - Plugin instance is not typed
   delete Zotero[addon.data.config.addonInstance];
 }
-
-// Add your hooks here. For element click, etc.
-// Keep in mind hooks only do dispatch. Don't add code that does real jobs in hooks.
-// Otherwise the code would be hard to read and maintain.
 
 export default {
   onStartup,

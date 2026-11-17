@@ -2,6 +2,7 @@ import { useL10n } from "../utils/locale";
 import { getPref, setPref } from "../utils/prefs";
 import { version as pluginVersion } from "../../package.json";
 import { createLogger } from "../utils/logger";
+import styleEditorAssetFiles from "../utils/styleEditorAssetFiles.json";
 
 const log = createLogger("style-editor");
 
@@ -28,7 +29,6 @@ export type StyleEditorAssets = {
   snippetsText: string;
   eslintConfigText: string;
   eslintPluginText: string;
-  eslintStyleUtilsGlobalsText: string;
   packageJSONText: string;
 };
 
@@ -42,78 +42,67 @@ type RuntimeAssetDefinition = {
   validate?: (path: string, assets: StyleEditorAssets) => Promise<boolean>;
 };
 
-const STYLE_EDITOR_ASSET_FILES = {
-  defaultCode: "defaultStyle.js",
-  itemTypesDTS: "item.d.ts",
-  unitTypesDTS: "unit.d.ts",
-  styleTypesDTS: "style.d.ts",
-  styleUtilsDTS: "styleUtils.d.ts",
-  jsConfigText: "jsconfig.json",
-  snippetsText: "snippets.jsonc",
-  eslintConfigText: "eslint.config.mjs",
-  eslintPluginText: "eslint-plugin-banyan-style.mjs",
-  eslintStyleUtilsGlobalsText: "eslint-style-utils-globals.mjs",
-  packageJSONText: "package.json",
-} as const satisfies Record<StyleEditorAssetKey, string>;
+const STYLE_EDITOR_ASSET_FILES = styleEditorAssetFiles satisfies Record<
+  StyleEditorAssetKey,
+  string
+>;
 
 const STYLE_EDITOR_RUNTIME_ASSETS: readonly RuntimeAssetDefinition[] = [
   {
     assetKey: "itemTypesDTS",
-    sourceFile: "item.d.ts",
+    sourceFile: STYLE_EDITOR_ASSET_FILES.itemTypesDTS,
     targetSegments: ["item.d.ts"],
     commentPrefix: "//",
   },
   {
     assetKey: "unitTypesDTS",
-    sourceFile: "unit.d.ts",
+    sourceFile: STYLE_EDITOR_ASSET_FILES.unitTypesDTS,
     targetSegments: ["unit.d.ts"],
     commentPrefix: "//",
   },
   {
     assetKey: "styleTypesDTS",
-    sourceFile: "style.d.ts",
+    sourceFile: STYLE_EDITOR_ASSET_FILES.styleTypesDTS,
     targetSegments: ["style.d.ts"],
     commentPrefix: "//",
   },
   {
     assetKey: "styleUtilsDTS",
-    sourceFile: "styleUtils.d.ts",
+    sourceFile: STYLE_EDITOR_ASSET_FILES.styleUtilsDTS,
     targetSegments: ["styleUtils.d.ts"],
     commentPrefix: "//",
   },
   {
     assetKey: "jsConfigText",
-    sourceFile: "jsconfig.json",
+    sourceFile: STYLE_EDITOR_ASSET_FILES.jsConfigText,
     targetSegments: ["jsconfig.json"],
     validate: hasRuntimeJSConfigContract,
   },
   {
     assetKey: "snippetsText",
-    sourceFile: "snippets.jsonc",
+    sourceFile: STYLE_EDITOR_ASSET_FILES.snippetsText,
     targetSegments: [".vscode", "banyan.code-snippets"],
     commentPrefix: "//",
   },
   {
     assetKey: "eslintConfigText",
-    sourceFile: "eslint.config.mjs",
+    sourceFile: STYLE_EDITOR_ASSET_FILES.eslintConfigText,
     targetSegments: ["eslint.config.mjs"],
     commentPrefix: "//",
   },
   {
     assetKey: "eslintPluginText",
-    sourceFile: "eslint-plugin-banyan-style.mjs",
+    sourceFile: STYLE_EDITOR_ASSET_FILES.eslintPluginText,
     targetSegments: ["eslint-plugin-banyan-style.mjs"],
     commentPrefix: "//",
   },
-  {
-    assetKey: "eslintStyleUtilsGlobalsText",
-    sourceFile: "eslint-style-utils-globals.mjs",
-    targetSegments: ["eslint-style-utils-globals.mjs"],
-    commentPrefix: "//",
-  },
+  // The style-utils globals used to be shipped as their own runtime asset.
+  // `createBanyanStyleConfig()` now derives them from the typings files above,
+  // so there is no separate file to copy (and reading one that no longer ships
+  // aborted the whole startup).
   {
     assetKey: "packageJSONText",
-    sourceFile: "package.json",
+    sourceFile: STYLE_EDITOR_ASSET_FILES.packageJSONText,
     targetSegments: ["package.json"],
     validate: hasRuntimePackageTypesEntry,
   },
@@ -231,7 +220,13 @@ function getStyleEditorAssetURL(fileName: string): string {
 }
 
 async function readStyleEditorAsset(fileName: string): Promise<string> {
-  return Zotero.File.getContentsFromURLAsync(getStyleEditorAssetURL(fileName));
+  const contents = await Zotero.File.getContentsFromURLAsync(
+    getStyleEditorAssetURL(fileName),
+  );
+  if (!contents.trim()) {
+    throw new Error(`Required style editor asset is empty: ${fileName}`);
+  }
+  return contents;
 }
 
 export async function getStyleEditorAssets(): Promise<StyleEditorAssets> {
@@ -249,7 +244,6 @@ export async function getStyleEditorAssets(): Promise<StyleEditorAssets> {
     snippetsText,
     eslintConfigText,
     eslintPluginText,
-    eslintStyleUtilsGlobalsText,
     packageJSONText,
   ] = await Promise.all([
     readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.defaultCode),
@@ -261,7 +255,6 @@ export async function getStyleEditorAssets(): Promise<StyleEditorAssets> {
     readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.snippetsText),
     readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.eslintConfigText),
     readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.eslintPluginText),
-    readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.eslintStyleUtilsGlobalsText),
     readStyleEditorAsset(STYLE_EDITOR_ASSET_FILES.packageJSONText),
   ]);
 
@@ -275,7 +268,6 @@ export async function getStyleEditorAssets(): Promise<StyleEditorAssets> {
     snippetsText,
     eslintConfigText,
     eslintPluginText,
-    eslintStyleUtilsGlobalsText,
     packageJSONText,
   };
   return cachedAssets;

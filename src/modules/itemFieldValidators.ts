@@ -1,5 +1,8 @@
-import { runItemFieldValidators } from "./sandbox/itemFieldValidators";
-import type { FieldValidator, ItemFieldValidators } from "../../typings/style";
+import { runItemFieldValidators } from "@banyan/core/validation/itemFieldValidators";
+import type {
+  FieldValidator,
+  ItemFieldValidators,
+} from "@banyan/core/types/style";
 import { getLocaleID } from "../utils/locale";
 import { getRegularSelection } from "../utils/selection";
 import { getItemPromptLabel } from "./extraFieldWrite";
@@ -8,7 +11,7 @@ import {
   getStyleItemFieldValidators,
   type IndexedItemFieldValidators,
 } from "./styleIndex";
-import { toBanyanItem } from "../utils/item";
+import { toBanyanItem } from "./sandbox/items";
 import { isWindowAlive, openMainWindowDialog } from "../utils/window";
 import type { ItemMenuContribution } from "../../typings/menu";
 import type {
@@ -18,14 +21,6 @@ import type {
 import { createLogger } from "../utils/logger";
 
 const log = createLogger("item-field-validators");
-
-function logFailure(message: string, error?: unknown): void {
-  const detail =
-    error === undefined
-      ? ""
-      : `: ${error instanceof Error ? error.message : String(error)}`;
-  log.warn(`${message}${detail}`);
-}
 
 const DIALOG_WINDOW_NAME = "banyan-item-field-validator";
 
@@ -46,7 +41,10 @@ export const itemFieldValidatorsItemMenu: ItemMenuContribution = {
           try {
             context.setVisible(getCheckTargets(indexed).length > 0);
           } catch (error) {
-            logFailure("判断条目字段检查是否有可用目标失败", error);
+            log.warn(
+              "Failed to check whether the field validator has any targets",
+              error,
+            );
             context.setVisible(false);
           }
         },
@@ -54,7 +52,7 @@ export const itemFieldValidatorsItemMenu: ItemMenuContribution = {
           // The run reports its own failures; this only keeps an unexpected
           // rejection from becoming an unhandled promise.
           void runChecksAndOpenReport().catch((error: unknown) => {
-            logFailure("检查字段失败", error);
+            log.error("Failed to validate field", error);
           });
         },
       },
@@ -165,12 +163,12 @@ function openReportWindow(io: ItemFieldValidatorDialogIO): void {
       reportWindow.close();
     }
   } catch (error) {
-    logFailure("关闭旧字段检查报告失败", error);
+    log.warn("Failed to close previous field validation report", error);
   }
 
   const win = openMainWindowDialog(
     `chrome://${addon.data.config.addonRef}/content/itemFieldValidatorDialog.xhtml`,
-    "chrome,resizable=yes,centerscreen,width=960,height=620",
+    "chrome,dialog=no,titlebar,resizable=yes,centerscreen,width=960,height=620",
     io,
     DIALOG_WINDOW_NAME,
   );
@@ -189,7 +187,7 @@ export function closeItemFieldValidatorWindow(): void {
       reportWindow.close();
     }
   } catch (error) {
-    logFailure("关闭字段检查报告失败", error);
+    log.warn("Failed to close field validation report", error);
   }
   reportWindow = null;
 }

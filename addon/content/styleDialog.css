@@ -2,9 +2,8 @@ html {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-width: 340px;
-  /* best value to show at least 1 row */
-  min-height: 147px;
+  min-width: 640px;
+  min-height: 360px;
   overflow-y: hidden;
 }
 
@@ -28,8 +27,12 @@ header {
 }
 
 #search {
+  --search-textbox-width: 146px;
+  width: var(--search-textbox-width);
+  max-width: 300px;
+  min-width: 0;
+  flex-grow: 1;
   height: 28px;
-  width: 61.8%;
   margin: 0;
   /* adjust magnifier ion and "x" icon position */
   padding: 0 6px 0 0;
@@ -39,12 +42,95 @@ header {
 
 main {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   flex: 1;
   /* The footer's own top border (dialogFooter.css) separates the two. */
   border-top: var(--material-panedivider);
-  overflow-y: hidden;
+  overflow: hidden;
   -moz-window-dragging: no-drag;
+}
+
+#style-list-pane {
+  display: flex;
+  flex: 0 1 42%;
+  flex-direction: column;
+  min-width: 240px;
+  overflow: hidden;
+}
+
+#pane-splitter {
+  --draggable-size: 5px;
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  flex: 0 0 var(--draggable-size);
+  min-width: var(--draggable-size);
+  cursor: ew-resize;
+  border: 0;
+  border-inline-start: var(--material-border-quarternary);
+  border-inline-end: 0;
+  margin-inline-start: -1px;
+  margin-inline-end: calc(1px - var(--draggable-size));
+  background: transparent;
+}
+
+#pane-splitter::before {
+  position: absolute;
+  inset: 0 -4px 0 -4px;
+  content: "";
+}
+
+#style-detail-pane {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 280px;
+  overflow: hidden;
+}
+
+#style-detail-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+}
+
+.style-detail-title {
+  font-size: 1.25em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.style-detail-meta {
+  font-size: 0.9em;
+  opacity: 0.75;
+}
+
+.style-detail-description {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* No description: keep the blank line out of the layout, like an unset option. */
+.style-detail-description:empty {
+  display: none;
+}
+
+.style-options-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: var(--material-panedivider);
+}
+
+.style-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .virtualized-table-container {
@@ -61,6 +147,13 @@ main {
    doesn't highlight the label text. */
 .virtualized-table {
   -moz-user-select: none;
+}
+
+/* The header wrapper already insets the table by 8px; add the matching inner
+   padding so labels are not flush against the row edge. */
+.virtualized-table .virtualized-table-header .cell,
+.virtualized-table .virtualized-table-body .row .cell {
+  padding-inline: 8px;
 }
 
 /* highlight selected row even table is not focused */

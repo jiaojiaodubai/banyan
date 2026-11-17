@@ -10,17 +10,14 @@ const INFO = {
   updated: "2026-03-19",
 };
 
-const UI = {
-  citation: [
-    {
-      id: "show-year",
-      label: "Show year",
-      type: "checkbox",
-      value: true,
-    },
-  ],
-  cite: [],
-};
+const CITATION_PARAMS = [
+  {
+    id: "show-year",
+    kind: "state",
+    label: "Show year",
+    defaultValue: true,
+  },
+];
 
 function generate() {
   const unique = new Map();
@@ -40,7 +37,7 @@ function generate() {
           .map((c) => {
             const year = c.item.year ? " (" + c.item.year + ")" : "";
             return (
-              (c.item.firstCreator || c.item.title || c.item.key) +
+              (c.item.firstCreator || c.item.title || "Untitled") +
               (ctx.params["show-year"] ? year : "")
             );
           })
@@ -57,7 +54,7 @@ function generate() {
         "] " +
         (item.firstCreator || "Unknown") +
         ". " +
-        (item.title || item.key) +
+        (item.title || "Untitled") +
         ".",
     ),
   }));
