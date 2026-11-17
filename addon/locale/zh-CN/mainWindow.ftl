@@ -19,6 +19,8 @@ menuitem-creators-ext =
     .label = 扩展创建者信息…
 menuitem-field-presets =
     .label = 快捷标记
+menuitem-check-item-fields =
+    .label = 检查字段
 item-tree-citation-column = 引注
 
 item-section-multilingual-head-text =

@@ -1,4 +1,8 @@
-import type { FieldPreset, Style } from "../../typings/style";
+import type {
+  FieldPreset,
+  ItemFieldValidators,
+  Style,
+} from "../../typings/style";
 import { registerStyleIndexHooks } from "./styles";
 
 /**
@@ -16,13 +20,7 @@ import { registerStyleIndexHooks } from "./styles";
  * contract gains the dedicated author types later in the history. */
 type ItemMenuStyle = Style & {
   ITEM_FIELD_PRESETS?: FieldPreset[];
-  ITEM_FIELD_VALIDATORS?: Record<
-    string,
-    readonly {
-      description: string;
-      check: (item: unknown) => unknown;
-    }[]
-  >;
+  ITEM_FIELD_VALIDATORS?: ItemFieldValidators;
 };
 
 /** A preset declaration carrying its owning style's metadata. */

@@ -15,7 +15,7 @@ declare namespace _ZoteroTypes {
       "serverTrustedOrigins": string;
       "httpsProxyEnabled": boolean;
       "httpsProxyState": string;
-      "fieldPresetStyleId": string;
+      "itemMenuStyleId": string;
       "lastUsedStyleId": string;
     };
   }

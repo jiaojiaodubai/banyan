@@ -3,6 +3,7 @@ import { writeExtraFieldItemMenu } from "./extraFieldWrite";
 import { createMultilingualItemItemMenu } from "./multilingualItem";
 import { creatorsExtItemMenu, registerCreatorsExtRowMenu } from "./creatorsExt";
 import { fieldPresetsItemMenu } from "./itemFieldPresets";
+import { itemFieldValidatorsItemMenu } from "./itemFieldValidators";
 import { relateItemsItemMenu } from "./relations";
 import { openStyleEditorWindow } from "./styleEditor";
 import { onStyleIndexChanged } from "./styles";
@@ -49,6 +50,7 @@ const ITEM_MENU_CONTRIBUTIONS: readonly ItemMenuContribution[] = [
   fieldPresetsItemMenu,
   createMultilingualItemItemMenu,
   relateItemsItemMenu,
+  itemFieldValidatorsItemMenu,
   createOutputItemMenu,
 ];
 

@@ -6,7 +6,7 @@ import {
 } from "zotero-plugin-toolkit";
 import hooks from "./hooks";
 import { createZToolkit } from "./utils/ztoolkit";
-import { IndexedFieldPreset, StyleFile } from "../typings/styleIndex";
+import { StyleFile } from "../typings/styleIndex";
 import { createLocale } from "./utils/locale";
 import { generateStyle, getStyleUI, loadStyles } from "./modules/styles";
 
@@ -34,7 +34,6 @@ class Addon {
        * epoch; see `src/utils/styleInstanceCache.ts`.
        */
       epoch: number;
-      fieldPresets: Map<string, IndexedFieldPreset[]>;
     };
     dialog?: DialogHelper;
   };
@@ -61,7 +60,6 @@ class Addon {
       styles: {
         files: new Map(),
         epoch: 0,
-        fieldPresets: new Map(),
       },
     };
     this.hooks = hooks;

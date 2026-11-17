@@ -11,7 +11,6 @@ import {
 } from "../utils/item";
 import { getLocaleID, useL10n } from "../utils/locale";
 import { showSimpleMessage } from "../utils/message";
-import { getPref } from "../utils/prefs";
 import { getRegularSelection } from "../utils/selection";
 import {
   getItemPromptLabel,
@@ -21,19 +20,14 @@ import {
   type ConflictAction,
 } from "./extraFieldWrite";
 import { getFieldPresetMenuLabel } from "./sandbox/fieldPresets";
-import { hasFieldPresets, LAST_USED_STYLE_PREF } from "./styles";
+import { getEffectiveItemMenuStyleId } from "./itemMenu";
 import type { ItemMenuContribution, ItemMenuData } from "../../typings/menu";
-import type { IndexedFieldPreset } from "../../typings/styleIndex";
+import { getIndexedFieldPresets, type IndexedFieldPreset } from "./styleIndex";
 import { createLogger } from "../utils/logger";
 
 const log = createLogger("field-presets");
 
 const t = useL10n(["mainWindow.ftl"]);
-
-/** Preference holding the style whose marks feed the menu. */
-export const FIELD_PRESET_STYLE_PREF = "fieldPresetStyleId" as const;
-/** Preference value that disables the marks menu. */
-export const FIELD_PRESET_DISABLED = "-";
 
 type PresetRoute =
   | { kind: "field"; fieldName: string }
@@ -98,28 +92,13 @@ function buildPresetMenuItem(preset: IndexedFieldPreset): ItemMenuData {
   };
 }
 
-/**
- * The style whose presets feed the menu: the explicit choice while that style
- * still declares marks, otherwise the last style used for rendering a citation.
- */
-function getEffectivePresetStyleId(): string {
-  const explicit = String(getPref(FIELD_PRESET_STYLE_PREF) ?? "");
-  if (explicit === FIELD_PRESET_DISABLED) {
-    return "";
-  }
-  if (explicit && hasFieldPresets(explicit)) {
-    return explicit;
-  }
-  return String(getPref(LAST_USED_STYLE_PREF) ?? "");
-}
-
 /** Presets of the effective style; empty when none applies. */
-function getFieldPresets(): IndexedFieldPreset[] {
-  const styleId = getEffectivePresetStyleId();
+function getFieldPresets(): readonly IndexedFieldPreset[] {
+  const styleId = getEffectiveItemMenuStyleId();
   if (!styleId) {
     return [];
   }
-  return addon.data.styles.fieldPresets.get(styleId) ?? [];
+  return getIndexedFieldPresets(styleId);
 }
 
 /** Selected items a preset applies to (editable, and accepted by `visible`). */
@@ -157,21 +136,6 @@ function isPresetTarget(
     );
     return false;
   }
-}
-
-/**
- * Which entry of the preferences' style list to show for the stored value: the
- * value itself while it still has a candidate, otherwise "Last used". Display
- * only — the stored value is never rewritten here.
- */
-export function getPresetSourceSelection(
-  current: string,
-  styleIds: readonly string[],
-): string {
-  if (current === "" || current === FIELD_PRESET_DISABLED) {
-    return current;
-  }
-  return styleIds.includes(current) ? current : "";
 }
 
 /** One decided write, ready to be applied to an item. */

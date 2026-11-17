@@ -13,6 +13,9 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit this
 - A mark can leave a value to the user by declaring `null`: applying it opens the write dialog with the key fixed and asks for the value
 - Only one style feeds the menu at a time, chosen in the preferences (by default the style last used for rendering)
 - Conflicting values are never overwritten silently: applying a mark asks whether to skip or overwrite, with an option to apply the answer to the remaining items
+- **field validation:** Styles can declare an `ITEM_FIELD_VALIDATORS` object to add "Check Fields" to the item context menu; checks may be synchronous or async (10-second per-check timeout), run on each selected editable item, and open a non-modal report tree grouped by item, showing every checker's description and result
+- Only one style feeds the item menu at a time; quick marks and field checks share the same style preference
+- **style chooser:** When no style is supplied, preselect the style chosen for the item menu (or the last used style) before falling back to the first entry
 
 ### 🩹 Fixes
 
@@ -22,7 +25,7 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit this
 
 - **breaking:** Keys of `item.extra` follow Zotero's own variable-line syntax now, so lines such as `tex.shorttitle: Foo` or `see:` stay prose and are no longer read as keys
 - **preferences:** Give each setting its own heading (for example "Citation window") with its description underneath, instead of one "General settings" section whose labels were crowded by the help text
-- The style editor validates `ITEM_FIELD_PRESETS` (`banyanStyle/validate-field-presets`)
+- The style editor validates `ITEM_FIELD_PRESETS` (`banyanStyle/validate-field-presets`) and `ITEM_FIELD_VALIDATORS` (`banyanStyle/validate-item-field-validators`)
 
 ## v0.4.0 (2026-10-07)
 

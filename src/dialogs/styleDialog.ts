@@ -1,6 +1,8 @@
 import { VirtualizedTableHelper } from "zotero-plugin-toolkit";
 import { config } from "../../package.json";
 import { promptImportStyle } from "../modules/styles";
+import { getEffectiveItemMenuStyleId } from "../modules/itemMenu";
+import { pickDefaultStyleId } from "../modules/styleSelection";
 import { useL10n } from "../utils/locale";
 import { formatStyleUpdatedDate } from "../utils/styleUpdated";
 import { unwrapDialogIO } from "../utils/window";
@@ -42,9 +44,16 @@ async function initstyleDialog(): Promise<void> {
   focusSearchBox();
   rowsAll = getAllRows();
   rows = rowsAll;
-  // Select specified style if provided, or first style as default
+  // Prefer the style the caller asked for, then the style already chosen for
+  // the item menu (explicitly or as the last rendering style), then the first
+  // style in the list.
+  const defaultStyleId = pickDefaultStyleId(
+    rowsAll.map((row) => row.id),
+    io?.data?.id,
+    getEffectiveItemMenuStyleId(),
+  );
   selected =
-    rowsAll.find((row) => row.id === io?.data?.id) ?? rowsAll[0] ?? null;
+    rowsAll.find((row) => row.id === defaultStyleId) ?? rowsAll[0] ?? null;
   tableHelper = new ztoolkit.VirtualizedTable(window)
     .setContainerId("table-container")
     .setProp({

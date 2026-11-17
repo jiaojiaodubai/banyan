@@ -1,5 +1,5 @@
 /** Host-side shapes of the styles the plugin indexes (`addon.data.styles`). */
-import type { FieldPreset, StyleInfo } from "./style";
+import type { FieldPreset, ItemFieldValidators, StyleInfo } from "./style";
 
 /** Metadata shown for one style in the style manager and the server list. */
 export type StyleSummary = Pick<
@@ -23,4 +23,11 @@ export type IndexedFieldPreset = FieldPreset & {
   key: string;
   styleId: string;
   styleTitle: string;
+};
+
+/** Field-check declarations kept for one style. */
+export type IndexedItemFieldValidators = {
+  styleId: string;
+  styleTitle: string;
+  byType: ItemFieldValidators;
 };

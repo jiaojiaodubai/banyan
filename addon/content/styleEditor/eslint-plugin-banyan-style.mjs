@@ -691,10 +691,126 @@ const validateFieldPresetsRule = {
   },
 };
 
+function getStyleEntryFromProgram(node, name) {
+  const bindings = new Map();
+  const styleMembers = new Map();
+  for (const statement of node.body) {
+    if (statement.type === "VariableDeclaration") {
+      collectFromVariableDeclaration(statement, bindings, styleMembers);
+    } else if (statement.type === "ExpressionStatement") {
+      collectFromAssignment(statement.expression, bindings, styleMembers);
+    }
+  }
+  return getEntryNode(name, bindings, styleMembers);
+}
+
+const validateItemFieldValidatorsRule = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Validate the ITEM_FIELD_VALIDATORS declaration of a style (item-type object, checker arrays)",
+    },
+    schema: [],
+    messages: {
+      validatorsMustBeObject:
+        "ITEM_FIELD_VALIDATORS should be an object keyed by item type.",
+      groupMustBeArray:
+        "ITEM_FIELD_VALIDATORS['{{type}}'] should be an array of checker objects.",
+      checkerMustBeObject:
+        "Each ITEM_FIELD_VALIDATORS checker should be an object literal.",
+      descriptionInvalid:
+        "Each ITEM_FIELD_VALIDATORS checker needs a non-empty plain string 'description'.",
+      descriptionDuplicate:
+        "Duplicate ITEM_FIELD_VALIDATORS description '{{description}}' for '{{type}}'.",
+      checkInvalid:
+        "ITEM_FIELD_VALIDATORS checker '{{description}}' needs a read-only 'check' function.",
+    },
+  },
+  create(context) {
+    return {
+      Program(node) {
+        const validatorsNode = getStyleEntryFromProgram(
+          node,
+          "ITEM_FIELD_VALIDATORS",
+        );
+        if (!validatorsNode) {
+          return;
+        }
+        if (validatorsNode.type !== "ObjectExpression") {
+          context.report({
+            node: validatorsNode,
+            messageId: "validatorsMustBeObject",
+          });
+          return;
+        }
+
+        for (const property of validatorsNode.properties) {
+          if (property.type !== "Property" || property.kind !== "init") {
+            continue;
+          }
+          const type = getPropertyName(property.key)?.trim() ?? "";
+          if (!type || property.value.type !== "ArrayExpression") {
+            context.report({
+              node: property,
+              messageId: "groupMustBeArray",
+              data: { type: type || "(unnamed)" },
+            });
+            continue;
+          }
+
+          const descriptions = new Set();
+          for (const entry of property.value.elements.filter(Boolean)) {
+            if (entry.type !== "ObjectExpression") {
+              context.report({
+                node: entry,
+                messageId: "checkerMustBeObject",
+              });
+              continue;
+            }
+
+            const props = toObjectPropertyMap(entry);
+            const descriptionNode = props.get("description");
+            const description =
+              descriptionNode?.type === "Literal" &&
+              typeof descriptionNode.value === "string"
+                ? descriptionNode.value.trim()
+                : "";
+            if (!description) {
+              context.report({
+                node: descriptionNode ?? entry,
+                messageId: "descriptionInvalid",
+              });
+            } else if (descriptions.has(description)) {
+              context.report({
+                node: descriptionNode,
+                messageId: "descriptionDuplicate",
+                data: { description, type },
+              });
+            } else {
+              descriptions.add(description);
+            }
+
+            const checkNode = props.get("check");
+            if (!checkNode || !isFunctionLike(checkNode)) {
+              context.report({
+                node: checkNode ?? entry,
+                messageId: "checkInvalid",
+                data: { description: description || "(unnamed)" },
+              });
+            }
+          }
+        }
+      },
+    };
+  },
+};
+
 export default {
   rules: {
     "require-style-contract": requireStyleContractRule,
     "warn-risky-runtime-pattern": warnRiskyRuntimePatternRule,
     "validate-field-presets": validateFieldPresetsRule,
+    "validate-item-field-validators": validateItemFieldValidatorsRule,
   },
 };

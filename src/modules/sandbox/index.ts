@@ -35,6 +35,7 @@ import {
 } from "./outputNormalization";
 import { normalizeComponents } from "./styleComponents";
 import { normalizeFieldPresets } from "./fieldPresets";
+import { normalizeItemFieldValidators } from "./itemFieldValidators";
 import {
   createBanyanRuntimeError,
   createGenerateTimeoutError,
@@ -71,7 +72,13 @@ let generateBridgeInvocationSequence = 0;
  * Names the sandbox must export. Defined once; wrapper and extraction
  * are both generated from this list — no manual string duplication.
  */
-const STYLE_EXPORTS = ["INFO", "generate", "UI", "ITEM_FIELD_PRESETS"] as const;
+const STYLE_EXPORTS = [
+  "INFO",
+  "generate",
+  "UI",
+  "ITEM_FIELD_PRESETS",
+  "ITEM_FIELD_VALIDATORS",
+] as const;
 
 export async function createStyle(
   code: string,
@@ -532,6 +539,14 @@ function bridgeAndNormalize(
     Cu,
   );
 
+  // --- Normalize ITEM_FIELD_VALIDATORS ---
+  const itemFieldValidators = normalizeItemFieldValidators(
+    exports.ITEM_FIELD_VALIDATORS as unknown,
+    host,
+    sandbox,
+    Cu,
+  );
+
   const infoRecord = (INFO ?? null) as Partial<
     Pick<Style["INFO"], "title" | "id" | "citationType">
   > | null;
@@ -653,6 +668,7 @@ function bridgeAndNormalize(
   bridged.__banyanGenerateWithCallbacks = generateWithCallbacks;
   if (UI) bridged.UI = UI;
   if (itemFieldPresets) bridged.ITEM_FIELD_PRESETS = itemFieldPresets;
+  if (itemFieldValidators) bridged.ITEM_FIELD_VALIDATORS = itemFieldValidators;
   return bridged;
 }
 

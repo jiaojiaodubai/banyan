@@ -55,6 +55,30 @@
       "$0"
     ]
   },
+  "STYLE_OPTION_CONTROLS: Basic Options": {
+    "prefix": ["style-option-control", "style-option-control-basic"],
+    "description": "Insert a STYLE_OPTION_CONTROLS declaration (document-wide options)",
+    "body": [
+      "const STYLE_OPTION_CONTROLS = [",
+      "  {",
+      "    id: \"${1:abbrevMode}\",",
+      "    label: \"${2:再次引用}\",",
+      "    type: \"select\",",
+      "    value: \"${3:auto}\",",
+      "    options: { ${4:auto}: \"${5:自动略写}\", ${6:full}: \"${7:一律完整}\" },",
+      "  },",
+      "  {",
+      "    id: \"${8:maxNames}\",",
+      "    label: \"${9:最多列作者数}\",",
+      "    type: \"input\",",
+      "    value: \"${10:3}\",",
+      "    description: \"${11:整数；留空按体例默认}\",",
+      "    validate: (value) => value === \"\" || /^\\d+$/.test(value) || \"只能填数字\",",
+      "  },",
+      "];",
+      "$0"
+    ]
+  },
   "ITEM_FIELD_PRESETS: Basic Entry": {
     "prefix": ["preset", "item-field-presets", "quick-mark"],
     "description": "Insert an ITEM_FIELD_PRESETS entry (item context menu \"Quick Marks\")",
@@ -81,6 +105,19 @@
       "  label: \"${2:Show URL}\",",
       "  type: \"checkbox\",",
       "  value: ${3:false},",
+      "},",
+      "$0"
+    ]
+  },
+  "ITEM_FIELD_VALIDATORS: Basic Checker": {
+    "prefix": ["validator", "item-field-validators", "field-check"],
+    "description": "Insert an ITEM_FIELD_VALIDATORS checker (item context menu \"Check Fields\")",
+    "body": [
+      "{",
+      "  // Report text; a single plain string, since styles have no locale concept",
+      "  description: \"${1:必须填写标题}\",",
+      "  // Read-only; return true/false, a string, an array of strings, or a Promise",
+      "  check: (item) => ${2:item.title ? true : \"缺少标题\"},",
       "},",
       "$0"
     ]

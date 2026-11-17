@@ -202,31 +202,7 @@ function indexLoadedStyle(style: Style, filename: string): void {
     hasFieldPresets: declarations.hasFieldPresets,
     itemFieldValidatorTypes: declarations.itemFieldValidatorTypes,
   });
-  indexStyleFieldPresets(style);
   notifyStyleIndexChanged();
-}
-
-/**
- * Keep the presets of the styles that declare them. Their `visible` closures hold
- * the style's sandbox alive, so only styles using the feature pay for it.
- */
-function indexStyleFieldPresets(style: Style): void {
-  const styleId = style.INFO.id;
-  const presets = style.ITEM_FIELD_PRESETS;
-  if (!presets?.length) {
-    addon.data.styles.fieldPresets.delete(styleId);
-    return;
-  }
-  const styleTitle = style.INFO.title || styleId;
-  addon.data.styles.fieldPresets.set(
-    styleId,
-    presets.map((preset) => ({
-      ...preset,
-      key: `${styleId}:${preset.id}`,
-      styleId,
-      styleTitle,
-    })),
-  );
 }
 
 type StyleIndexListener = () => void;
@@ -261,19 +237,32 @@ export async function withStyleIndexBatch<T>(
   }
 }
 
-/** Styles that declare `ITEM_FIELD_PRESETS`, sorted by title. */
-export function getFieldPresetStyles(): { id: string; title: string }[] {
-  return Array.from(addon.data.styles.fieldPresets.values())
-    .map((presets) => ({
-      id: presets[0].styleId,
-      title: presets[0].styleTitle,
-    }))
+/** Styles that declare quick marks or field checks, sorted by title. */
+export function getItemMenuStyles(): { id: string; title: string }[] {
+  return Array.from(addon.data.styles.files.values())
+    .filter(
+      (style) =>
+        style.hasFieldPresets || Boolean(style.itemFieldValidatorTypes?.length),
+    )
+    .map(({ id, title }) => ({ id, title }))
     .sort((a, b) => a.title.localeCompare(b.title));
 }
 
 /** Whether a style currently contributes quick marks. */
 export function hasFieldPresets(styleId: string): boolean {
-  return addon.data.styles.fieldPresets.has(styleId);
+  return addon.data.styles.files.get(styleId)?.hasFieldPresets === true;
+}
+
+/** Whether a style currently contributes field checks. */
+export function hasItemFieldValidators(styleId: string): boolean {
+  return Boolean(
+    addon.data.styles.files.get(styleId)?.itemFieldValidatorTypes?.length,
+  );
+}
+
+/** Whether a style contributes anything to the item menu. */
+export function hasItemMenuDeclarations(styleId: string): boolean {
+  return hasFieldPresets(styleId) || hasItemFieldValidators(styleId);
 }
 
 function notifyStyleIndexChanged(): void {
@@ -359,7 +348,7 @@ export async function loadStyles(reset?: boolean): Promise<void> {
   if (reset) {
     addon.data.styles.files.clear();
     addon.data.styles.epoch += 1;
-    addon.data.styles.fieldPresets.clear();
+    styleIndexHooks?.clear();
     // The index stays empty when the directory has no readable style left, so
     // the menu has to hear about the cleared index before the files are read.
     notifyStyleIndexChanged();
@@ -517,7 +506,7 @@ export async function promptImportStyle(): Promise<boolean> {
     }
 
     await writeStyleFile(target.path, code);
-    indexLoadedStyle(style, PathUtils.filename(target.path));
+    // The caller asks the main window to reload the index.
     return true;
   } catch (e) {
     log.error("Failed to save style code", e);
@@ -570,7 +559,7 @@ export async function deleteStylesById(ids: string[]): Promise<boolean> {
       }
     }
     addon.data.styles.files.delete(id);
-    addon.data.styles.fieldPresets.delete(id);
+    styleIndexHooks?.remove(id);
     removed = true;
   }
   if (removed) {

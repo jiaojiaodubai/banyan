@@ -4,16 +4,16 @@ import { useL10n } from "../utils/locale";
 import { formatStyleUpdatedDate } from "../utils/styleUpdated";
 import {
   deleteStylesById,
-  getFieldPresetStyles,
+  getItemMenuStyles,
   onStyleIndexChanged,
   promptImportStyle,
 } from "./styles";
 import { refreshItemMenu } from "./menu";
 import {
-  FIELD_PRESET_DISABLED,
-  FIELD_PRESET_STYLE_PREF,
-  getPresetSourceSelection,
-} from "./itemFieldPresets";
+  ITEM_MENU_DISABLED,
+  ITEM_MENU_STYLE_PREF,
+  getItemMenuSourceSelection,
+} from "./itemMenu";
 import { VirtualizedTableHelper } from "zotero-plugin-toolkit";
 import type { StyleFile } from "../../typings/styleIndex";
 import { isWindowAlive } from "../utils/window";
@@ -86,11 +86,11 @@ function getPrefsWindow(): Window | null {
  * Fill the "Quick Marks" menu source list: the two fixed options plus one entry
  * per style that declares `ITEM_FIELD_PRESETS`.
  */
-function updateFieldPresetStyleOptions(): void {
+function updateItemMenuStyleOptions(): void {
   const win = getPrefsWindow();
   if (!win) return;
   const menulist = win.document.querySelector(
-    `#${config.addonRef}-fieldPresetStyleId`,
+    `#${config.addonRef}-itemMenuStyleId`,
   ) as (XUL.MenuList & { selectedItem?: Element | null }) | null;
   if (!menulist) return;
 
@@ -110,13 +110,13 @@ function updateFieldPresetStyleOptions(): void {
   };
 
   const t = useL10n(["preferences.ftl"]);
-  const lastUsed = append(t("prefs-field-preset-option-last"), "");
+  const lastUsed = append(t("prefs-item-menu-option-last"), "");
   const disabled = append(
-    t("prefs-field-preset-option-disabled"),
-    FIELD_PRESET_DISABLED,
+    t("prefs-item-menu-option-disabled"),
+    ITEM_MENU_DISABLED,
   );
 
-  const declared = getFieldPresetStyles();
+  const declared = getItemMenuStyles();
   for (const style of declared) {
     append(style.title, style.id);
   }
@@ -124,14 +124,14 @@ function updateFieldPresetStyleOptions(): void {
   // A stored style that is not in the list (deleted, or no longer declaring
   // marks) falls back to "Last used" here; the stored preference is left alone,
   // so a choice survives the moments when the index is empty while styles load.
-  const current = String(getPref(FIELD_PRESET_STYLE_PREF) ?? "");
-  const selected = getPresetSourceSelection(
+  const current = String(getPref(ITEM_MENU_STYLE_PREF) ?? "");
+  const selected = getItemMenuSourceSelection(
     current,
     declared.map((style) => style.id),
   );
   if (selected === "") {
     menulist.selectedItem = lastUsed;
-  } else if (selected === FIELD_PRESET_DISABLED) {
+  } else if (selected === ITEM_MENU_DISABLED) {
     menulist.selectedItem = disabled;
   } else {
     menulist.selectedItem =
@@ -142,10 +142,10 @@ function updateFieldPresetStyleOptions(): void {
 
   // The list is rebuilt whenever the style index changes, which would otherwise
   // stack one listener per rebuild on the same element.
-  if (!menulist.hasAttribute("data-field-preset-bound")) {
-    menulist.setAttribute("data-field-preset-bound", "true");
+  if (!menulist.hasAttribute("data-item-menu-bound")) {
+    menulist.setAttribute("data-item-menu-bound", "true");
     menulist.addEventListener("command", () => {
-      setPref(FIELD_PRESET_STYLE_PREF, String(menulist.value ?? ""));
+      setPref(ITEM_MENU_STYLE_PREF, String(menulist.value ?? ""));
       refreshItemMenu();
     });
   }
@@ -160,8 +160,8 @@ export function registerPrefs() {
   });
   // Keep the mark-source list in step with the style index while the pane
   // is open (a style imported, saved, deleted elsewhere, or losing its marks).
-  // `updateFieldPresetStyleOptions()` returns early when the window is closed.
-  onStyleIndexChanged(updateFieldPresetStyleOptions);
+  // `updateItemMenuStyleOptions()` returns early when the window is closed.
+  onStyleIndexChanged(updateItemMenuStyleOptions);
 }
 
 export async function onPrefsWindowLoad(_window: Window) {
@@ -200,7 +200,7 @@ export async function onPrefsWindowLoad(_window: Window) {
     addon.data.prefs.window = _window;
   }
   bindCitationDialogInitialCollectionMode();
-  updateFieldPresetStyleOptions();
+  updateItemMenuStyleOptions();
   await updatePrefsUI();
   bindPrefEvents();
   bindIntegrationButtons();
@@ -268,7 +268,7 @@ async function updatePrefsUI() {
     addon.data.prefs.tableHelper = tableHelper;
     bindStyleButtons(tableHelper);
     // The style list drives both the table and the mark-source options.
-    updateFieldPresetStyleOptions();
+    updateItemMenuStyleOptions();
   });
 }
 

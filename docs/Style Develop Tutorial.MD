@@ -230,6 +230,54 @@ const ITEM_FIELD_PRESETS = [
 - **覆盖有确认**：目标已经有不同的值时，插件会询问"跳过／覆盖／取消"，可勾选"应用到剩余"，不会静默覆盖用户数据。
 - **编辑器会检查声明**：样式编辑器用 ESLint 规则 `banyanStyle/validate-field-presets` 检查 `ITEM_FIELD_PRESETS` 的形状、危险键与 name 变量，写错时在编辑器里直接提示。
 
+### ITEM_FIELD_VALIDATORS 对象
+
+`ITEM_FIELD_PRESETS` 负责“写”，`ITEM_FIELD_VALIDATORS` 负责“检”：样式声明某类条目应满足的字段条件，用户在条目右键菜单点「检查字段」，插件对选中的可编辑条目逐条执行，并在非模态报告里按条目列出每个检查器的 `description` 与结果。
+
+它按 Zotero 条目类型组织，每类是检查器数组：
+
+```javascript
+const ITEM_FIELD_VALIDATORS = {
+  book: [
+    {
+      description: "必须填写标题",
+      check: (item) => Boolean(item.title) || "缺少标题",
+    },
+    {
+      description: "中文条目应有英文对照，英文条目应有中文对照",
+      check: async (item) => {
+        const language = String(item.language ?? "").toLowerCase();
+        const wanted = language.startsWith("zh")
+          ? "en"
+          : language.startsWith("en")
+            ? "zh"
+            : "";
+        if (!wanted) return true;
+
+        const siblings = await getMultilingualItems(item);
+        return (
+          siblings.some((sibling) =>
+            String(sibling.language ?? "")
+              .toLowerCase()
+              .startsWith(wanted),
+          ) || `未找到 language 为 ${wanted} 的多语言条目`
+        );
+      },
+    },
+  ],
+};
+```
+
+规则与注意：
+
+- **按类型显式组织**：顶层必须是对象，键是 Zotero 条目类型，值是检查器数组；不提供 `common` 键、通配符或 base 类型继承。
+- **每个检查器只有两项**：必填的 `description`（单字符串，样式没有 locale 概念）和 `check(item)`；不设 `id`、`visible`、`severity` 或 `fix`。
+- **返回值**：`true` 通过；`false` 未通过；非空字符串/字符串数组是失败说明；空数组通过。也可以返回 Promise：宿主会 `await`，每个检查器最多 10 秒；超时、reject、空字符串、`null`、数字、对象等按检查器出错处理，其他检查器继续。
+- **只读、无副作用**：检查器拿到条目快照，不能写条目、不能开窗、不能访问宿主 API；可以使用已有的异步读取函数（如 `getMultilingualItems()`）。不适用时返回 `true`。它不知道其他选中条目，也不校验渲染结果或整库。
+- **报告**：窗口非模态，条目行可展开为检查器行（名称、描述/说明、结果）；方便看着报告去改条目。样式未声明检查器时，菜单项不出现。
+- **生效样式**：与快捷标记共享首选项中的同一个样式；样式只声明检查器、不声明快捷标记也可以被选中。
+- **编辑器检查**：样式编辑器用 `banyanStyle/validate-item-field-validators` 检查声明形状，写错时直接提示。
+
 ## Unit工具
 
 Banyan 提供了一些处理 `Unit` 对象的实用工具函数。

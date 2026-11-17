@@ -33,6 +33,7 @@ async function lintStyleScript(code: string) {
           "banyanStyle/require-style-contract": "error",
           "banyanStyle/warn-risky-runtime-pattern": "warn",
           "banyanStyle/validate-field-presets": "error",
+          "banyanStyle/validate-item-field-validators": "error",
         },
       },
     ],
@@ -217,6 +218,64 @@ function generate() { return { citations: [], bibliography: [] }; }
     assert.includeMembers(
       result.messages.map((message) => message.messageId),
       ["presetsMustBeArray"],
+    );
+  });
+
+  it("accepts a well-formed ITEM_FIELD_VALIDATORS declaration", async function () {
+    const [result] = await lintStyleScript(`
+${validInfo}
+const ITEM_FIELD_VALIDATORS = {
+  book: [
+    { description: "必须填写标题", check: (item) => Boolean(item.title) },
+    { description: "必须填写日期", check: (item) => Boolean(item.date) },
+  ],
+  journalArticle: [
+    { description: "language 必须填写", check: (item) => Boolean(item.language) },
+  ],
+};
+function generate() { return { citations: [], bibliography: [] }; }
+`);
+
+    assert.deepEqual(result.messages, []);
+  });
+
+  it("rejects a non-object ITEM_FIELD_VALIDATORS declaration", async function () {
+    const [result] = await lintStyleScript(`
+${validInfo}
+const ITEM_FIELD_VALIDATORS = [
+  { book: [] },
+];
+function generate() { return { citations: [], bibliography: [] }; }
+`);
+
+    assert.includeMembers(
+      result.messages.map((message) => message.messageId),
+      ["validatorsMustBeObject"],
+    );
+  });
+
+  it("validates ITEM_FIELD_VALIDATORS checker shape", async function () {
+    const [result] = await lintStyleScript(`
+${validInfo}
+const ITEM_FIELD_VALIDATORS = {
+  book: [
+    { description: "", check: () => true },
+    { description: "same", check: "not a function" },
+    { description: "same", check: () => true },
+  ],
+  journalArticle: "not an array",
+};
+function generate() { return { citations: [], bibliography: [] }; }
+`);
+
+    assert.includeMembers(
+      result.messages.map((message) => message.messageId),
+      [
+        "groupMustBeArray",
+        "descriptionInvalid",
+        "descriptionDuplicate",
+        "checkInvalid",
+      ],
     );
   });
 

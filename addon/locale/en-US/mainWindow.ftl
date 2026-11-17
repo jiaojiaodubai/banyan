@@ -19,6 +19,8 @@ menuitem-creators-ext =
     .label = Extend Creator Information…
 menuitem-field-presets =
     .label = Quick Marks
+menuitem-check-item-fields =
+    .label = Check Fields
 item-tree-citation-column = Citation
 
 item-section-multilingual-head-text =

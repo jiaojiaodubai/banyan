@@ -47,6 +47,8 @@ interface Style<T extends CitationType = CitationType> {
   UI?: StyleUI;
   /** Declared marks for the item context menu (write item field / `extra`). */
   ITEM_FIELD_PRESETS?: FieldPreset[];
+  /** Declared read-only field checks, grouped by Zotero item type. */
+  ITEM_FIELD_VALIDATORS?: ItemFieldValidators;
   generate: (contexts: CitationContext[]) => MaybePromise<StyleResult<T>>;
 }
 
@@ -58,6 +60,7 @@ interface StyleScript<T extends CitationType = CitationType> {
   INFO: StyleInfo<T>;
   UI?: StyleUI;
   ITEM_FIELD_PRESETS?: FieldPreset[];
+  ITEM_FIELD_VALIDATORS?: ItemFieldValidators;
   generate: () => MaybePromise<ScriptResult<T>>;
 }
 
@@ -148,6 +151,23 @@ type FieldPreset = {
    */
   fields: Record<string, string | null>;
 };
+
+/** Result of one field check; see `FieldValidator`. */
+type FieldCheckResult = boolean | string | readonly string[];
+
+/** Read-only check; a promise is awaited by the host with a timeout. */
+type FieldCheck = (item: Readonly<Item>) => MaybePromise<FieldCheckResult>;
+
+/** One declared check shown in the field-check report. */
+type FieldValidator = {
+  /** Report label; a single string, since styles have no locale concept. */
+  description: string;
+  /** Read-only check; an async check is bounded by the host's timeout. */
+  check: FieldCheck;
+};
+
+/** Field validators grouped by Zotero item type. */
+type ItemFieldValidators = Partial<Record<ItemType, readonly FieldValidator[]>>;
 
 type CitationContext = CitationSource & {
   id: string;

@@ -30,6 +30,7 @@ export default [
       "banyanStyle/require-style-contract": "error",
       "banyanStyle/warn-risky-runtime-pattern": "warn",
       "banyanStyle/validate-field-presets": "error",
+      "banyanStyle/validate-item-field-validators": "error",
     },
   },
   {

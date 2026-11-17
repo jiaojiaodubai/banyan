@@ -7,16 +7,11 @@
 ## 1. 任务目标
 
 产出一个**单文件 JavaScript** 样式脚本：顶层提供 `INFO`、`generate()`（必需）与
-`UI`（可选），放入 banyan 数据目录即可被插件加载执行。
+`UI`（可选）、`ITEM_FIELD_PRESETS` 与 `ITEM_FIELD_VALIDATORS`（可选），放入 banyan 数据目录即可被插件加载执行。
 
 - 只输出脚本代码。
 - 文件保持精简：注释只解释本样式的独有决策，通用能力交给沙箱工具。
-- 推荐内部顺序：常量与辅助函数 → `INFO` → `UI` → `generate()`。
-  `ITEM_FIELD_PRESETS`（可选），放入 banyan 数据目录即可被插件加载执行。
-
-- 只输出脚本代码。
-- 文件保持精简：注释只解释本样式的独有决策，通用能力交给沙箱工具。
-- 推荐内部顺序：常量与辅助函数 → `INFO` → `UI` → `ITEM_FIELD_PRESETS` → `generate()`。
+- 推荐内部顺序：常量与辅助函数 → `INFO` → `UI` → `ITEM_FIELD_PRESETS` → `ITEM_FIELD_VALIDATORS` → `generate()`。
 
 ## 2. 工作环境：沙箱
 
@@ -122,6 +117,16 @@ const label = fallback([
 - `visible(item)` 只决定菜单项在哪些条目上出现，也限定写入对象，与 `UI.cite` 的 `visible` 同语义。
 - 样式编辑器会校验该声明（`banyanStyle/validate-field-presets`），写错会立刻报出。
 
+### 写 `ITEM_FIELD_VALIDATORS`（按需）
+
+当格式要求“某类条目应满足什么字段条件”时，用 `ITEM_FIELD_VALIDATORS` 声明只读检查器：
+
+- 按 Zotero 条目类型分组，每项是 `{ description, check }`；`description` 是报告里的检查项名称，单字符串。
+- `check(item)` 返回 `true`（通过）、`false`、字符串或字符串数组（失败说明），也可以返回 Promise。空数组视为通过；超时、reject、空字符串、数字、对象等视为检查器出错。
+- 检查器只读、无副作用、不开窗、不写条目；可以使用已有的异步读取函数（如 `getMultilingualItems()`），每项检查最多 10 秒。
+- 不适用时返回 `true`；它不知道其他选中条目，也不校验渲染结果或整库。
+- 样式编辑器会校验该声明（`banyanStyle/validate-item-field-validators`）。
+
 ## 4. 提示词模板
 
 把“需求区”替换为具体的格式要求，与本说明一起提交：
@@ -143,7 +148,7 @@ const label = fallback([
 
 【输出要求】
 - 只输出脚本代码。
-- 实现 INFO、generate（需要时加 UI 与 ITEM_FIELD_PRESETS），输出统一使用 content。
+- 实现 INFO、generate（需要时加 UI、ITEM_FIELD_PRESETS 与 ITEM_FIELD_VALIDATORS），输出统一使用 content。
 - 精简：复用沙箱工具，只写样式特有逻辑。
 ```
 
