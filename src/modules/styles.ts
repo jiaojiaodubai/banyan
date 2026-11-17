@@ -1,11 +1,42 @@
 // Note: Validation here is static and heuristic; execution happens in sandbox.ts
 import { StyleIdentifier } from "../../typings/server";
-import type { Style, StyleUI } from "../../typings/style";
+import type { CitationContext, Style, StyleUI } from "../../typings/style";
 import { useL10n } from "../utils/locale";
 import { createStyle } from "./sandbox";
 import presetsManifest from "../../addon/content/styleEditor/presets/presets-manifest.json";
+import { StyleInstanceCache } from "../utils/styleInstanceCache";
 
 const t = useL10n();
+
+/**
+ * Executable style instances owned by this bundle (one per window). The shared
+ * style index below holds metadata only; see `StyleInstanceCache` for why
+ * instances must not be shared between windows.
+ */
+const styleInstances = new StyleInstanceCache<Style>();
+
+/**
+ * Item-menu declarations are executable (`visible`, `check`). They belong to
+ * the main-window bundle, which installs these hooks from `styleIndex.ts`;
+ * dialogs only ever produce the serializable summary below.
+ */
+export type StyleDeclarationSummary = {
+  hasFieldPresets: boolean;
+  itemFieldValidatorTypes: string[];
+};
+
+export type StyleIndexHooks = {
+  load(style: Style): StyleDeclarationSummary;
+  remove(styleId: string): void;
+  clear(): void;
+};
+
+let styleIndexHooks: StyleIndexHooks | null = null;
+
+/** Install the main-window executable index (see `src/modules/styleIndex.ts`). */
+export function registerStyleIndexHooks(hooks: StyleIndexHooks): void {
+  styleIndexHooks = hooks;
+}
 
 export async function ensureDataDir(): Promise<string> {
   const dataDir = Zotero.DataDirectory.dir;
@@ -29,6 +60,19 @@ export async function getStyleUI(style: StyleIdentifier): Promise<StyleUI> {
 }
 
 /**
+ * Render citation contexts with a style in the calling bundle. External
+ * automation (the production smoke observer) calls this instead of reaching
+ * into the plugin's private style cache.
+ */
+export async function generateStyle(
+  style: StyleIdentifier,
+  contexts: CitationContext[],
+) {
+  const instant = await getStyle(style);
+  return instant.generate(contexts);
+}
+
+/**
  * Get style from plugin styles index by id
  * @throws Error if:
  *  - Data directory cannot be ensured
@@ -36,9 +80,10 @@ export async function getStyleUI(style: StyleIdentifier): Promise<StyleUI> {
  *  - Style file cannot be read
  */
 export async function getStyle(style: StyleIdentifier): Promise<Style> {
-  const exist = addon.data.styles.cache.get(style.id);
-  if (exist) {
-    return exist;
+  const epoch = addon.data.styles.epoch;
+  const cached = styleInstances.get(style.id, epoch);
+  if (cached) {
+    return cached;
   }
 
   const styleEntry = addon.data.styles.files.get(style.id);
@@ -60,13 +105,14 @@ export async function getStyle(style: StyleIdentifier): Promise<Style> {
   }
 
   const instant = await createStyle(code);
-  addon.data.styles.cache.set(style.id, instant);
+  // The index may have changed while the file was being parsed. Only cache the
+  // instance when the epoch it was read under is still current; otherwise the
+  // next read has to rebuild it anyway.
+  if (addon.data.styles.epoch === epoch) {
+    styleInstances.set(style.id, instant, epoch);
+  }
 
   return instant;
-}
-
-export function invalidateStyleCache(styleID: string): void {
-  addon.data.styles.cache.delete(styleID);
 }
 
 export async function readStyleFile(path: string): Promise<string> {
@@ -102,7 +148,13 @@ async function readStylePresetFile(fileName: string): Promise<string> {
 }
 
 function indexLoadedStyle(style: Style, filename: string): void {
-  addon.data.styles.cache.delete(style.INFO.id);
+  // Every window's executable cache is now stale and will be rebuilt from the
+  // file on its next read.
+  addon.data.styles.epoch += 1;
+  const declarations = styleIndexHooks?.load(style) ?? {
+    hasFieldPresets: false,
+    itemFieldValidatorTypes: [],
+  };
   addon.data.styles.files.set(style.INFO.id, {
     id: style.INFO.id,
     title: style.INFO.title,
@@ -110,6 +162,8 @@ function indexLoadedStyle(style: Style, filename: string): void {
     description: style.INFO.description,
     updated: style.INFO.updated,
     filename,
+    hasFieldPresets: declarations.hasFieldPresets,
+    itemFieldValidatorTypes: declarations.itemFieldValidatorTypes,
   });
 }
 
@@ -207,7 +261,7 @@ export async function loadStyles(reset?: boolean): Promise<void> {
   const dirPath = await ensureDataDir();
   if (reset) {
     addon.data.styles.files.clear();
-    addon.data.styles.cache.clear();
+    addon.data.styles.epoch += 1;
   }
   const paths = await IOUtils.getChildren(dirPath);
   for (const path of paths.toSorted()) {
@@ -336,8 +390,10 @@ export async function deleteStylesById(ids: string[]): Promise<boolean> {
       ztoolkit.logError(e);
     }
     addon.data.styles.files.delete(id);
-    addon.data.styles.cache.delete(id);
     removed = true;
+  }
+  if (removed) {
+    addon.data.styles.epoch += 1;
   }
   return removed;
 }

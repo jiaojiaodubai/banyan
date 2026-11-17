@@ -188,6 +188,7 @@ function bindStyleButtons(tableHelper: VirtualizedTableHelper) {
     importBtn.addEventListener("click", async () => {
       const imported = await promptImportStyle();
       if (imported) {
+        await addon.api.reloadStyles();
         await updatePrefsUI();
       }
     });

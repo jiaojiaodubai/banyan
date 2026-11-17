@@ -56,26 +56,28 @@ async function observe() {
     if (!fixture) {
       throw new Error("Fixture style is absent from the index");
     }
-    const style = banyan.data.styles.cache.get(fixture.id);
-    const output = await style.generate([
-      {
-        id: "production-test",
-        page: 1,
-        cites: [
-          {
-            item: {
-              id: "1",
-              itemType: "book",
-              title: "Test",
-              creators: [],
-              extra: {},
+    const output = await banyan.api.generate(
+      { id: fixture.id, title: fixture.title },
+      [
+        {
+          id: "production-test",
+          page: 1,
+          cites: [
+            {
+              item: {
+                id: "1",
+                itemType: "book",
+                title: "Test",
+                creators: [],
+                extra: {},
+              },
+              params: {},
             },
-            params: {},
-          },
-        ],
-        params: {},
-      },
-    ]);
+          ],
+          params: {},
+        },
+      ],
+    );
     if (
       output.citations.length !== 1 ||
       output.citations[0].id !== "production-test" ||

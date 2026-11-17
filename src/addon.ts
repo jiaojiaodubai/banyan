@@ -6,9 +6,9 @@ import {
 } from "zotero-plugin-toolkit";
 import hooks from "./hooks";
 import { createZToolkit } from "./utils/ztoolkit";
-import { StyleFile, Style } from "../typings/style";
+import { StyleFile } from "../typings/style";
 import { createLocale } from "./utils/locale";
-import { getStyleUI } from "./modules/styles";
+import { generateStyle, getStyleUI, loadStyles } from "./modules/styles";
 
 class Addon {
   public data: {
@@ -26,7 +26,12 @@ class Addon {
     };
     styles: {
       files: Map<string, StyleFile>;
-      cache: Map<string, Style>;
+      /**
+       * Incremented whenever the style index changes. Each window bundle keeps
+       * its own executable instances and drops entries cached under an older
+       * epoch; see `src/utils/styleInstanceCache.ts`.
+       */
+      epoch: number;
     };
     dialog?: DialogHelper;
   };
@@ -35,6 +40,10 @@ class Addon {
   // APIs
   public api: {
     getStyleUI: typeof getStyleUI;
+    /** Render contexts with a style through the main-window bundle. */
+    generate: typeof generateStyle;
+    /** Rebuild the style index in the main-window bundle (reload from disk). */
+    reloadStyles: typeof loadStyles;
   };
 
   constructor() {
@@ -47,12 +56,14 @@ class Addon {
       locale: createLocale(),
       styles: {
         files: new Map(),
-        cache: new Map(),
+        epoch: 0,
       },
     };
     this.hooks = hooks;
     this.api = {
       getStyleUI,
+      generate: generateStyle,
+      reloadStyles: loadStyles,
     };
   }
 }

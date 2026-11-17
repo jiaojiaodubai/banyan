@@ -83,6 +83,11 @@ type StyleSummary = Pick<
 
 type StyleFile = StyleSummary & {
   filename: string;
+  /** Whether the style declares item-menu presets (executable declarations
+   * live in the main-window bundle). */
+  hasFieldPresets?: boolean;
+  /** Item types with at least one declared field check. */
+  itemFieldValidatorTypes?: string[];
 };
 
 type ComponentBase = {

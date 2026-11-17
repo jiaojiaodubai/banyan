@@ -1,6 +1,6 @@
 import { VirtualizedTableHelper } from "zotero-plugin-toolkit";
 import { config } from "../../package.json";
-import { loadStyles, promptImportStyle } from "../modules/styles";
+import { promptImportStyle } from "../modules/styles";
 import { useL10n } from "../utils/locale";
 import { formatStyleUpdatedDate } from "../utils/styleUpdated";
 import type { StyleIdentifier, StyleResponseData } from "../../typings/server";
@@ -160,7 +160,7 @@ function bindButtons(): void {
 async function onImport() {
   const imported = await promptImportStyle();
   if (!imported) return;
-  await loadStyles();
+  await addon.api.reloadStyles();
   rowsAll = getAllRows();
   await updateTable();
 }

@@ -22,7 +22,6 @@ import { updateStyleCodeUpdatedTimestamp } from "../../utils/styleUpdated";
 import {
   ensureDataDir,
   getStyleFilePathById,
-  loadStyles,
   readStyleFile,
   saveStyleCodeById,
 } from "../../modules/styles";
@@ -3103,7 +3102,7 @@ async function saveStyle(): Promise<void> {
     }
     markEditorPersistedState(updatedCode, fullPath);
 
-    await loadStyles(true);
+    await addon.api.reloadStyles(true);
     setStatus(t("style-editor-status-saved", { args: { path: fullPath } }));
   } catch (e) {
     setStatus(`${t("style-editor-error-prefix")}: ${String(e)}`);

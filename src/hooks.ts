@@ -1,7 +1,14 @@
 import { dialogExample } from "./modules/debug";
+// Side-effect import: installs the main-window executable style index hooks.
+import "./modules/styleIndex";
 import { registerPrefs, onPrefsWindowLoad } from "./modules/preferences";
 import { createZToolkit } from "./utils/ztoolkit";
-import { getStyle, installPresetStyles, loadStyles } from "./modules/styles";
+import {
+  generateStyle,
+  getStyle,
+  installPresetStyles,
+  loadStyles,
+} from "./modules/styles";
 import { useL10n } from "./utils/locale";
 import {
   registerStyleSheet,
@@ -23,6 +30,8 @@ import { DIALOG_WINDOW_NAME } from "./modules/multilingualItem";
 import { findWindowByName } from "./utils/window";
 
 function registerAPIs(): void {
+  addon.api.reloadStyles = loadStyles;
+  addon.api.generate = generateStyle;
   addon.api.getStyleUI = async (style) => {
     const cachedStyle = await getStyle(style);
     return cachedStyle.UI ?? { cite: [], citation: [] };
