@@ -3,6 +3,8 @@ build
 logs
 node_modules
 scripts
+integrations
 addon/content/integration
 addon/content/styleEditor/presets/**/*.js
 addon/content/styleEditor/presets/**/*.json
+test-gui/.state

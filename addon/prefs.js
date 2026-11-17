@@ -10,6 +10,3 @@ pref("citationDialogCollectionTreeWidth", 170);
 pref("serverTrustedOrigins", "[]");
 pref("httpsProxyEnabled", false);
 pref("httpsProxyState", "");
-pref("debugLoggingEnabled", false);
-pref("debugLoggingModules", "");
-pref("debugLoggingDesktopAutoExport", false);

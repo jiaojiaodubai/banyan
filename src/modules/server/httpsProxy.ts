@@ -1,5 +1,8 @@
 import { clearPref, getPref, setPref } from "../../utils/prefs";
 import { useL10n } from "../../utils/locale";
+import { createLogger } from "../../utils/logger";
+
+const log = createLogger("server.https-proxy");
 
 const t = useL10n();
 
@@ -37,11 +40,7 @@ let startPromise: Promise<number> | null = null;
 const connections = new Set<ProxyConnection>();
 
 function logProxyError(error: unknown): void {
-  ztoolkit.logError(
-    error instanceof Error
-      ? error
-      : new Error(`[https-proxy] ${String(error)}`),
-  );
+  log.error("proxy failure", error);
 }
 
 function validateTargetPort(port: number): void {
@@ -482,9 +481,7 @@ async function startHttpsProxy(targetPort: number): Promise<number> {
     const server = createTlsServer(certificate, targetPort);
     tlsServer = server;
     upstreamPort = targetPort;
-    ztoolkit.log(
-      `[https-proxy] listening port=${server.port} upstream=${targetPort}`,
-    );
+    log.debug(`listening port=${server.port} upstream=${targetPort}`);
     return server.port;
   })();
 

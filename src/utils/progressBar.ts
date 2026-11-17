@@ -1,5 +1,8 @@
 import { getPref } from "./prefs";
 import { isWindowAlive } from "./window";
+import { createLogger } from "./logger";
+
+const log = createLogger("progress-bar");
 
 type ProgressSetter = (percent: number | null) => void;
 
@@ -60,12 +63,10 @@ export class ProgressBar {
     clearTimeout(this.timeoutId);
     if (this.isOpen && this.win) {
       this.win.close();
-      ztoolkit.log(`Progress bar closed${reason ? `: ${reason}` : ""}`);
+      log.debug(`progress bar closed${reason ? `: ${reason}` : ""}`);
       this.win = undefined;
     } else {
-      ztoolkit.log(
-        `Progress bar not open${reason ? `, reason: ${reason}` : ""}`,
-      );
+      log.debug(`progress bar not open${reason ? `, reason: ${reason}` : ""}`);
     }
   }
 }

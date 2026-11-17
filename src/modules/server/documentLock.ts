@@ -1,4 +1,7 @@
 import { getPref } from "../../utils/prefs";
+import { createLogger } from "../../utils/logger";
+
+const log = createLogger("server.document-lock");
 
 const documentLocks = new Map<string, Promise<void>>();
 const styleLocks = new Map<string, Promise<void>>();
@@ -84,8 +87,8 @@ function createQueuedLock(
       const timeout = getLockWatchdogTimeout();
       watchdogId = setTimeout(() => {
         forceReleased = true;
-        ztoolkit.logError(
-          `[server] ${kind} lock for "${key}" was held for ${timeout}ms; forcing release to unblock queued requests`,
+        log.error(
+          `${kind} lock for "${key}" was held for ${timeout}ms; force-released to unblock queued requests`,
         );
         release();
       }, timeout);

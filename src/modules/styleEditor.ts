@@ -1,6 +1,9 @@
 import { useL10n } from "../utils/locale";
 import { getPref, setPref } from "../utils/prefs";
 import { version as pluginVersion } from "../../package.json";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("style-editor");
 
 const t = useL10n(["styleEditor.ftl"]);
 
@@ -429,7 +432,7 @@ export function openStyleEditorWindow(): void {
     // @ts-expect-error activate is not typed
     Zotero.Utilities.Internal.activate(win);
   } catch (e) {
-    ztoolkit.logError(e);
+    log.error("activating the style editor window failed", e);
     ztoolkit.getGlobal("alert")(
       `${t("style-editor-error-prefix")}: ${String(e)}`,
     );

@@ -18,8 +18,8 @@ logs
 
 .codex-logs
 .claude
+.tmp
 dev
+test-gui/.state
 copilot-instructions.md
-addon/content/scripts
 addon/content/integration
-integrations

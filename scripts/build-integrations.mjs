@@ -16,8 +16,8 @@
 
   Submodule working trees are fetched with
   `git submodule update --init --recursive` (CI checkout actions do this
-  automatically). The WPS submodule does not commit a lockfile, so it installs
-  with `npm install`; set `SKIP_WPS_INSTALL=1` to skip that step.
+  automatically). The WPS submodule commits its lockfile, so the build installs
+  it with `npm ci`; set `SKIP_WPS_INSTALL=1` to skip that step.
 */
 import { execSync } from "node:child_process";
 import { access, copyFile, cp, mkdir, readdir, rm } from "node:fs/promises";
@@ -124,7 +124,11 @@ async function buildWPS() {
   }
   console.log("[integrations:build] Building WPS add-in submodule...");
   if (!process.env.SKIP_WPS_INSTALL) {
-    run("npm install --no-audit --no-fund", { cwd: wpsRepoDir });
+    // A committed lockfile keeps CI and local installs on the same tree; fresh
+    // resolution also trips the npm 10 arborist crash on optional peer edges.
+    const lockfile = path.join(wpsRepoDir, "package-lock.json");
+    const command = (await exists(lockfile)) ? "npm ci" : "npm install";
+    run(`${command} --no-audit --no-fund`, { cwd: wpsRepoDir });
   }
   run("npm run build", { cwd: wpsRepoDir });
 

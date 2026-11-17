@@ -1,4 +1,7 @@
 import wpsAddinManifest from "../../addon/content/integration/WPS/addin-manifest.json";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("integration");
 
 type WPSAddinAsset = {
   relativePath: string;
@@ -69,7 +72,7 @@ function logWpsAddinError(
 ): void {
   void stage;
   void details;
-  ztoolkit.logError(error);
+  log.error("WPS add-on operation failed", error);
 }
 
 // ── Word .dotm template helpers ──────────────────────────────
@@ -111,7 +114,7 @@ function logWordTemplateError(
 ): void {
   void stage;
   void details;
-  ztoolkit.logError(error);
+  log.error("Word template operation failed", error);
 }
 
 function getWordTemplateAssetURL(): string {
