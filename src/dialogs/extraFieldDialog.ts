@@ -1,6 +1,6 @@
 import { useL10n } from "../utils/locale";
-import { unwrapDialogIO } from "../utils/window";
 import { createLogger } from "../utils/logger";
+import { unwrapDialogIO } from "../utils/window";
 
 const log = createLogger("extra-field-dialog");
 
@@ -56,7 +56,7 @@ window.addEventListener("unload", () => {
 function initExtraFieldDialog(): void {
   const arg = unwrapDialogIO<IO>(window.arguments?.[0]);
   if (!arg) {
-    log.warn("extraFieldDialog: window IO is missing");
+    log.error("Window IO is missing");
     return;
   }
   io = arg;

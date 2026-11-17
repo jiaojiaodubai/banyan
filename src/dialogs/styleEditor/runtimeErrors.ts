@@ -13,7 +13,7 @@ type RuntimeErrorInfo = {
   lineNumber: number | null;
   columnNumber: number | null;
   stack: string | null;
-  phase: string | null;
+  code: string | null;
   sourcePath: string | null;
   cause: unknown;
 };
@@ -147,13 +147,11 @@ function toRuntimeErrorInfo(error: unknown): RuntimeErrorInfo {
   const rawStack =
     typeof raw?.stack === "string" && raw.stack.trim() ? raw.stack : null;
   const stack = rawStack ? remapSandboxStackLines(rawStack) : null;
-  const phase =
-    typeof raw?.banyanPhase === "string" && raw.banyanPhase.trim()
-      ? raw.banyanPhase
-      : null;
+  const code =
+    typeof raw?.code === "string" && raw.code.trim() ? raw.code : null;
   const sourcePath =
-    typeof raw?.banyanSourcePath === "string" && raw.banyanSourcePath.trim()
-      ? raw.banyanSourcePath
+    typeof raw?.sourcePath === "string" && raw.sourcePath.trim()
+      ? raw.sourcePath
       : null;
 
   return {
@@ -163,7 +161,7 @@ function toRuntimeErrorInfo(error: unknown): RuntimeErrorInfo {
     lineNumber,
     columnNumber,
     stack,
-    phase,
+    code,
     sourcePath,
     cause: raw?.cause,
   };
@@ -287,7 +285,15 @@ function summarizeInternalRuntimeStack(lines: string[]): string[] {
 }
 
 function getRuntimeErrorHint(info: RuntimeErrorInfo): string | null {
-  if (info.phase !== "generate-output" || !info.sourcePath) {
+  if (info.code === "host-capability") {
+    return [
+      "This is an environment problem, not a style problem:",
+      "the host running the style does not provide a capability the style needs.",
+      "A host binding has to implement it (the Zotero plugin provides all of them).",
+    ].join(" ");
+  }
+
+  if (info.code !== "generate-output" || !info.sourcePath) {
     return null;
   }
 

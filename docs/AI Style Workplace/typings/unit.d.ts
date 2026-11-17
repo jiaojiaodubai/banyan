@@ -34,7 +34,7 @@ export type WhenUnit = {
   type: "when";
   condition: boolean;
   trueUnit: Unit;
-  flseUnit?: Unit;
+  elseUnit?: Unit;
 };
 
 export type WithStyleUnit = {
@@ -68,6 +68,7 @@ export type Unit =
   | TextCaseUnit
   | WithStyleUnit
   | LinkUnit
+  | RichText
   | PrintableValue;
 
 export type TextRange = {
@@ -89,7 +90,7 @@ export type RichText = {
   /** Plain text content for the full rendered unit. */
   text: string;
   /** Visual and interactive ranges over `text`. */
-  marks: InlineMark[];
+  marks: readonly InlineMark[];
 };
 
 /**
@@ -99,6 +100,10 @@ export type RichText = {
  * host compiles any Unit into `RichText { text, marks }` and derives every
  * mark range itself, so never hand-write `RichText`/mark offsets. A bare
  * `string` or finite `number` is also accepted wherever a Unit is expected.
+ * A structured `RichText` value (such as a parsed rich marker) is a Unit
+ * too, but it is normalized rather than trusted: unknown mark kinds,
+ * out-of-range offsets and disallowed link/color values are dropped. Builders
+ * remain the way to derive new offsets.
  *
  * A unit is *empty* when it compiles to no visible text (e.g. `""`, a
  * missing safe-view field, or a combination whose parts are all empty).
@@ -110,8 +115,10 @@ export type UnitUtils = {
   text: (value: PrintableValue, style?: RenderStyle) => TextUnit;
   /**
    * Compile a unit (or a list of units) and return its final visible text
-   * as a plain string — structure, affixes and casing resolved, empty
-   * parts dropped.
+   * as a plain string — structure, affixes, casing and markup resolved, empty
+   * parts dropped. Like generate output, this parses the host's restricted
+   * markup and decodes entities, so `<i>`, `nocase` spans and `&amp;` never
+   * leak into comparisons; it needs the host's `parseHtml` capability.
    */
   plainText: (input: Unit | readonly Unit[]) => string;
   /**
@@ -133,12 +140,14 @@ export type UnitUtils = {
    * optional pieces of content.
    */
   fallback: (units: Unit[]) => FallbackUnit;
-  /** Render `trueUnit` when `condition` holds; otherwise render `flseUnit` if given, else nothing. */
-  when: (condition: boolean, trueUnit: Unit, flseUnit?: Unit) => WhenUnit;
+  /** Render `trueUnit` when `condition` holds; otherwise render `elseUnit` if given, else nothing. */
+  when: (condition: boolean, trueUnit: Unit, elseUnit?: Unit) => WhenUnit;
   /**
    * Reformat the rendered text of `unit` into `form` (`lower`/`upper`/
    * `small-caps`/`title`/`sentence`/`name`). Words in `ignoreWords` are
-   * left untouched where the form is case-aware.
+   * left untouched where the form is case-aware, including `name`: the word
+   * keeps the spelling declared in `ignoreWords` (`["der"]` turns
+   * `VAN DER BERG` into `Van der Berg`).
    */
   textCase: (
     unit: Unit,

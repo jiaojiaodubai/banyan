@@ -1,10 +1,10 @@
-import type { RichText } from "../../typings/unit";
-import { richTextFromRuns, RichTextRun } from "../utils/richText";
+import type { RichText } from "@banyan/core/types/unit";
+import { richTextFromRuns, RichTextRun } from "@banyan/core/richText/richText";
 import {
   renderRichTextToFragment as renderRichTextPreviewToFragment,
   type RenderRichTextFragmentOptions,
-} from "../utils/richTextHtml";
-import { sanitizeLink } from "../utils/html";
+} from "./richTextFragment";
+import { sanitizeLink } from "@banyan/core/richText/html";
 import { useL10n } from "../utils/locale";
 
 type UnitStyle = Omit<RichTextRun, "value">;

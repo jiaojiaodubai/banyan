@@ -1,0 +1,201 @@
+@namespace xul url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+/*
+ * Shared control rendering: one field per control, with a description tooltip
+ * and rich-value preview. Used by the style options panel, the citation dialog
+ * and the cite popup.
+ */
+
+.banyan-control-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 170px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.banyan-control-label,
+.banyan-control-checkbox {
+  font-weight: normal;
+  line-height: 1.3;
+}
+
+.banyan-control-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* XUL's default 4px margin and 4px inline padding indent the checkmark beyond
+   the labels and inputs above it. Zotero's own preference checkboxes keep the
+   graphic on the field's leading edge. */
+.banyan-control-body > xul|checkbox {
+  margin-inline: 0;
+  padding-inline: 0;
+}
+
+.banyan-control-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.banyan-control-body input[type="text"] {
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.banyan-control-body select,
+.banyan-control-body xul|menulist {
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: normal;
+}
+
+.banyan-control-body [aria-invalid="true"] {
+  outline: 1px solid #c00;
+  outline-offset: -1px;
+}
+
+.banyan-control-rich {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.banyan-control-rich-preview {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 26px;
+  box-sizing: border-box;
+  padding: 0 0 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(255, 255, 255, 0.5442);
+  border-radius: 3px;
+  background-color: var(--fill-quinary);
+  line-height: normal;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+
+.banyan-control-rich-preview:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.banyan-control-rich-preview[aria-disabled="true"] {
+  cursor: default;
+}
+
+@media (prefers-color-scheme: light) {
+  .banyan-control-rich-preview {
+    border-color: rgba(0, 0, 0, 0.0578);
+    border-bottom-color: rgba(0, 0, 0, 0.4458);
+    background-color: var(--color-background70);
+  }
+}
+
+.banyan-control-rich-preview.is-empty {
+  /* Drawn by ::before so the placeholder looks like an input's, not dimmed text. */
+  color: var(--fill-secondary);
+}
+
+.banyan-control-rich-preview.is-empty::before {
+  content: attr(data-placeholder);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.banyan-control-rich.is-disabled {
+  opacity: 0.6;
+}
+
+/* Zotero's Windows checkbox ring wraps a labeled `checkbox[native]` element, so
+   ours would outline the whole row. Keep the ring on the check graphic only,
+   as the item pane's own checkboxes do. */
+.banyan-control-body > xul|checkbox[native]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.banyan-control-body > xul|checkbox[native]:focus-visible > .checkbox-check {
+  outline: var(--color-focus-outer-border, var(--color-accent)) solid
+    var(--width-focus-outer-border, 1px);
+  outline-offset: var(--width-focus-border, 1px);
+  box-shadow: 0 0 0 var(--width-focus-border, 1px)
+    var(--color-focus-border, var(--color-accent));
+}
+
+/* Rich value dialog: a minimal modal over the owning dialog. */
+.banyan-richtext-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.banyan-richtext-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 88vw);
+  min-width: 420px;
+  min-height: 260px;
+  max-width: 96vw;
+  max-height: 86vh;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  /* A dialog surface, matching the window the bibliography editor sits in. */
+  background: var(--material-sidepane);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  /* The value area can be tall; let the user size the card like a window. */
+  resize: both;
+}
+
+.banyan-richtext-dialog-title {
+  flex: 0 0 auto;
+  padding: 16px 16px 0;
+  font-size: 1.25em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.banyan-richtext-dialog-editor {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px 16px;
+  overflow: auto;
+}
+
+.banyan-richtext-dialog .banyan-richtext {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.banyan-richtext-dialog .banyan-richtext-editor {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 120px;
+  max-height: none;
+  /* The card has its own resize grip; a second one inside is confusing. */
+  resize: none;
+}

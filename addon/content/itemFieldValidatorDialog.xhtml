@@ -26,7 +26,6 @@
 
     <script src="chrome://zotero/content/include.js"></script>
     <script src="chrome://zotero/content/customElements.js"></script>
-    <script src="chrome://zotero/content/titlebar.js"></script>
     <script>
       const addon = Zotero.__addonInstance__;
       const ztoolkit = addon.data.ztoolkit;
@@ -35,28 +34,10 @@
   </head>
   <body>
     <header class="report-header">
-      <div class="report-header-text">
-        <div
-          class="report-title"
-          data-l10n-id="item-field-validator-dialog-title"
-        ></div>
-        <div id="report-style" class="report-style"></div>
-        <div id="report-summary" class="report-summary">
-          <div id="report-summary-items"></div>
-          <div id="report-summary-checks"></div>
-        </div>
-      </div>
-      <div class="report-actions">
-        <button
-          id="expand-all"
-          type="button"
-          data-l10n-id="item-field-validator-expand-all"
-        ></button>
-        <button
-          id="collapse-all"
-          type="button"
-          data-l10n-id="item-field-validator-collapse-all"
-        ></button>
+      <div id="report-style" class="report-style"></div>
+      <div id="report-summary" class="report-summary">
+        <div id="report-summary-items"></div>
+        <div id="report-summary-checks"></div>
       </div>
     </header>
 
@@ -65,6 +46,18 @@
         id="report-tree-container"
         class="virtualized-table-container report-tree-container"
       ></div>
+      <section id="report-details" class="report-details" hidden="true">
+        <div
+          id="report-details-table-container"
+          class="report-details-table-container"
+        ></div>
+        <div
+          id="report-details-empty"
+          class="report-details-empty"
+          hidden="true"
+          data-l10n-id="item-field-validator-no-checks"
+        ></div>
+      </section>
       <div
         id="report-empty"
         class="report-empty"
@@ -72,14 +65,5 @@
         data-l10n-id="item-field-validator-empty"
       ></div>
     </main>
-
-    <footer class="dialog-footer report-footer">
-      <span class="report-hint" data-l10n-id="item-field-validator-hint"></span>
-      <button
-        id="close-button"
-        type="button"
-        data-l10n-id="item-field-validator-close"
-      ></button>
-    </footer>
   </body>
 </html>

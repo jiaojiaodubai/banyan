@@ -1,8 +1,8 @@
 import {
   CREATOR_EXT_FIELDS,
   CREATORS_EXT_KEY,
-  replaceExtraFieldBlock,
-} from "../utils/item";
+} from "@banyan/core/items/creatorsExt";
+import { replaceExtraFieldBlock } from "@banyan/core/items/extra";
 import { switchCreatorNameMode } from "../utils/creatorName";
 import {
   buildCreatorsExtWrite,
@@ -18,12 +18,12 @@ import {
 import { useL10n } from "../utils/locale";
 import { unwrapCreatorExtDialogIO } from "../utils/creatorsExtDialogIO";
 import type { CreatorExtDialogIO } from "../../typings/creatorsExtDialog";
-import type { Creator, CreatorExtField } from "../../typings/item";
+import type { Creator, CreatorExtField } from "@banyan/core/types/item";
 import type { CreatorSnapshot } from "../../typings/multilingualItem";
 import type { FluentMessageId } from "../../typings/i10n";
 import { createLogger } from "../utils/logger";
 
-const log = createLogger("creators-ext");
+const log = createLogger("creators-ext-dialog");
 
 type ZoteroCreatorType = _ZoteroTypes.Item.CreatorJSON["creatorType"];
 
@@ -127,7 +127,7 @@ async function init(): Promise<void> {
       setReadOnly();
     }
   } catch (error) {
-    log.error("Failed to load the creator extension dialog", error);
+    log.error("Failed to initialize creator extensions dialog", error);
     showErrorDialog(error instanceof Error ? error.message : String(error));
     setButtonDisabled("save-button", true);
   }
@@ -179,13 +179,12 @@ async function loadSession(
   );
   orphanLines = loaded.orphanLines;
   for (const issue of loaded.issues) {
-    log.debug(`creators-ext: ${issue}`);
+    log.warn(issue);
   }
   // Unmatched lines are dropped on save; logging here is their only trace.
   if (orphanLines.length) {
     log.warn(
-      `creators-ext: ${orphanLines.length} record(s) match no creator and will be dropped on save: ` +
-        orphanLines.join(" "),
+      `${orphanLines.length} record(s) match no creator and will be dropped on save: ${orphanLines.join(" ")}`,
     );
   }
   const carried = carryOverCreatorExtensions(previous, creatorRecords);
@@ -1096,7 +1095,7 @@ async function save(): Promise<void> {
     await latest.saveTx({ undoAction: "undo-action-edit-creator" });
     finish();
   } catch (error) {
-    log.error("Failed to save the creator extension changes", error);
+    log.error("Failed to save creator extension data", error);
     showErrorDialog(
       error instanceof Error ? error.message : t("creators-ext-save-failed"),
     );

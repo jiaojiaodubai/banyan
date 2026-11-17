@@ -1,4 +1,4 @@
-// Tests load plain `.mjs` helpers from `scripts/` and the style editor's
-// ESLint plugin from the addon; declare the wildcard rather than guessing each
-// module's export shape.
+// The style editor's ESLint plugin ships as plain JS inside the addon, and the
+// parity test loads it directly; declare the wildcard rather than guessing its
+// export shape.
 declare module "*.mjs";

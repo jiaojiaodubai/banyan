@@ -5,6 +5,48 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit the
 top section as needed; `pnpm release` will then cut the version.
 -->
 
+## Unreleased
+
+### 🚀 Enhancements
+
+- **style options:** Styles declare `STYLE_OPTIONS` for document-wide options; `generate()` receives the values through the readonly global `options`. The core resolves effective values, while the settings UI and automation retain the stored values.
+- **style editor:** Preview a style's global options and the last run's sandbox findings beside the output; trace lines stay in their own console section
+- **parameters:** `CITATION_PARAMS` / `CITE_PARAMS` describe author inputs as `state` (boolean or `states` enum), `value` (plain or rich markup string) or `list` (repeated value fields). `defaultValue`, `applicable`, `forcedValue` and `validate` cover defaults, applicability, locked values and free-value checks without exposing widgets.
+- The core resolves all three scopes before `generate()`; hidden values fall back to `defaultValue`, forced values are read-only, and `citation.source` preserves stored values instead of writing defaults back.
+
+### 🩹 Fixes
+
+- **style runtime:** Load declared resources from nested paths on Windows while keeping the data-directory boundary enforced.
+- **style editor:** Report empty required bundled resources as startup failures instead of silently installing empty files.
+- **controls:** Align native Zotero inputs and menus with their labels; match rich-text previews to native input dimensions; open rich-text editing from the preview; keep list controls on one line with inline labels and native add/remove buttons; size the cite popup to its content; show descriptions in tooltips
+- **validation:** Block citation confirmation as soon as a citation or cite parameter is invalid, mark the offending bubble/field, and show errors in a dialog that focuses the first invalid control instead of reserving lines under controls
+- **rich-text dialog:** Use the shared dialog footer metrics and button order, unify the heading and inner padding, and mark the confirm button as the default action
+- **style editor:** Wrap long lint/error lines and keep their containers within the output pane; wrap the copied runtime-error text instead of scrolling horizontally
+- **bibliography:** Match the uncited-items tree's icon/title spacing to Zotero's item tree
+- **debug:** Open the citation and bibliography dialogs with the last used style instead of the alphabetically first style, so a style without cite parameters does not produce an empty cite popup during manual checks
+
+### 💅 Styles
+
+- **breaking:** Style inputs use `STYLE_OPTIONS` / `CITATION_PARAMS` / `CITE_PARAMS`. Each entry declares `kind: "state" | "value" | "list"` with `defaultValue`, and optional `applicable` / `forcedValue` / `validate`; no compatibility aliases are kept.
+- **breaking:** rich parameter values are restricted markup strings with `format: "rich"`; `list` rows contain string fields only.
+- **breaking:** Item identity is the opaque string `id`; `key`, `uri` and `relations` are no longer exposed to styles, and the durable reference is the host-private `z:uri` extension key
+
+### 💅 Refactors
+
+- **core:** Extract the host-agnostic style runtime into `@banyan/core`; the plugin now supplies the Gecko sandbox, the three host capabilities and item conversion, while the core owns loading, parameters, output normalization and diagnostics
+- **comments:** Remove stale, scaffold-style and prompt-style comments across the sandbox, dialogs and preferences; drop the unused `exportHostObject` helper and refresh the core-extraction notes
+
+### ✅ Tests
+
+- Add `test/sandboxHost.test.ts` to cover the Gecko host adapter: host-global isolation, readonly contexts, utility/console replacement, HTML parsing, file boundaries, validator/list provenance, generate timeouts, diagnostics and binary bridging
+- Prefix style findings with `[style=<id> / <title>]` so batch `style-load` problems can be traced back to a file
+- Retire the public GUI acceptance suite; keep its fixtures and manual checklist in the untracked `dev/` workspace for local automation experiments
+
+### 📖 Documentation
+
+- Add `docs/CONTRIBUTING.md` for environment setup, directory ownership, engineering constraints, test layers and release instructions; link it from both READMEs
+- Keep GUI acceptance material in the untracked `dev/` workspace; replace local core references with links to the published core repository, and move the host obligations mapping to `docs/HOST_OBLIGATIONS.md`
+
 ## v0.5.0 (2026-11-18)
 
 [compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.4.0...v0.5.0)

@@ -1,4 +1,4 @@
-## Banyan 本地集成接口指南
+## Banyan 本地集成开发指南
 
 面向：本地集成插件开发者（例如文字处理器、AI 辅助工具）。Banyan 通过本地 HTTP 服务与外部进程交互，不需要公网网络。
 
@@ -58,7 +58,17 @@ async function addOrEditCitation(base: string) {
     style: { id: "your-style-id", title: "Your Style" },
     source: {
       citationType: "in-text",
-      cites: [{ item: { id: 1, key: "ABCD1234" } }],
+      cites: [
+        {
+          item: {
+            // Host-encoded opaque handle; Zotero's numeric itemID as a string.
+            id: "1",
+            // Zotero-private durable reference; other hosts use their own
+            // namespaced extension key.
+            "z:uri": "http://zotero.org/users/123/items/ABCD1234",
+          },
+        },
+      ],
       uncited: [],
     },
   };
@@ -91,7 +101,7 @@ async function addOrEditCitation(base: string) {
 - `/banyan/hello`：健康检查。
 - `/banyan/showInLibrary`：在 Zotero 主界面定位条目。请求体：`{ uri: string }`。
 - `/banyan/style`：弹出样式选择对话框。请求体：`(StyleIdentifier & { documentId: string }) | { documentId: string }`。
-- `/banyan/style/list`：返回已加载的样式列表，不打开 GUI。请求体：无；响应体：`StyleSummary[]`。
+- `/banyan/style/list`：返回已加载的样式列表，不打开 GUI。请求体：无；响应体：`StyleSummary[]`，每项另带 `optionParams`（`STYLE_OPTIONS` 的可序列化声明，含 `id`、`kind`、`label`、`defaultValue`、`states`、`presets` 等；运行期回调以 `has*` 标志表示）。
 - `/banyan/citation`：弹出引注对话框。请求体：`CitationRequestData`。
 - `/banyan/bibliography`：弹出参考文献行编辑对话框。请求体：`BibliographyRequestData`。
 - `/banyan/refresh`：基于样式重新生成 citations 与 bibliography。请求体：`{ documentId, style, contexts, syncItems }`。`syncItems` 未显式设为 `false` 时，Banyan 会尝试从 Zotero 同步并回填完整条目数据；设为 `false` 时直接使用 `contexts` 中已有的 item 数据。
@@ -109,8 +119,3 @@ async function addOrEditCitation(base: string) {
 
 - 默认无流式数据，建议客户端设置 30–60 秒请求超时，超时后提示用户重试。
 - 服务端请求体上限为 **20 MB**（`Content-Length` 超过则返回 `413`）。客户端无需自行截断。
-
-### 未来兼容性
-
-- 新增路由或字段会遵循向后兼容策略：新增字段为可选，现有字段不会变更语义。
-- 如需固定 CORS 来源或鉴权，可在未来版本扩展端点策略。

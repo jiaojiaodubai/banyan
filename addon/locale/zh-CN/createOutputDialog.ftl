@@ -1,5 +1,6 @@
 create-output-dialog-title = 创建引注/参考文献表
 create-output-style-label = 样式
+create-output-options-label = 样式选项
 create-output-type-label = 输出类型
 create-output-type-bibliography = 参考文献表
 create-output-type-citation = 引注
@@ -18,3 +19,7 @@ create-output-cancel = 取消
 create-output-no-styles = 没有可用的样式
 create-output-error-no-style = 请选择一个样式
 create-output-error-incomplete = 请完成所有选项
+create-output-error-invalid-options = 请先修正样式选项中的错误
+create-output-error-options-unavailable = 无法读取该样式的选项，请选择其他样式或重新打开对话框。
+create-output-status-copied = 已复制到剪贴板
+create-output-status-saved = 已保存

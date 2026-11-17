@@ -4,10 +4,10 @@ Banyan 与两个“前端”集成仓库**绑定发布**：打包进 XPI 的
 `addon/content/integration/` 产物全部由源代码仓库实时构建，确保插件与
 WPS/Word 客户端版本一一对应。
 
-| 集成       | 源码子模块                         | 构建方式                                                              | 产物落点                                          |
-| ---------- | ---------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------- |
-| WPS        | `integrations/Banyan-for-WPS`      | `npm install` + `npm run build`（仓库不提交 lockfile，故非 `npm ci`） | `addon/content/integration/WPS/<Name>_<Version>/` |
-| Word (VBA) | `integrations/Banyan-for-Word-VBA` | 仓库内已提交 `Banyan.dotm`，直接复制                                  | `addon/content/integration/Word/Banyan.dotm`      |
+| 集成       | 源码子模块                         | 构建方式                                         | 产物落点                                          |
+| ---------- | ---------------------------------- | ------------------------------------------------ | ------------------------------------------------- |
+| WPS        | `integrations/Banyan-for-WPS`      | `npm ci` + `npm run build`（锁文件随子模块提交） | `addon/content/integration/WPS/<Name>_<Version>/` |
+| Word (VBA) | `integrations/Banyan-for-Word-VBA` | 仓库内已提交 `Banyan.dotm`，直接复制             | `addon/content/integration/Word/Banyan.dotm`      |
 
 > `addon/content/integration/` 本身被 `.gitignore` 忽略，永不提交；CI 每次
 > 从子模块装配后再构建。

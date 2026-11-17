@@ -6,6 +6,14 @@ import prettier from "prettier";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
+const coreTypesDir = path.resolve(
+  rootDir,
+  "node_modules",
+  "@banyan",
+  "core",
+  "src",
+  "types",
+);
 
 const outputDir = path.join(rootDir, "addon", "content", "styleEditor");
 const aiWorkplaceTypingsDir = path.join(
@@ -16,17 +24,17 @@ const aiWorkplaceTypingsDir = path.join(
 );
 const declarationFiles = [
   {
-    source: path.join(rootDir, "typings", "item.d.ts"),
+    source: path.join(coreTypesDir, "item.d.ts"),
     target: path.join(outputDir, "item.d.ts"),
     globalize: true,
   },
   {
-    source: path.join(rootDir, "typings", "unit.d.ts"),
+    source: path.join(coreTypesDir, "unit.d.ts"),
     target: path.join(outputDir, "unit.d.ts"),
     globalize: true,
   },
   {
-    source: path.join(rootDir, "typings", "style.d.ts"),
+    source: path.join(coreTypesDir, "style.d.ts"),
     target: path.join(outputDir, "style.d.ts"),
     globalize: true,
     references: ["./item.d.ts", "./unit.d.ts"],
@@ -37,10 +45,18 @@ const declarationFiles = [
  * strings at runtime, while array semantics stay unchanged.
  */
 declare const contexts: ScriptContexts;
+
+/**
+ * \`options\` is injected as a readonly global by the sandbox before
+ * \`generate()\` is called. It carries the effective document-wide parameter
+ * values: declared defaults filled in, hidden values replaced, and forced
+ * values applied.
+ */
+declare const options: StyleOptionValues;
 `,
   },
   {
-    source: path.join(rootDir, "typings", "styleUtils.d.ts"),
+    source: path.join(coreTypesDir, "styleUtils.d.ts"),
     target: path.join(outputDir, "styleUtils.d.ts"),
     globalize: true,
     references: ["./style.d.ts", "./unit.d.ts"],
@@ -54,7 +70,7 @@ const aiWorkplaceTypingsFiles = [
   "style.d.ts",
   "styleUtils.d.ts",
 ].map((fileName) => ({
-  source: path.join(rootDir, "typings", fileName),
+  source: path.join(coreTypesDir, fileName),
   target: path.join(aiWorkplaceTypingsDir, fileName),
 }));
 
@@ -197,7 +213,7 @@ function buildStyleUtilsGlobalDeclarations(sourceText) {
   const keys = new Set(extractObjectTypeKeysFromSource(sourceText, "StyleUtils"));
 
   if (/\bUnitUtils\b/.test(styleUtilsTypeExpression)) {
-    const unitDeclarationPath = path.join(rootDir, "typings", "unit.d.ts");
+    const unitDeclarationPath = path.join(coreTypesDir, "unit.d.ts");
     const unitDeclarationSource = readFileSync(unitDeclarationPath, "utf8");
     for (const key of extractObjectTypeKeysFromSource(
       unitDeclarationSource,

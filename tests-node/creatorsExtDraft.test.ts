@@ -9,9 +9,9 @@ import {
 import {
   parseCreatorsExt,
   reconcileCreatorsExt,
-  replaceExtraFieldBlock,
-} from "../src/utils/item";
-import type { Creator } from "../typings/item";
+} from "@banyan/core/items/creatorsExt";
+import { replaceExtraFieldBlock } from "@banyan/core/items/extra";
+import type { Creator } from "@banyan/core/types/item";
 import type { CreatorSnapshot } from "../typings/multilingualItem";
 
 const CREATORS_EXT_PREFIX = "creators-ext: ";

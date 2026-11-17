@@ -6,12 +6,12 @@ import {
   isValidExtraKey,
   normalizeExtraKey,
   toTitleCaseExtraKey,
-} from "../utils/item";
+} from "@banyan/core/items/extra";
 import {
   analyzeExtraField,
   mergeExtraField,
   needsConflictDecision,
-} from "../utils/extraField";
+} from "@banyan/core/items/extraField";
 import type { ItemMenuContribution } from "../../typings/menu";
 import { createLogger } from "../utils/logger";
 
@@ -66,7 +66,7 @@ export async function recoverItemAfterFailedSave(
     item._clearChanged();
     return;
   } catch (error) {
-    log.error("Failed to restore the item after a failed save", error);
+    log.error("Failed to restore item", error);
   }
   restoreFallback();
 }
@@ -113,7 +113,7 @@ async function openWriteExtraFieldDialog(): Promise<void> {
             try {
               await batchWriteExtraField(selectedItems, io.result);
             } catch (e) {
-              log.error("Failed to write the extra field", e);
+              log.error("Failed to write extra fields in batch", e);
               showSimpleMessage(
                 t("extra-field-write-failed", {
                   args: {

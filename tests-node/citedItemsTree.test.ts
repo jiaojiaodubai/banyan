@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import type { CitationContext, IntextCitation } from "../typings/style";
+import type { CitationContext, IntextCitation } from "@banyan/core/types/style";
 
 type StubRef = { libraryID?: number; id?: number; name?: string };
 
@@ -246,7 +246,7 @@ function createStubState(): StubState {
   return state;
 }
 
-function createContext(id: string, itemID: number): CitationContext {
+function createContext(id: string, itemID: string): CitationContext {
   return {
     id,
     page: 1,
@@ -299,7 +299,7 @@ describe("cited-items rows in the collections tree", function () {
     beforeEach(async function () {
       state = createStubState();
       module.registerCitationColumn();
-      const context = createContext("ctx-1", 101);
+      const context = createContext("ctx-1", "101");
       await module.updateCitationColumnFromRefresh(
         { documentId: DOCUMENT_ID, contexts: [context] },
         {
@@ -334,7 +334,7 @@ describe("cited-items rows in the collections tree", function () {
       // or a new one in the library), and a second document arrives.
       state.view.selection.focused = 1;
       state.view.collections = [2, 1];
-      const context = createContext("ctx-2", 102);
+      const context = createContext("ctx-2", "102");
       await module.updateCitationColumnFromRefresh(
         { documentId: SECOND_DOCUMENT_ID, contexts: [context] },
         {
@@ -354,7 +354,7 @@ describe("cited-items rows in the collections tree", function () {
     });
 
     it("keeps the tree as it is while every document row is present", async function () {
-      const context = createContext("ctx-1", 101);
+      const context = createContext("ctx-1", "101");
       await module.updateCitationColumnFromRefresh(
         { documentId: DOCUMENT_ID, contexts: [context] },
         {
@@ -387,7 +387,7 @@ describe("cited-items rows in the collections tree", function () {
       state = createStubState();
       state.view.libraryOpen = false;
       module.registerCitationColumn();
-      const context = createContext("ctx-1", 101);
+      const context = createContext("ctx-1", "101");
       await module.updateCitationColumnFromRefresh(
         { documentId: DOCUMENT_ID, contexts: [context] },
         {
@@ -424,8 +424,8 @@ describe("cited-items rows in the collections tree", function () {
     beforeEach(async function () {
       state = createStubState();
       module.registerCitationColumn();
-      const first = createContext("ctx-1", 101);
-      const second = createContext("ctx-2", 101);
+      const first = createContext("ctx-1", "101");
+      const second = createContext("ctx-2", "101");
       await module.updateCitationColumnFromRefresh(
         { documentId: DOCUMENT_ID, contexts: [first] },
         {

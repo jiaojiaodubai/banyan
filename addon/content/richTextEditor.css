@@ -2,6 +2,11 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  /* The toolbar and the editing area are one control, like Zotero's note
+     editor: a single frame with a header band, not two stacked boxes. */
+  border: 1px solid var(--fill-quarternary);
+  border-radius: 5px;
+  overflow: hidden;
 }
 
 .banyan-richtext-toolbar {
@@ -14,10 +19,11 @@
   height: 41px;
   min-height: 41px;
   margin: 0;
-  padding: 0 8px;
+  padding: 0 4px;
   background: var(--material-toolbar);
-  border: 1px solid var(--fill-quarternary);
-  border-radius: 5px 5px 0 0;
+  border: 0;
+  border-bottom: var(--material-panedivider);
+  border-radius: 0;
 }
 
 .banyan-toolbar-button {
@@ -54,9 +60,8 @@
   min-height: calc(2 * 1.4em + 16px);
   max-height: 50vh;
   padding: 8px 10px;
-  border: 1px solid var(--fill-quarternary);
-  border-radius: 0 0 5px 5px;
-  border-top: none;
+  border: none;
+  border-radius: 0;
   background: var(--material-background);
   white-space: pre-wrap;
   resize: vertical;

@@ -1,9 +1,32 @@
-import type { Cite, CiteStyleComponent } from "../../typings/style";
-import { getItemDisplayLabel } from "../utils/item";
+import type {
+  CitationContext,
+  CitationParams,
+  Cite,
+  CiteParam,
+  ListFieldParam,
+  ListRow,
+  ParamValue,
+  StyleOptionValues,
+} from "@banyan/core/types/style";
+import {
+  resolveCiteParamValues,
+  type ParamState,
+  type ResolvedCite,
+} from "@banyan/core/validation/paramValues";
+import { getItemDisplayLabel } from "@banyan/core/items/fields";
+import {
+  createParameterField,
+  createXULElementCompat,
+  initialParameterValue,
+  setElementDisabled,
+  showValidationError,
+  type ParameterFieldHandle,
+  type ScalarValue,
+} from "./parameterPanel";
+import { openRichTextDialog } from "./richTextDialog";
+import { richTextFromMarkup } from "./richTextMarkup";
+import { renderRichTextToFragment } from "./richTextFragment";
 import { useL10n } from "../utils/locale";
-
-type XULCheckboxElement = Element & { checked: boolean };
-type XULMenulistElement = Element & { value: string };
 
 const t = useL10n(["citationDialog.ftl"]);
 
@@ -14,16 +37,144 @@ export interface BubbleInputDelegate {
   onDropItemIDs?: (itemIDs: number[], insertIndex: number) => void;
 }
 
+export type BubbleInputContext = {
+  /** Citation params, read by cite predicates (the popup edits one cite). */
+  getCitationParams?: () => CitationParams;
+  /** Effective document-wide options, read by cite predicates. */
+  getStyleOptions?: () => StyleOptionValues;
+};
+
+type ParameterAtomControl = Exclude<CiteParam, { kind: "list" }>;
+
+type PopupAtomField = {
+  control: ParameterAtomControl;
+  handle: ParameterFieldHandle;
+};
+
+type PopupListField = {
+  field: ListFieldParam;
+  row: ListRow;
+  /** Position of `row` in the resolved list, used to read fieldValidation. */
+  rowIndex: number;
+  getValue: () => ScalarValue;
+  getError: () => string;
+  setError: (text: string) => void;
+};
+
+type PopupListEditor = {
+  control: Extract<CiteParam, { kind: "list" }>;
+  element: HTMLElement;
+  refresh: (
+    state: ParamState,
+    validation?: ParamState["fieldValidation"],
+  ) => void;
+};
+
+function listRowsFromState(
+  control: Extract<CiteParam, { kind: "list" }>,
+  state: ParamState,
+): Record<string, string>[] {
+  const raw = Array.isArray(state.value) ? state.value : [];
+  return raw.map((entry) => {
+    const row = entry as ListRow;
+    const next: Record<string, string> = {};
+    for (const field of control.fields) {
+      next[field.id] = String(row[field.id] ?? field.defaultValue ?? "");
+    }
+    return next;
+  });
+}
+
+function sameRows(a: readonly ListRow[], b: readonly ListRow[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((row, index) => {
+    const other = b[index];
+    if (!other) return false;
+    const keys = new Set([...Object.keys(row), ...Object.keys(other)]);
+    for (const key of keys) {
+      if (row[key] !== other[key]) return false;
+    }
+    return true;
+  });
+}
+
+/** The caret to put back after a list editor rebuilds its rows. */
+type ListCellFocus = {
+  rowIndex: string;
+  fieldId: string;
+  selectionStart: number | null;
+  selectionEnd: number | null;
+};
+
+function captureListCellFocus(container: HTMLElement): ListCellFocus | null {
+  const active = document.activeElement;
+  if (
+    !(active instanceof HTMLElement) ||
+    !container.contains(active) ||
+    !active.dataset.banyanFieldId
+  ) {
+    return null;
+  }
+  const input = active as HTMLInputElement;
+  return {
+    rowIndex: active.dataset.banyanRowIndex ?? "",
+    fieldId: active.dataset.banyanFieldId,
+    selectionStart:
+      typeof input.selectionStart === "number" ? input.selectionStart : null,
+    selectionEnd:
+      typeof input.selectionEnd === "number" ? input.selectionEnd : null,
+  };
+}
+
+/**
+ * Put the user back into the cell they were typing in. `render()` replaces the
+ * inputs, so the browser otherwise drops focus and the rest of the word.
+ */
+function restoreListCellFocus(
+  container: HTMLElement,
+  focus: ListCellFocus | null,
+): void {
+  if (!focus) return;
+  const target = Array.from(
+    container.querySelectorAll("[data-banyan-field-id]"),
+  ).find(
+    (element) =>
+      element instanceof HTMLElement &&
+      element.dataset.banyanRowIndex === focus.rowIndex &&
+      element.dataset.banyanFieldId === focus.fieldId,
+  );
+  if (!(target instanceof HTMLElement)) return;
+  if (
+    (target instanceof HTMLInputElement && target.disabled) ||
+    (!(target instanceof HTMLInputElement) &&
+      target.getAttribute("aria-disabled") === "true")
+  ) {
+    return;
+  }
+  target.focus({ preventScroll: true });
+  if (target instanceof HTMLInputElement && focus.selectionStart !== null) {
+    const length = target.value.length;
+    const start = Math.min(focus.selectionStart, length);
+    const end = Math.min(focus.selectionEnd ?? start, length);
+    target.setSelectionRange(start, end);
+  }
+}
+
 export class BubbleInput {
   private container: HTMLElement;
   private delegate: BubbleInputDelegate;
+  private context: BubbleInputContext;
   private cites: Cite[] = [];
-  private styleComponents: CiteStyleComponent[];
+  private citeControls: CiteParam[];
   private body: HTMLDivElement;
   private lastFocusedInput: HTMLInputElement | null = null;
   private popup: HTMLElement | null = null;
+  private popupAnchor: HTMLElement | null = null;
   private popupCite: Cite | null = null;
-  private popupVisibleComponentIds: string[] = [];
+
+  private popupFields: PopupAtomField[] = [];
+  private popupListEditors: PopupListEditor[] = [];
+  private popupRefreshPending = false;
   private measureSpan: HTMLSpanElement | null = null;
 
   private bubbleElements: HTMLElement[] = [];
@@ -50,12 +201,14 @@ export class BubbleInput {
 
   constructor(
     container: HTMLElement,
-    styleComponents: CiteStyleComponent[],
+    citeControls: CiteParam[],
     delegate: BubbleInputDelegate,
+    context: BubbleInputContext = {},
   ) {
     this.container = container;
-    this.styleComponents = styleComponents;
+    this.citeControls = citeControls;
     this.delegate = delegate;
+    this.context = context;
 
     this.container.classList.add("bubble-input-container");
     this.container.replaceChildren();
@@ -115,7 +268,12 @@ export class BubbleInput {
       (e: FocusEvent) => {
         if (!this.popup) return;
         const target = e.target as Node | null;
-        if (target && this.popup.contains(target)) return;
+        if (
+          target &&
+          (this.popup.contains(target) || this.popupAnchor?.contains(target))
+        ) {
+          return;
+        }
         this.closePopup();
       },
       true,
@@ -217,6 +375,82 @@ export class BubbleInput {
     this.delegate.onSearch("");
   }
 
+  /** Refresh the open cite popup after a citation-scope control changed. */
+  public refreshOpenPopup(): void {
+    if (!this.popupCite) return;
+    this.schedulePopupRefresh(this.popupCite);
+  }
+
+  /**
+   * Re-check every stored cite param, including popups that are closed.
+   *
+   * The citation dialog calls this before accepting: an invalid value must not
+   * disappear just because its popup was closed.
+   */
+  public validateAll(): boolean {
+    let allValid = true;
+    const bubbles = this.getBubbleElements();
+    this.cites.forEach((cite, index) => {
+      const valid = this.isCiteValid(cite);
+      allValid &&= valid;
+      const bubble = bubbles[index];
+      if (bubble) {
+        bubble.classList.toggle("is-invalid", !valid);
+        bubble.setAttribute("aria-invalid", String(!valid));
+      }
+    });
+    return allValid;
+  }
+
+  /** Open the first invalid popup and focus its control. */
+  public focusFirstInvalid(): boolean {
+    const bubbles = this.getBubbleElements();
+    for (let index = 0; index < this.cites.length; index += 1) {
+      const cite = this.cites[index];
+      if (this.isCiteValid(cite)) continue;
+      const bubble = bubbles[index];
+      if (!bubble) continue;
+      const message = this.firstCiteError(cite);
+      if (message) showValidationError(message);
+      this.showPopup(cite, bubble);
+      window.setTimeout(() => {
+        const target = this.popup?.querySelector<HTMLElement>(
+          '[aria-invalid="true"], input, select, textarea, button, [role="button"]',
+        );
+        target?.focus();
+        target?.scrollIntoView({ block: "nearest" });
+      }, 0);
+      return true;
+    }
+    return false;
+  }
+
+  private firstCiteError(cite: Cite): string {
+    const resolved = this.resolveCite(cite);
+    for (const control of this.citeControls) {
+      const state = resolved.states[control.id];
+      if (!state || state.mode !== "free") continue;
+      const fallback = t("citation-dialog-invalid-input");
+      if (control.kind === "list") {
+        for (const rows of Object.values(state.fieldValidation ?? {})) {
+          const invalid = rows.find(
+            (entry) => !entry.valid && entry.source !== "default",
+          );
+          if (invalid) return invalid.message || fallback;
+        }
+        continue;
+      }
+      if (state.validation && !state.validation.valid) {
+        return state.validation.message || fallback;
+      }
+    }
+    return "";
+  }
+
+  private isCiteValid(cite: Cite): boolean {
+    return !this.firstCiteError(cite);
+  }
+
   public setCites(cites: Cite[], options?: { notify?: boolean }): void {
     this.cites = [...cites];
     this.render();
@@ -243,12 +477,6 @@ export class BubbleInput {
     if (!cite.params) {
       cite.params = {};
     }
-    // Initialize default values
-    this.styleComponents.forEach((comp) => {
-      if (cite.params![comp.id] === undefined) {
-        cite.params![comp.id] = comp.value;
-      }
-    });
 
     const insertIndex =
       options?.index == null
@@ -297,8 +525,8 @@ export class BubbleInput {
   }
 
   private render() {
-    // Don't steal focus from outside consumers (e.g. ItemTree). Only restore focus
-    // if focus was already within the bubble input.
+    // Focus is restored only when it was already inside; an outside consumer
+    // such as ItemTree keeps it.
     const hadFocusInside = this.body.contains(document.activeElement);
     const active = hadFocusInside ? this.getCurrentInput() : null;
     const activeInputIndex = active ? this.inputElements.indexOf(active) : -1;
@@ -329,19 +557,17 @@ export class BubbleInput {
     if (this.caretIndicator) this.body.appendChild(this.caretIndicator);
     if (this.dropIndicator) this.body.appendChild(this.dropIndicator);
 
-    // Set placeholder and let the only input expand full-width
+    // The only input fills the row; widths follow the content.
     const isOnlyInput = this.cites.length === 0;
     const first = this.body.firstElementChild;
     if (first && this.isInput(first)) {
       first.classList.toggle("full-width", isOnlyInput);
     }
 
-    // Ensure widths
     for (const input of this.getAllInputs()) {
       this.updateInputWidth(input);
     }
 
-    // Keep focus in bubble input only if it previously had focus
     if (hadFocusInside) {
       const restoredInput =
         activeInputIndex >= 0
@@ -1034,21 +1260,8 @@ export class BubbleInput {
 
   private showPopup(cite: Cite, anchor: HTMLElement) {
     this.closePopup();
+    this.popupAnchor = anchor;
     this.popupCite = cite;
-    this.popupVisibleComponentIds = this.getVisibleComponentIds(cite);
-
-    const createXULElement = (tag: string): Element => {
-      const doc = document as Document & {
-        createXULElement?: (tagName: string) => Element;
-      };
-      if (typeof doc.createXULElement === "function") {
-        return doc.createXULElement(tag);
-      }
-      return document.createElementNS(
-        "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
-        tag,
-      );
-    };
 
     const popup = document.createElement("div");
     popup.classList.add("bubble-popup");
@@ -1059,89 +1272,42 @@ export class BubbleInput {
     header.textContent = cite.item.title || "Untitled";
     popup.appendChild(header);
 
-    // Dynamic Components
+    // Dynamic controls
     const content = document.createElement("div");
     content.classList.add("bubble-popup-content");
 
-    this.styleComponents.forEach((comp) => {
-      if (!this.popupVisibleComponentIds.includes(comp.id)) return;
+    const resolved = this.resolveCite(cite);
+    for (const control of this.citeControls) {
+      const state = this.controlState(resolved, control);
 
-      const row = document.createElement("div");
-      row.classList.add("bubble-popup-row");
-
-      let input: Element;
-      const currentVal = cite.params?.[comp.id];
-
-      if (comp.type === "input") {
-        const label = document.createElement("label");
-        label.classList.add("bubble-popup-label");
-        label.textContent = comp.label;
-        row.appendChild(label);
-
-        const el = document.createElement("input");
-        el.id = `opt-${comp.id}`;
-        el.type = "text";
-        el.classList.add("bubble-popup-control");
-        this.setElementDisabled(el, this.isComponentDisabled(comp, cite));
-        el.value = String(currentVal ?? comp.value ?? "");
-        el.addEventListener("input", () => {
-          this.updateCiteParam(cite, comp.id, el.value);
-        });
-        input = el;
-      } else if (comp.type === "checkbox") {
-        // Keep 2-column grid alignment (matches Zotero itemDetails popup pattern)
-        const spacer = document.createElement("div");
-        spacer.classList.add("bubble-popup-label");
-        row.appendChild(spacer);
-
-        // XUL checkbox carries its own label (Preferences style)
-        const el = createXULElement("checkbox") as XULCheckboxElement;
-        el.id = `opt-${comp.id}`;
-        el.setAttribute("native", "true");
-        el.setAttribute("label", comp.label);
-        el.classList.add("bubble-popup-control");
-        this.setElementDisabled(el, this.isComponentDisabled(comp, cite));
-        el.checked = Boolean(currentVal ?? comp.value);
-        el.addEventListener("command", () => {
-          this.updateCiteParam(cite, comp.id, Boolean(el.checked));
-        });
-        input = el;
-      } else if (comp.type === "select") {
-        const label = createXULElement("label");
-        label.setAttribute("value", comp.label);
-        label.classList.add("bubble-popup-label");
-        row.appendChild(label);
-
-        const el = createXULElement("menulist") as XULMenulistElement;
-        el.id = `opt-${comp.id}`;
-        el.setAttribute("native", "true");
-        el.classList.add("bubble-popup-control");
-        this.setElementDisabled(el, this.isComponentDisabled(comp, cite));
-
-        const menupopup = createXULElement("menupopup");
-        Object.entries(comp.options).forEach(([value, label]) => {
-          const menuitem = createXULElement("menuitem");
-          menuitem.setAttribute("value", value);
-          menuitem.setAttribute("label", label);
-          menupopup.appendChild(menuitem);
-        });
-        el.appendChild(menupopup);
-
-        const initial = String(currentVal ?? comp.value ?? "");
-        el.value = initial;
-        el.setAttribute("value", initial);
-
-        el.addEventListener("command", () => {
-          this.updateCiteParam(cite, comp.id, String(el.value ?? ""));
-        });
-        input = el;
-      } else {
-        input = document.createElement("span");
+      if (control.kind === "list") {
+        const editor = this.createListEditor(control, cite, state);
+        this.popupListEditors.push(editor);
+        content.appendChild(editor.element);
+        continue;
       }
 
-      row.appendChild(input);
-      content.appendChild(row);
-    });
+      const current = cite.params?.[control.id];
+      const handle = createParameterField({
+        control,
+        value: initialParameterValue(control, current),
+        state,
+        mode: "xul",
+        createXULElementCompat,
+        onChange: (value) => {
+          this.updateCiteParam(cite, control.id, value as ParamValue);
+        },
+      });
+      this.popupFields.push({ control, handle });
+      content.appendChild(handle.element);
+    }
+
+    if (content.childElementCount === 0) {
+      const empty = document.createElement("div");
+      empty.classList.add("bubble-popup-empty");
+      empty.textContent = t("citation-dialog-no-cite-params");
+      content.appendChild(empty);
+    }
 
     popup.appendChild(content);
 
@@ -1171,51 +1337,374 @@ export class BubbleInput {
       this.popup = popup;
     }
 
-    // Positioning
+    // Positioning: keep the adaptive-width popup inside the dialog viewport.
     const rect = anchor.getBoundingClientRect();
     popup.style.top = `${rect.bottom + 5}px`;
     popup.style.left = `${rect.left}px`;
+    const popupRect = popup.getBoundingClientRect();
+    popup.style.left = `${Math.max(
+      8,
+      Math.min(rect.left, window.innerWidth - popupRect.width - 8),
+    )}px`;
+    popup.style.top = `${Math.max(
+      8,
+      Math.min(rect.bottom + 5, window.innerHeight - popupRect.height - 8),
+    )}px`;
 
     // Prevent popup click from closing it
     popup.addEventListener("click", (e) => e.stopPropagation());
   }
 
-  private isComponentVisible(
-    component: CiteStyleComponent,
-    item: Cite["item"],
-  ): boolean {
-    if (!component.visible) {
-      return true;
-    }
-    return component.visible(item);
-  }
-
-  private getVisibleComponentIds(cite: Cite): string[] {
-    return this.styleComponents
-      .filter((component) => this.isComponentVisible(component, cite.item))
-      .map((component) => component.id);
-  }
-
-  private isComponentDisabled(
-    component: CiteStyleComponent,
+  private predicateArgs(
     cite: Cite,
-  ): boolean {
-    if (component.disabled) {
-      return component.disabled(cite);
-    }
-    return false;
+  ): [CitationContext, Readonly<StyleOptionValues>] {
+    const { citation, options } = this.getPredicateArgs(cite);
+    return [citation, options];
   }
 
-  private setElementDisabled(element: Element, disabled: boolean): void {
-    const control = element as Element & { disabled?: boolean };
-    if ("disabled" in control) {
-      control.disabled = disabled;
-    }
-    if (disabled) {
-      element.setAttribute("disabled", "true");
-    } else {
-      element.removeAttribute("disabled");
-    }
+  private getPredicateArgs(_cite: Cite): {
+    citation: CitationContext;
+    options: Readonly<StyleOptionValues>;
+  } {
+    const citation = {
+      id: "citation-dialog",
+      page: 0,
+      cites: this.cites,
+      params: this.context.getCitationParams?.() ?? {},
+    } as CitationContext;
+    return {
+      citation,
+      options: this.context.getStyleOptions?.() ?? {},
+    };
+  }
+
+  private createListEditor(
+    control: Extract<CiteParam, { kind: "list" }>,
+    cite: Cite,
+    initialState: ParamState,
+  ): PopupListEditor {
+    const container = document.createElement("div");
+    container.id = `opt-${control.id}`;
+    container.classList.add("bubble-list-editor");
+
+    let state = initialState;
+    let rows = listRowsFromState(control, state);
+    const fields: PopupListField[] = [];
+    const removeButtons: HTMLButtonElement[] = [];
+    const addButtons: HTMLButtonElement[] = [];
+
+    const commit = () => {
+      if (state.mode !== "free") return;
+      this.commitList(cite, control, rows);
+      this.schedulePopupRefresh(cite);
+    };
+
+    const createActionButton = (
+      className: string,
+      label: string,
+      onClick: () => void,
+    ): HTMLButtonElement => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.classList.add(className);
+      button.title = label;
+      button.setAttribute("aria-label", label);
+      button.addEventListener("click", onClick);
+      return button;
+    };
+
+    const createRemoveButton = (rowIndex: number): HTMLButtonElement =>
+      createActionButton(
+        "bubble-list-remove",
+        t("citation-dialog-list-remove"),
+        () => {
+          if (state.mode !== "free" || rows.length <= (control.min ?? 0)) {
+            return;
+          }
+          rows.splice(rowIndex, 1);
+          render();
+          commit();
+        },
+      );
+
+    const createAddButton = (rowIndex: number): HTMLButtonElement =>
+      createActionButton(
+        "bubble-list-add",
+        t("citation-dialog-list-add"),
+        () => {
+          if (state.mode !== "free") return;
+          const row: Record<string, string> = {};
+          for (const field of control.fields) {
+            row[field.id] = String(field.defaultValue ?? "");
+          }
+          rows.splice(rowIndex + 1, 0, row);
+          render();
+          commit();
+          const nextRow = container.querySelectorAll(".bubble-list-row")[
+            rowIndex + 1
+          ] as HTMLElement | undefined;
+          nextRow?.querySelector<HTMLElement>("input, button")?.focus();
+        },
+      );
+
+    const render = (validation?: ParamState["fieldValidation"]) => {
+      container.replaceChildren();
+      fields.length = 0;
+      removeButtons.length = 0;
+      addButtons.length = 0;
+
+      rows.forEach((row, rowIndex) => {
+        const rowEl = document.createElement("div");
+        rowEl.classList.add("bubble-list-row");
+        const fieldsWrap = document.createElement("div");
+        fieldsWrap.classList.add("bubble-list-fields");
+
+        for (const field of control.fields) {
+          const fieldWrap = document.createElement("div");
+          fieldWrap.classList.add("bubble-list-field");
+          const inlineLabel = document.createElement("label");
+          inlineLabel.classList.add("bubble-list-inline-label");
+          inlineLabel.textContent = field.label;
+          let fieldError = "";
+          let controlEl: HTMLElement | null = null;
+          const setError = (text: string) => {
+            fieldError = text;
+            if (!controlEl) return;
+            if (text) {
+              controlEl.setAttribute("aria-invalid", "true");
+            } else {
+              controlEl.removeAttribute("aria-invalid");
+            }
+          };
+          const announce = () => {
+            if (!fieldError) return;
+            showValidationError(fieldError);
+            const id = controlEl?.id;
+            const target = id
+              ? (document.getElementById(id) as HTMLElement | null)
+              : controlEl;
+            target?.focus();
+          };
+
+          if (field.format === "rich") {
+            const rich = document.createElement("div");
+            rich.classList.add("bubble-list-rich");
+            const preview = document.createElement("div");
+            preview.id = `banyan-list-${control.id}-${rowIndex}-${field.id}`;
+            preview.dataset.banyanRowIndex = String(rowIndex);
+            preview.dataset.banyanFieldId = field.id;
+            preview.classList.add("bubble-list-rich-preview");
+            preview.tabIndex = 0;
+            preview.setAttribute("role", "button");
+            preview.setAttribute("aria-label", t("citation-dialog-edit-rich"));
+            preview.title = field.label;
+            inlineLabel.htmlFor = preview.id;
+            controlEl = preview;
+
+            const renderPreview = () => {
+              const richText = richTextFromMarkup(
+                String(row[field.id] ?? field.defaultValue ?? ""),
+              );
+              preview.replaceChildren();
+              if (!richText.text) {
+                preview.classList.add("is-empty");
+                preview.dataset.placeholder = t("citation-dialog-rich-empty");
+                return;
+              }
+              preview.classList.remove("is-empty");
+              delete preview.dataset.placeholder;
+              preview.appendChild(renderRichTextToFragment(richText));
+            };
+            const openEditor = () => {
+              if (state.mode !== "free") return;
+              openRichTextDialog({
+                value: String(row[field.id] ?? field.defaultValue ?? ""),
+                title: field.label,
+                onCommit: (markup) => {
+                  row[field.id] = markup;
+                  renderPreview();
+                  commit();
+                  queueMicrotask(announce);
+                },
+              });
+            };
+            preview.addEventListener("click", openEditor);
+            preview.addEventListener("keydown", (event: KeyboardEvent) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              openEditor();
+            });
+            rich.append(preview);
+            fieldWrap.append(inlineLabel, rich);
+            renderPreview();
+          } else {
+            const input = document.createElement("input");
+            input.type = "text";
+            input.id = `banyan-list-${control.id}-${rowIndex}-${field.id}`;
+            input.dataset.banyanRowIndex = String(rowIndex);
+            input.dataset.banyanFieldId = field.id;
+            input.value = String(row[field.id] ?? field.defaultValue ?? "");
+            input.autocomplete = "off";
+            input.placeholder = field.label;
+            input.title = field.label;
+            input.setAttribute("aria-label", field.label);
+            inlineLabel.htmlFor = input.id;
+            controlEl = input;
+            if (field.presets?.length) {
+              const listID = `banyan-list-${control.id}-${rowIndex}-${field.id}`;
+              const datalist = document.createElement("datalist");
+              datalist.id = listID;
+              for (const preset of field.presets) {
+                const option = document.createElement("option");
+                option.value =
+                  typeof preset === "string" ? preset : preset.value;
+                option.label =
+                  typeof preset === "string" ? preset : preset.label;
+                datalist.appendChild(option);
+              }
+              input.setAttribute("list", listID);
+              fieldWrap.appendChild(datalist);
+            }
+            const update = () => {
+              if (state.mode !== "free") return;
+              row[field.id] = input.value;
+              commit();
+            };
+            input.addEventListener("input", update);
+            input.addEventListener("change", update);
+            input.addEventListener("blur", () => queueMicrotask(announce));
+            fieldWrap.append(inlineLabel, input);
+          }
+
+          fields.push({
+            field,
+            row,
+            rowIndex,
+            getValue: () => row[field.id] ?? field.defaultValue ?? "",
+            getError: () => fieldError,
+            setError,
+          });
+          fieldsWrap.appendChild(fieldWrap);
+        }
+
+        const actions = document.createElement("div");
+        actions.classList.add("bubble-list-actions");
+        const remove = createRemoveButton(rowIndex);
+        removeButtons.push(remove);
+        const add = createAddButton(rowIndex);
+        addButtons.push(add);
+        actions.append(remove, add);
+        rowEl.append(fieldsWrap, actions);
+        container.appendChild(rowEl);
+      });
+
+      if (rows.length === 0) {
+        const actions = document.createElement("div");
+        actions.classList.add("bubble-list-actions");
+        const add = createAddButton(-1);
+        addButtons.push(add);
+        actions.appendChild(add);
+        container.appendChild(actions);
+      }
+      applyDisabled(validation);
+    };
+
+    const applyDisabled = (fieldValidation?: ParamState["fieldValidation"]) => {
+      const disabled = state.mode !== "free";
+      container.hidden = state.mode === "hidden";
+      container.classList.toggle("is-disabled", disabled);
+      const listInputs = container.querySelectorAll("input, select, textarea");
+      for (let index = 0; index < listInputs.length; index++) {
+        const el = listInputs.item(index);
+        if (el) setElementDisabled(el, disabled);
+      }
+      for (const node of container.querySelectorAll(
+        ".bubble-list-rich-preview",
+      )) {
+        const preview = node as HTMLElement;
+        preview.tabIndex = disabled ? -1 : 0;
+        preview.setAttribute("aria-disabled", String(disabled));
+      }
+      for (const button of removeButtons) {
+        button.disabled = disabled || rows.length <= (control.min ?? 0);
+      }
+      for (const button of addButtons) {
+        button.disabled =
+          disabled || rows.length >= (control.max ?? Number.POSITIVE_INFINITY);
+      }
+
+      const validation =
+        fieldValidation ??
+        (disabled
+          ? undefined
+          : this.controlState(this.resolveCite(cite), control).fieldValidation);
+      for (const entry of fields) {
+        if (disabled) {
+          entry.setError("");
+          continue;
+        }
+        const result = validation?.[entry.field.id]?.[entry.rowIndex];
+        entry.setError(
+          result && !result.valid && result.source !== "default"
+            ? result.message || t("citation-dialog-invalid-input")
+            : "",
+        );
+      }
+    };
+
+    const refresh = (
+      next: ParamState,
+      fieldValidation?: ParamState["fieldValidation"],
+    ) => {
+      const nextRows = listRowsFromState(control, next);
+      const changed =
+        next.mode !== state.mode ||
+        next.mode !== "free" ||
+        !sameRows(rows, nextRows);
+      state = next;
+      if (changed) {
+        const focus = captureListCellFocus(container);
+        rows = nextRows;
+        render(fieldValidation);
+        restoreListCellFocus(container, focus);
+      } else {
+        applyDisabled(fieldValidation);
+      }
+    };
+
+    render(initialState.fieldValidation);
+    return { control, element: container, refresh };
+  }
+
+  private resolveCite(cite: Cite): ResolvedCite {
+    const { citation, options } = this.getPredicateArgs(cite);
+    return resolveCiteParamValues(this.citeControls, cite, citation, options);
+  }
+
+  private controlState(resolved: ResolvedCite, control: CiteParam): ParamState {
+    return (
+      resolved.states[control.id] ?? {
+        mode: "free",
+        value: resolved.effectiveValues[control.id] ?? "",
+      }
+    );
+  }
+
+  private getEffectiveListRows(
+    resolved: ResolvedCite,
+    control: Extract<CiteParam, { kind: "list" }>,
+  ): ListRow[] {
+    return listRowsFromState(control, this.controlState(resolved, control));
+  }
+
+  private commitList(
+    cite: Cite,
+    control: Extract<CiteParam, { kind: "list" }>,
+    rows: ListRow[],
+  ): void {
+    if (!cite.params) cite.params = {};
+    cite.params[control.id] = rows;
+    this.delegate.onCitesChanged(this.cites);
   }
 
   private closePopup() {
@@ -1223,29 +1712,41 @@ export class BubbleInput {
       this.popup.remove();
       this.popup = null;
     }
+    this.popupAnchor = null;
     this.popupCite = null;
-    this.popupVisibleComponentIds = [];
+    this.popupFields = [];
+    this.popupListEditors = [];
+    this.popupRefreshPending = false;
   }
 
-  private updateCiteParam(cite: Cite, key: string, value: string | boolean) {
+  private updateCiteParam(cite: Cite, key: string, value: ParamValue) {
     if (!cite.params) cite.params = {};
     cite.params[key] = value;
     this.delegate.onCitesChanged(this.cites);
-
-    this.refreshPopupDisabledState(cite);
+    this.schedulePopupRefresh(cite);
   }
 
-  private refreshPopupDisabledState(cite: Cite): void {
+  /** Coalesce one burst of input into a single state recalculation. */
+  private schedulePopupRefresh(cite: Cite): void {
+    if (this.popupCite !== cite || this.popupRefreshPending) return;
+    this.popupRefreshPending = true;
+    queueMicrotask(() => {
+      this.popupRefreshPending = false;
+      if (this.popupCite === cite) {
+        this.refreshPopupState(cite);
+      }
+    });
+  }
+
+  private refreshPopupState(cite: Cite): void {
     if (this.popupCite !== cite) return;
-    const visibleIds = new Set(this.popupVisibleComponentIds);
-    for (const component of this.styleComponents) {
-      if (!visibleIds.has(component.id)) continue;
-      const control = document.getElementById(`opt-${component.id}`);
-      if (!control) continue;
-      this.setElementDisabled(
-        control,
-        this.isComponentDisabled(component, cite),
-      );
+    const resolved = this.resolveCite(cite);
+    for (const { control, handle } of this.popupFields) {
+      handle.refresh(this.controlState(resolved, control));
+    }
+    for (const editor of this.popupListEditors) {
+      const state = this.controlState(resolved, editor.control);
+      editor.refresh(state, state.fieldValidation);
     }
   }
 }

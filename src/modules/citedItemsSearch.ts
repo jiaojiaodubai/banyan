@@ -2,7 +2,7 @@ import type {
   RefreshRequestData,
   RefreshResponseData,
 } from "../../typings/server";
-import type { CitationContext } from "../../typings/style";
+import type { CitationContext } from "@banyan/core/types/style";
 import { useL10n } from "../utils/locale";
 import {
   buildDocumentCitationPreviewMap,
@@ -11,7 +11,7 @@ import {
   mergeDocumentCitationPreviews,
   type DocumentCitationPreview,
 } from "../utils/citedItemsSearch";
-import { renderRichTextToHtml } from "../utils/richTextHtml";
+import { renderRichTextToHtml } from "@banyan/core/richText/render";
 
 type CitedItemsSearchState = {
   documentId: string;
@@ -27,6 +27,7 @@ type GetIconName = _ZoteroTypes.CollectionTree["getIconName"];
 
 type ZoteroPaneLike = {
   itemsView?: {
+    tree?: unknown;
     getRow?: (index: number) => { ref?: Zotero.Item } | undefined;
     refreshAndMaintainSelection?: () => Promise<void> | void;
   };
@@ -122,7 +123,7 @@ export function patchCollectionsView(win: Window): void {
 
   view._expandRow = async (rows, row, forceOpen) => {
     const added = await originalExpandRow(rows, row, forceOpen);
-    // Keep Zotero's `false` for the rows it never expands; callers sum the result.
+    // Zotero returns `false` for rows it never expands; callers sum the result.
     if (added === false) {
       return false;
     }
@@ -344,6 +345,9 @@ async function refreshOpenTrees(reloadCollections = false): Promise<void> {
     const view = pane?.collectionsView;
     if (view && (reloadCollections || isMissingCitedItemsRow(view))) {
       await reloadCollectionsView(view);
+    }
+    if (pane?.itemsView && "tree" in pane.itemsView && !pane.itemsView.tree) {
+      continue;
     }
     await pane?.itemsView?.refreshAndMaintainSelection?.();
   }

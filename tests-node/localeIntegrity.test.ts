@@ -16,7 +16,9 @@ const DIALOG_MARKUP = "addon/content/creatorsExtDialog.xhtml";
 
 /** Ids the window asks for, in the source (unprefixed) form. */
 function usedDialogMessageIds(): Set<string> {
-  const script = readFileSync(path.resolve(DIALOG_SCRIPT), "utf8");
+  const script = readFileSync(path.resolve(DIALOG_SCRIPT), "utf8")
+    // A logger's module name is a label for output lines, not a message id.
+    .replace(/createLogger\("[^"]*"\)/g, "");
   const markup = readFileSync(path.resolve(DIALOG_MARKUP), "utf8");
   const ids = new Set<string>();
   // Literals, including the ones picked with a ternary in `createExtensionInput`.

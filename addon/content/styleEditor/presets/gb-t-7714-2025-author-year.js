@@ -16,17 +16,14 @@ const INFO = {
   updated: "2026-06-25T10:23:23+08:00",
 };
 
-const UI = {
-  citation: [
-    {
-      id: "author-outside",
-      label: "作者显示在括号外",
-      type: "checkbox",
-      value: false,
-    }
-  ],
-  cite: [],
-};
+const CITATION_PARAMS = [
+  {
+    id: "author-outside",
+    kind: "state",
+    label: "作者显示在括号外",
+    defaultValue: false,
+  },
+];
 
 
 /**
@@ -39,7 +36,7 @@ function generate() {
   const uniqueCites = [];
   for (const ctx of contexts) {
     for (const cite of ctx.cites) {
-      const isExist = uniqueCites.some(i => i.item.key === cite.item.key);
+      const isExist = uniqueCites.some(i => i.item.id === cite.item.id);
       if (!isExist) {
         uniqueCites.push(cite);
       }
@@ -73,13 +70,13 @@ function generate() {
     if (confilicts.length === 1) {
       return year;
     }
-    const index = confilicts.findIndex(c => c.item.key === cite.item.key);
+    const index = confilicts.findIndex(c => c.item.id === cite.item.id);
     return affix(year, "", String.fromCharCode(97 + index));
   }
   const bibliography = sortedCites.map((cite) => {
     const content = affix(dispatcher(cite, getYear(cite)), "", ".");
     return {
-      id: cite.item.key,
+      id: String(cite.item.id),
       type: "bibliography-entry",
       content
     };
@@ -87,8 +84,8 @@ function generate() {
   const genCitation = (/** @type {ScriptContext} */ context) => {
     // @ts-ignore
     const cites = context.cites.toSorted((/** @type {ScriptCite} */ a, /** @type {ScriptCite} */ b) => {
-      const ia = sortedCites.findIndex(i => i.item.key === a.item.key);
-      const ib = sortedCites.findIndex(i => i.item.key === b.item.key);
+      const ia = sortedCites.findIndex(i => i.item.id === a.item.id);
+      const ib = sortedCites.findIndex(i => i.item.id === b.item.id);
       return ia - ib;
     });
     const outside = context.params["author-outside"];
@@ -157,7 +154,7 @@ function dispatcher(cite, year) {
       authorYear,
       group([
         cite.item.title,
-        affix(cite.item.seriesTitle, "："),  
+        affix(cite.item.seriesTitle, "："),
         affix(cite.item.volume, "："),
         typeCode
       ]),
@@ -240,7 +237,7 @@ function dispatcher(cite, year) {
       accessed,
       doi
     ], ". ");
-  /* 会议录中析出的文献 */
+    /* 会议录中析出的文献 */
   case "C":
     return group([
       group([
@@ -256,7 +253,7 @@ function dispatcher(cite, year) {
       accessed,
       doi
     ], ". ");
-  /* 学位论文 */
+    /* 学位论文 */
   case "D":
     return group([
       authorYear,
@@ -271,7 +268,7 @@ function dispatcher(cite, year) {
       accessed,
       doi
     ], ". ");
-  /* 报告 */
+    /* 报告 */
   case "R":
     return group([
       authorYear,
@@ -285,20 +282,20 @@ function dispatcher(cite, year) {
       accessed,
       doi
     ], ". ");
-  /* 标准 */
+    /* 标准 */
   case "S":
     return group([
       group([
         group([
           cite.item.number,
           cite.item.title
-        ],"　"),
+        ], "　"),
         typeCode
       ]),
       accessed,
       doi
     ], ". ");
-  /* 专利 */
+    /* 专利 */
   case "P": {
     return group([
       authorYear,
@@ -325,7 +322,7 @@ function dispatcher(cite, year) {
       accessed,
       doi
     ], ". ");
-  /* 档案 */
+    /* 档案 */
   case "A":
     return group([
       authorYear,
@@ -344,7 +341,7 @@ function dispatcher(cite, year) {
       accessed,
       doi
     ], ". ");
-  /* 地图 */
+    /* 地图 */
   case "CM":
     return group([
       authorYear,
@@ -362,7 +359,7 @@ function dispatcher(cite, year) {
       accessed,
       doi
     ], ". ");
-  /* 数据集 */
+    /* 数据集 */
   case "DS":
     return group([
       authorYear,
@@ -378,7 +375,7 @@ function dispatcher(cite, year) {
       accessed,
       doi
     ], ". ");
-  /* 预印本 */
+    /* 预印本 */
   case "PP":
     return group([
       authorYear,
@@ -410,7 +407,7 @@ function getMainCreators(cite, short = false) {
   }
   if (itemType === "patent") {
     const hasInventor = cite.item.creators.some((c) => c.creatorType === "inventor");
-    return  hasInventor
+    return hasInventor
       ? getCreators(cite, "inventor", short)
       : cite.item.assignee;
   }
@@ -427,9 +424,11 @@ function getCreators(cite, type = "author", short = false) {
     ? short ? " 等" : "，等"
     : " et al.";
   const creators = [];
-  if (!Array.isArray(type)) {{
-    creators.push(...cite.item.creators.filter(c => c.creatorType === type));
-  }}
+  if (!Array.isArray(type)) {
+    {
+      creators.push(...cite.item.creators.filter(c => c.creatorType === type));
+    }
+  }
   else {
     for (const t of type) {
       creators.push(...cite.item.creators.filter(c => c.creatorType === t));
@@ -558,7 +557,7 @@ function getMediaCode(cite) {
 /**
  * @param {ScriptCite} cite 
  */
-function getPublishPlace(cite) { 
+function getPublishPlace(cite) {
   const isZh = isChinese(cite);
   const place = cite.item.place;
   if (!place && !isElectronic(cite)) {
@@ -586,7 +585,7 @@ function getPublisher(cite) {
  * @param {ScriptCite} cite
  * @param {String} prop
  */
-function getDate(cite, prop="date", forceYear = false) {
+function getDate(cite, prop = "date", forceYear = false) {
   const itemType = cite.item.itemType;
   const date = cite.item[prop];
   const nonAdYear = getExtraValue(cite.item, "non-ad-year");

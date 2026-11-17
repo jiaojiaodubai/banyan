@@ -3,16 +3,24 @@ import type {
   ConvertRequestData,
   ConvertResponseData,
 } from "../../typings/server";
-import type { Creator, Item } from "../../typings/item";
-import type { RichText } from "../../typings/unit";
+import type { Creator, Item } from "@banyan/core/types/item";
+import type { RichText } from "@banyan/core/types/unit";
 import type {
   CitationParams,
   CitationSource,
   IntextCitation,
   NoteCitation,
-} from "../../typings/style";
-import { textToRichText } from "../utils/richText";
-import { getItemWithMergeFallback, toBanyanItem } from "../utils/item";
+} from "@banyan/core/types/style";
+import { textToRichText } from "@banyan/core/richText/richText";
+import {
+  getItemWithMergeFallback,
+  toBanyanItem,
+  ZOTERO_ITEM_URI_KEY,
+  type ZoteroBanyanItem,
+} from "./sandbox/items";
+import { createLogger } from "../utils/logger";
+
+const log = createLogger("converter");
 
 type ConvertStatus = "ok" | "fallback" | "error";
 
@@ -275,11 +283,8 @@ async function resolveCitationItem(
   fieldId: string,
   index: number,
 ): Promise<{ item: Item | null; fallback: boolean; warning?: string }> {
-  const primaryUri = citationItem.uris[0];
-  const zoteroItem = await getItemWithMergeFallback(
-    citationItem.id,
-    primaryUri,
-  );
+  const itemUri = citationItem.uris[0];
+  const zoteroItem = await getItemWithMergeFallback(citationItem.id, itemUri);
   if (zoteroItem) {
     return { item: toBanyanItem(zoteroItem), fallback: false };
   }
@@ -292,14 +297,14 @@ async function resolveCitationItem(
         `${fieldId}:${index}`,
       ),
       fallback: true,
-      warning: `Using embedded CSL itemData for ${primaryUri || `cite-${index + 1}`}`,
+      warning: `Using embedded CSL itemData for ${itemUri || `cite-${index + 1}`}`,
     };
   }
 
   return {
     item: null,
     fallback: true,
-    warning: `Cannot restore citation item ${primaryUri || `cite-${index + 1}`}`,
+    warning: `Cannot restore citation item ${itemUri || `cite-${index + 1}`}`,
   };
 }
 
@@ -389,8 +394,8 @@ function logConvertedFieldStatus(
   converted: ConvertedFieldBase,
 ): void {
   if (converted.status === "error") {
-    ztoolkit.logError(
-      `[converter] field.convert.error fieldId=${fieldId} message=${converted.message || "unknown_error"}`,
+    log.error(
+      `field convert error: fieldId=${fieldId} message=${converted.message || "unknown_error"}`,
     );
     return;
   }
@@ -409,9 +414,11 @@ function buildItemFromCSLData(
   itemData: Record<string, unknown>,
   citationItem: NormalizedCitationItem,
   seed: string,
-): Item {
-  const id = citationItem.id ?? hashToPositiveInt(seed);
-  const uri = citationItem.uris[0] || `csl://embedded/${id}`;
+): ZoteroBanyanItem {
+  // `Item.id` is an opaque string in the core contract; the numeric CSL id is
+  // only a fallback seed and is encoded once here.
+  const id = String(citationItem.id ?? hashToPositiveInt(seed));
+  const itemUri = citationItem.uris[0] || `csl://embedded/${id}`;
 
   const creators = parseCreatorsFromCSL(itemData);
 
@@ -420,12 +427,11 @@ function buildItemFromCSLData(
 
   const out = {
     id,
-    uri,
-    key: deriveItemKey(uri, id),
     itemType: "document",
     title,
     creators,
-  } as unknown as Item;
+    [ZOTERO_ITEM_URI_KEY]: itemUri,
+  } as unknown as ZoteroBanyanItem;
 
   if (year) {
     out.year = year;
@@ -508,15 +514,6 @@ function parseCSLYear(issued: unknown): string | undefined {
   return typeof year === "number" || typeof year === "string"
     ? String(year)
     : undefined;
-}
-
-function deriveItemKey(uri: string, id: number): string {
-  const parts = uri.split("/");
-  const key = parts[parts.length - 1];
-  if (key && key.length > 0 && key !== "items") {
-    return key;
-  }
-  return `EMBEDDED_${id}`;
 }
 
 function normalizeUriArray(value: unknown): string[] {

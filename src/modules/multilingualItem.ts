@@ -12,11 +12,11 @@ import { unwrapMultilingualDialogIO } from "../utils/multilingualDialogIO";
 import {
   findExistingLanguageItem,
   isSameItemContent,
-  normalizeLanguageCode,
   reloadItemContent,
   snapshotItemContent,
   type LanguageItemCandidate,
 } from "../utils/multilingualDraft";
+import { normalizeLanguageCode } from "@banyan/core/items/language";
 import {
   findWindowByName,
   isWindowAlive,
@@ -133,9 +133,9 @@ export async function commitMultilingualDraft(
             }
           });
         } catch (error) {
-          // The rollback restores the database, not the objects: put the items
-          // the transaction wrote back on the stored values, or a later save
-          // writes the relations the rollback undid.
+          // The rollback restores the database, not the objects. Restore the
+          // stored values on the items as well, or a later save could reapply
+          // the relations that the rollback removed.
           await restoreStoredState([source, ...related]);
           throw error;
         }
@@ -154,8 +154,7 @@ export async function commitMultilingualDraft(
             : {}),
         };
       },
-      logError: (error) =>
-        log.error("Failed to save the multilingual item", error),
+      logError: (error) => log.error("Failed to commit item", error),
       fallbackMessage: t("multilingual-item-error-save"),
     }),
   );
@@ -378,7 +377,7 @@ async function handleDialogResult(
         );
       }
     } catch (error) {
-      log.warn("Failed to restore item storage state", error);
+      log.warn("Failed to check whether the source item was deleted", error);
     }
   }
 }

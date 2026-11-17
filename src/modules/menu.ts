@@ -74,7 +74,7 @@ function buildContributedMenus(): ItemMenuData[] {
       menus.push(...(contribution.build() ?? []));
     } catch (error) {
       log.error(
-        `Item menu contribution '${contribution.id}' could not be built`,
+        `item menu contribution '${contribution.id}' could not be built`,
         error,
       );
     }
