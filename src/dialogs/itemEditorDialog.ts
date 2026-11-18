@@ -158,7 +158,10 @@ async function save(): Promise<void> {
     const issues = blockingIssues(run);
     const signature = validationSignature(issues);
     if (pendingValidationSignature === signature) {
-      if (!confirmSaveAnyway(issues.length)) return;
+      if (!confirmSaveAnyway(issues.length)) {
+        showValidation(issues, signature);
+        return;
+      }
       clearValidation();
       setStatus("");
       await finishSave();
@@ -229,41 +232,8 @@ function showValidation(
   issues: readonly FieldValidationIssue[],
   signature: string,
 ): void {
-  const result = editor?.showValidationIssues(issues) ?? {
-    matched: 0,
-    total: issues.length,
-    unmatched: [],
-    focusTarget: null,
-  };
   pendingValidationSignature = signature;
-  const parts = [
-    t("item-editor-validation-alert-summary", {
-      args: { count: issues.length },
-    }),
-  ];
-  if (result.matched) {
-    parts.push(t("item-editor-validation-alert-highlighted"));
-  }
-  if (result.unmatched.length) {
-    parts.push(
-      t("item-editor-validation-alert-unmatched", {
-        args: { count: result.unmatched.length },
-      }),
-    );
-  }
-  const errored = issues.filter((issue) => issue.status === "error").length;
-  if (errored) {
-    parts.push(
-      t("item-editor-validation-alert-errors", {
-        args: { count: errored },
-      }),
-    );
-  }
-  showAlert(t("item-editor-validation-blocked-title"), parts.join("\n\n"));
-  // The alert takes focus while it is open; restore the visual focus after it
-  // closes so the marked field is the one the user starts editing.
-  result.focusTarget?.focus();
-  result.focusTarget?.scrollIntoView({ block: "center", inline: "nearest" });
+  editor?.showValidationIssues(issues);
 }
 
 function showValidationError(error: unknown): void {

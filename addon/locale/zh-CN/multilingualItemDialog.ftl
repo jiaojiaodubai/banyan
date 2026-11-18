@@ -53,6 +53,3 @@ multilingual-item-confirm-discard-keep = 继续编辑
 multilingual-item-confirm-discard-discard = 丢弃修改
 multilingual-item-saving = 正在保存…
 multilingual-item-checking-duplicate = 正在检查是否已有相同语言的条目…
-multilingual-item-validation-summary = { $style }：{ $failed } 项未通过，{ $errors } 项检查出错。
-multilingual-item-validation-error = 无法运行字段检查。
-multilingual-item-validation-edit = 返回修改

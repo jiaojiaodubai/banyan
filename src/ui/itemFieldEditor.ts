@@ -51,6 +51,7 @@ export type FieldValidationIssue = {
 type FieldTarget = {
   row: HTMLElement;
   input: _ZoteroTypes.EditableText;
+  label: string;
 };
 
 /**
@@ -155,6 +156,19 @@ export class ItemFieldEditor extends XULElement {
   private _creatorsVisible = true;
   private _creatorsHost: Element | null = null;
   private _table: HTMLDivElement | null = null;
+  private _summary: HTMLDivElement | null = null;
+  private _summaryText: HTMLSpanElement | null = null;
+  private _summaryItems: HTMLSpanElement | null = null;
+  private _summaryNotices: HTMLSpanElement | null = null;
+  /** Rows currently showing an inline error, for rebuilding the summary. */
+  private _validationTargets = new Map<
+    HTMLElement,
+    { target: FieldTarget; count: number }
+  >();
+  private _validationIssueCount = 0;
+  private _validationUnmatched = 0;
+  private _validationErrors = 0;
+  private _validationSeq = 0;
   private _toolbar: FieldMarkupToolbar | null = null;
   private _contextMenu: XULMenuPopupElement | null = null;
   /** Set on focus so `blurOpenField()` needs no DOM walk from the input. */
@@ -247,6 +261,21 @@ export class ItemFieldEditor extends XULElement {
     const contextMenu = document.createXULElement("menupopup");
     contextMenu.className = "item-field-context-menu";
     this._contextMenu = contextMenu as unknown as XULMenuPopupElement;
+    // The summary belongs to the scrolling field area, above the title row.
+    const summary = document.createElement("div");
+    summary.className = "field-validation-summary";
+    summary.hidden = true;
+    const summaryText = document.createElement("span");
+    summaryText.className = "field-validation-summary-text";
+    const summaryItems = document.createElement("span");
+    summaryItems.className = "field-validation-summary-items";
+    const summaryNotices = document.createElement("span");
+    summaryNotices.className = "field-validation-summary-notices";
+    summary.append(summaryText, summaryItems, summaryNotices);
+    this._summary = summary;
+    this._summaryText = summaryText;
+    this._summaryItems = summaryItems;
+    this._summaryNotices = summaryNotices;
     // The toolbar stays fixed; only the item information below it scrolls.
     const viewport = document.createElement("div");
     viewport.className = "field-editor-scroll";
@@ -255,12 +284,14 @@ export class ItemFieldEditor extends XULElement {
     document.addEventListener("contextmenu", this.onContextMenu, true);
     window.addEventListener("resize", this.onWindowResize);
     this.addEventListener("creator-layout-changed", this.onCreatorRendered);
+    this.addEventListener("input", this.onValidationInput);
     this.render();
   }
 
   disconnectedCallback(): void {
     window.removeEventListener("resize", this.onWindowResize);
     this.removeEventListener("creator-layout-changed", this.onCreatorRendered);
+    this.removeEventListener("input", this.onValidationInput);
     document.removeEventListener("contextmenu", this.onContextMenu, true);
   }
 
@@ -343,6 +374,13 @@ export class ItemFieldEditor extends XULElement {
     }
   }
 
+  private readonly onValidationInput = (event: Event): void => {
+    const target = event.target as Element | null;
+    const row = target?.closest(".meta-row.has-field-error") as
+      HTMLElement | null | undefined;
+    if (row) this.clearRowValidation(row);
+  };
+
   private readonly onWindowResize = (): void => {
     this.syncLabelWidth();
   };
@@ -384,6 +422,7 @@ export class ItemFieldEditor extends XULElement {
     if (!table) {
       return;
     }
+    this.clearValidationIssues();
     table.replaceChildren();
     this._focusedField = null;
     this._focusedExtraKey = null;
@@ -422,6 +461,7 @@ export class ItemFieldEditor extends XULElement {
       table.style.display = "";
       this._pendingSizing = [];
     }
+    this.attachSummary();
     this.syncLabelWidth();
     if (this._editable && titleName) {
       // Native note-editor buttons are available before a field is focused;
@@ -438,6 +478,33 @@ export class ItemFieldEditor extends XULElement {
     setTimeout(() => this.syncLabelWidth(), 0);
   }
 
+  /** The summary lives in the sticky title row so it stays visible on scroll. */
+  private attachSummary(): void {
+    const summary = this._summary;
+    const table = this._table;
+    if (!summary || !table) return;
+    const titleRow = table.querySelector<HTMLElement>(".title-row");
+    if (titleRow) titleRow.prepend(summary);
+    else table.prepend(summary);
+    this.setValidationBannerVisible(!summary.hidden);
+    this.updateFieldScrollMargin();
+  }
+
+  private setValidationBannerVisible(visible: boolean): void {
+    this._table
+      ?.querySelector(".title-row")
+      ?.classList.toggle("has-validation-banner", visible);
+  }
+
+  private updateFieldScrollMargin(): void {
+    const titleRow = this._table?.querySelector<HTMLElement>(".title-row");
+    const height = titleRow?.getBoundingClientRect().height ?? 0;
+    this.style.setProperty(
+      "--field-scroll-margin",
+      `${Math.ceil(height + 12)}px`,
+    );
+  }
+
   focusField(fieldName: string): void {
     this.querySelector<HTMLElement & { focus(): void }>(
       `editable-text[fieldname="${fieldName}"]`,
@@ -445,9 +512,9 @@ export class ItemFieldEditor extends XULElement {
   }
 
   /**
-   * Mark the fields named by non-passing checks, focus the first one, and put
-   * the reason on each input's native tooltip. Returns how many distinct rows
-   * could be located; unmatched checks still count in `total`.
+   * Show one inline error line under every affected field and a compact summary
+   * above the table. A single error focuses the field; multiple errors focus
+   * the summary so the user can choose where to start.
    */
   showValidationIssues(issues: readonly FieldValidationIssue[]): {
     matched: number;
@@ -457,63 +524,237 @@ export class ItemFieldEditor extends XULElement {
   } {
     this.clearValidationIssues();
     const targets = this.validationTargets();
-    const matched = new Set<HTMLElement>();
+    const affected = new Map<
+      HTMLElement,
+      { target: FieldTarget; messages: string[]; count: number }
+    >();
     const unmatched: string[] = [];
-    let first: _ZoteroTypes.EditableText | null = null;
-    let focusTarget: HTMLElement | _ZoteroTypes.EditableText | null = null;
+    let errors = 0;
 
     for (const issue of issues) {
+      if (issue.status === "error") errors++;
       const text = fieldIssueText(issue);
       const candidates = new Set<string>([
         issue.description,
         ...extractFieldCheckTargets(issue.description),
         ...extractFieldCheckTargets(issue.detail),
       ]);
-      const seen = new Set<HTMLElement>();
+      let matchedOne = false;
       for (const candidate of candidates) {
         const target = resolveFieldTarget(targets, candidate);
-        if (!target || seen.has(target.row)) continue;
-        seen.add(target.row);
-        matched.add(target.row);
-        this.markFieldError(target, text);
-        first ??= target.input;
+        if (!target) continue;
+        let entry = affected.get(target.row);
+        if (!entry) {
+          entry = { target, messages: [], count: 0 };
+          affected.set(target.row, entry);
+        }
+        entry.count++;
+        if (!entry.messages.includes(text)) entry.messages.push(text);
+        matchedOne = true;
+        // Several fields can be valid alternatives ("pages" or an extra key);
+        // mark the first one only so the summary is not padded with decoys.
+        break;
       }
-      if (!seen.size) unmatched.push(text);
+      if (!matchedOne) unmatched.push(text);
     }
 
-    if (first) {
-      // Focus the real input, not just the custom-element host: focus() on the
-      // host does not always move the visual focus ring. Scroll after focusing
-      // so the browser cannot override the position while moving focus.
-      const target = first.ref ?? first;
-      target.focus();
-      first.scrollIntoView({ block: "center", inline: "nearest" });
-      focusTarget = target;
+    for (const [row, entry] of affected) {
+      row.classList.add("has-field-error");
+      this._validationTargets.set(row, {
+        target: entry.target,
+        count: entry.count,
+      });
+      entry.target.input.setAttribute("aria-invalid", "true");
+      entry.target.input.ref?.setAttribute("aria-invalid", "true");
+      this.addValidationMessage(entry.target, entry.messages);
     }
+
+    this._validationIssueCount = issues.length;
+    this._validationUnmatched = unmatched.length;
+    this._validationErrors = errors;
+    this.renderValidationSummary();
+
+    const targetCount = this._validationTargets.size;
+    let focusTarget: HTMLElement | _ZoteroTypes.EditableText | null = null;
+    if (targetCount === 1 && !unmatched.length && !errors) {
+      const entry = this._validationTargets.values().next().value;
+      const target = entry?.target;
+      if (target) {
+        const input = target.input.ref ?? target.input;
+        input.focus();
+        target.row.scrollIntoView({ block: "nearest" });
+        focusTarget = input;
+      }
+    } else if (targetCount || unmatched.length || errors) {
+      const summary = this._summary;
+      const firstItem = summary?.querySelector<HTMLButtonElement>(
+        ".field-validation-summary-item",
+      );
+      if (summary && firstItem) {
+        summary.scrollIntoView({ block: "nearest" });
+        firstItem.focus();
+        focusTarget = firstItem;
+      }
+    }
+
     return {
-      matched: matched.size,
+      matched: targetCount,
       total: issues.length,
       unmatched,
       focusTarget,
     };
   }
 
-  /** Remove every field error marker and its tooltip. */
+  /** Remove every field error marker, inline message and summary. */
   clearValidationIssues(): void {
     const rows = Array.from(
       this.querySelectorAll("#info-table .meta-row.has-field-error"),
     ) as HTMLElement[];
-    for (const row of rows) {
-      row.classList.remove("has-field-error");
-      row.removeAttribute("title");
-      const inputs = Array.from(
-        row.querySelectorAll("[aria-invalid], [title]"),
-      ) as HTMLElement[];
-      for (const input of inputs) {
-        input.removeAttribute("aria-invalid");
-        input.removeAttribute("title");
+    for (const row of rows) this.removeRowValidationMarkers(row);
+    this._validationTargets.clear();
+    this._validationIssueCount = 0;
+    this._validationUnmatched = 0;
+    this._validationErrors = 0;
+    const summary = this._summary;
+    if (summary) {
+      summary.hidden = true;
+      summary.removeAttribute("role");
+      this._summaryText?.replaceChildren();
+      this._summaryItems?.replaceChildren();
+      this._summaryNotices?.replaceChildren();
+      this.setValidationBannerVisible(false);
+      this.updateFieldScrollMargin();
+    }
+  }
+
+  private clearRowValidation(row: HTMLElement): void {
+    const entry = this._validationTargets.get(row);
+    if (entry) this._validationIssueCount -= entry.count;
+    this.removeRowValidationMarkers(row);
+    this._validationTargets.delete(row);
+    if (this._validationTargets.size || this._validationUnmatched) {
+      this.renderValidationSummary();
+    } else {
+      this.clearValidationIssues();
+    }
+  }
+
+  private removeRowValidationMarkers(row: HTMLElement): void {
+    const entry = this._validationTargets.get(row);
+    const target = entry?.target;
+    const messages = Array.from(
+      row.querySelectorAll(":scope > .field-validation-message"),
+    ) as HTMLElement[];
+    if (target) {
+      target.input.removeAttribute("aria-invalid");
+      target.input.ref?.removeAttribute("aria-invalid");
+      for (const message of messages) {
+        const id = message.id;
+        if (!id) continue;
+        this.toggleDescribedBy(target.input, id, false);
+        if (target.input.ref) {
+          this.toggleDescribedBy(target.input.ref, id, false);
+        }
       }
     }
+    for (const message of messages) message.remove();
+    row.classList.remove("has-field-error");
+  }
+
+  private addValidationMessage(
+    target: FieldTarget,
+    messages: readonly string[],
+  ): void {
+    const message = document.createElement("div");
+    message.className = "field-validation-message";
+    message.id = `field-validation-${++this._validationSeq}`;
+    const prefix = document.createElement("span");
+    prefix.className = "field-validation-prefix";
+    prefix.textContent = t("item-editor-validation-prefix");
+    message.append(prefix, document.createTextNode(messages.join("\n\n")));
+    target.row.appendChild(message);
+    this.toggleDescribedBy(target.input, message.id, true);
+    if (target.input.ref) {
+      this.toggleDescribedBy(target.input.ref, message.id, true);
+    }
+  }
+
+  private toggleDescribedBy(element: Element, id: string, add: boolean): void {
+    const ids = new Set(
+      (element.getAttribute("aria-describedby") ?? "")
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (add) ids.add(id);
+    else ids.delete(id);
+    if (ids.size) element.setAttribute("aria-describedby", [...ids].join(" "));
+    else element.removeAttribute("aria-describedby");
+  }
+
+  private renderValidationSummary(): void {
+    const summary = this._summary;
+    const text = this._summaryText;
+    const items = this._summaryItems;
+    const notices = this._summaryNotices;
+    if (!summary || !text || !items || !notices) return;
+    const targets = [...this._validationTargets.values()].map(
+      (entry) => entry.target,
+    );
+    const total = this._validationIssueCount;
+    if (!total && !this._validationErrors) {
+      summary.hidden = true;
+      summary.removeAttribute("role");
+      this.setValidationBannerVisible(false);
+      this.updateFieldScrollMargin();
+      return;
+    }
+
+    summary.hidden = false;
+    this.setValidationBannerVisible(true);
+    if (
+      this._validationIssueCount > 1 ||
+      this._validationUnmatched ||
+      this._validationErrors
+    ) {
+      summary.setAttribute("role", "status");
+    } else {
+      summary.removeAttribute("role");
+    }
+    text.textContent = t("item-editor-validation-summary", {
+      args: { count: total },
+    });
+    items.replaceChildren();
+    for (const target of targets) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "field-validation-summary-item";
+      button.textContent =
+        target.label || target.input.getAttribute("fieldname");
+      button.addEventListener("click", () => {
+        const input = target.input.ref ?? target.input;
+        input.focus();
+        target.row.scrollIntoView({ block: "nearest" });
+      });
+      items.appendChild(button);
+    }
+    notices.replaceChildren();
+    if (this._validationUnmatched) {
+      const notice = document.createElement("span");
+      notice.className = "field-validation-summary-notice";
+      notice.textContent = t("item-editor-validation-summary-unmatched", {
+        args: { count: this._validationUnmatched },
+      });
+      notices.appendChild(notice);
+    }
+    if (this._validationErrors) {
+      const notice = document.createElement("span");
+      notice.className = "field-validation-summary-notice";
+      notice.textContent = t("item-editor-validation-summary-errors", {
+        args: { count: this._validationErrors },
+      });
+      notices.appendChild(notice);
+    }
+    this.updateFieldScrollMargin();
   }
 
   private validationTargets(): Map<string, FieldTarget> {
@@ -539,7 +780,7 @@ export class ItemFieldEditor extends XULElement {
           "editable-text[data-extra-id]",
         );
         if (key && value && key.value.trim()) {
-          add(key.value, { row, input: value });
+          add(key.value, { row, input: value, label: key.value.trim() });
         }
         continue;
       }
@@ -548,8 +789,10 @@ export class ItemFieldEditor extends XULElement {
           "editable-text[data-extra-other]",
         );
         if (other) {
-          add(Zotero.getString("itemFields.extra"), { row, input: other });
-          add("extra", { row, input: other });
+          const label = Zotero.getString("itemFields.extra");
+          const target = { row, input: other, label };
+          add(label, target);
+          add("extra", target);
         }
         continue;
       }
@@ -558,11 +801,11 @@ export class ItemFieldEditor extends XULElement {
       );
       const fieldName = value?.getAttribute("fieldname");
       if (!value || !fieldName || fieldName.startsWith("creator-")) continue;
-      add(fieldName, { row, input: value });
-      add(Zotero.ItemFields.getLocalizedString(fieldName), {
-        row,
-        input: value,
-      });
+      const label =
+        Zotero.ItemFields.getLocalizedString(fieldName) || fieldName;
+      const target = { row, input: value, label };
+      add(fieldName, target);
+      add(label, target);
       const fieldID = Zotero.ItemFields.getID(fieldName);
       if (fieldID) {
         try {
@@ -571,37 +814,13 @@ export class ItemFieldEditor extends XULElement {
             fieldID,
           );
           const baseName = baseID ? Zotero.ItemFields.getName(baseID) : "";
-          if (baseName) add(baseName, { row, input: value });
+          if (baseName) add(baseName, target);
         } catch {
           // A primary column or an unknown type has no base field.
         }
       }
     }
     return targets;
-  }
-
-  private markFieldError(target: FieldTarget, text: string): void {
-    const { row, input } = target;
-    const appendTitle = (element: Element): void => {
-      const previous = element.getAttribute("title");
-      element.setAttribute("title", previous ? `${previous}\n\n${text}` : text);
-    };
-    row.classList.add("has-field-error");
-    input.setAttribute("aria-invalid", "true");
-    appendTitle(input);
-    appendTitle(row);
-    if (input.ref) appendTitle(input.ref);
-    input.addEventListener(
-      "input",
-      () => {
-        row.classList.remove("has-field-error");
-        input.removeAttribute("aria-invalid");
-        input.removeAttribute("title");
-        input.ref?.removeAttribute("title");
-        row.removeAttribute("title");
-      },
-      { once: true },
-    );
   }
 
   /** Drop the toolbar target when focus moves to the creator editor. */

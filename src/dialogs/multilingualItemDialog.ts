@@ -14,8 +14,8 @@ import { createRetargetScheduler } from "../utils/retargetScheduler";
 // Side-effect import: registers the custom element (a type import is dropped).
 import "../ui/itemEditor";
 import type { ItemEditor } from "../ui/itemEditor";
+import type { FieldValidationIssue } from "../ui/itemFieldEditor";
 import {
-  fieldCheckStatusText,
   formatFieldCheckDetail,
   hasBlockingFieldChecks,
 } from "../utils/itemFieldCheckText";
@@ -50,9 +50,7 @@ let reloadGeneration = 0;
 let busy = false;
 // Guards `onAccept()` before `busy` rises; its first check is async.
 let accepting = false;
-let validationVisible = false;
-// Set by "Save Anyway": skip the field checks for this one accept attempt.
-let skipFieldValidation = false;
+let pendingValidationSignature: string | null = null;
 // Set before our own `window.close()` so the `close` guard lets it pass.
 let closing = false;
 // `reader.lastSidebarTab` captured on open and restored on dispose.
@@ -256,8 +254,8 @@ function initItemEditor(item: Zotero.Item): void {
   if (!editor) {
     throw new Error(t("multilingual-item-error-init"));
   }
-  hideValidation();
-  skipFieldValidation = false;
+  editor.clearValidationIssues();
+  pendingValidationSignature = null;
   // Both at once: the single setters would rebuild the table twice.
   editor.configure(item, true);
   window.setTimeout(updateEditorMinWidth, 0);
@@ -277,100 +275,59 @@ function editorPaneMinWidth(): number {
   return editor ? Math.max(336, Math.ceil(editor.contentMinWidth) + 16) : 336;
 }
 
+function blockingIssues(run: ItemFieldCheckRun): FieldValidationIssue[] {
+  return run.checks
+    .filter((check) => check.status !== "pass")
+    .map((check) => ({
+      description: check.description,
+      detail: formatFieldCheckDetail(check),
+      status: check.status === "error" ? ("error" as const) : ("fail" as const),
+    }));
+}
+
+function validationSignature(issues: readonly FieldValidationIssue[]): string {
+  return issues
+    .map((issue) => `${issue.description}\u0000${issue.detail}`)
+    .join("\u0001");
+}
+
 function showValidation(run: ItemFieldCheckRun): void {
-  validationVisible = true;
-  const panel = document.getElementById(
-    "validation-panel",
-  ) as HTMLElement | null;
-  const list = document.getElementById("validation-list");
-  const summary = document.getElementById("validation-summary");
-  if (!panel || !list || !summary) return;
-  list.replaceChildren();
-  let failed = 0;
-  let errored = 0;
-  for (const check of run.checks) {
-    if (check.status === "pass") continue;
-    if (check.status === "fail") failed++;
-    else errored++;
-    const row = document.createElement("div");
-    row.className = "validation-row";
-    const status = document.createElement("span");
-    status.className = `validation-status is-${check.status}`;
-    status.textContent = fieldCheckStatusText(check.status);
-    const description = document.createElement("span");
-    description.className = "validation-description";
-    description.textContent = check.description;
-    const detail = document.createElement("span");
-    detail.className = "validation-detail";
-    detail.textContent = formatFieldCheckDetail(check);
-    row.append(status, description, detail);
-    list.appendChild(row);
-  }
-  summary.textContent = t("multilingual-item-validation-summary", {
-    args: {
-      style: run.styleTitle,
-      failed,
-      errors: errored,
-    },
-  });
-  panel.hidden = false;
-  setSubmissionControls(true);
+  const editor = getItemEditor();
+  if (!editor) return;
+  const issues = blockingIssues(run);
+  pendingValidationSignature = validationSignature(issues);
+  editor.showValidationIssues(issues);
 }
 
 function showValidationError(error: unknown): void {
-  validationVisible = true;
-  const panel = document.getElementById(
-    "validation-panel",
-  ) as HTMLElement | null;
-  const list = document.getElementById("validation-list");
-  const summary = document.getElementById("validation-summary");
-  if (!panel || !list || !summary) return;
-  list.replaceChildren();
-  const row = document.createElement("div");
-  row.className = "validation-row";
-  row.textContent = error instanceof Error ? error.message : String(error);
-  list.appendChild(row);
-  summary.textContent = t("multilingual-item-validation-error");
-  panel.hidden = false;
-  setSubmissionControls(true);
+  pendingValidationSignature = null;
+  const message = error instanceof Error ? error.message : String(error);
+  Services.prompt.alert(
+    window as unknown as mozIDOMWindowProxy,
+    t("item-editor-validation-error-title"),
+    t("item-editor-validation-error-detail", { args: { message } }),
+  );
 }
 
-function hideValidation(): void {
-  validationVisible = false;
-  const panel = document.getElementById(
-    "validation-panel",
-  ) as HTMLElement | null;
-  const list = document.getElementById("validation-list");
-  if (panel) panel.hidden = true;
-  if (list) list.replaceChildren();
-  if (!busy && !accepting) setSubmissionControls(false);
-}
-
-function localizeValidationActions(): void {
-  const edit = document.getElementById("validation-edit");
-  const saveAnyway = document.getElementById("validation-save-anyway");
-  if (edit) edit.textContent = t("multilingual-item-validation-edit");
-  if (saveAnyway) saveAnyway.textContent = t("item-editor-save-anyway");
+function confirmSaveAnyway(count: number): boolean {
+  return (
+    Zotero.Prompt.confirm({
+      window,
+      title: t("item-editor-validation-blocked-title"),
+      text: t("item-editor-validation-save-anyway-confirm", {
+        args: { count },
+      }),
+      button0: t("item-editor-validation-keep-editing"),
+      button1: t("item-editor-save-anyway"),
+      defaultButton: 0,
+    }) === 1
+  );
 }
 
 function bindEvents(): void {
-  localizeValidationActions();
   document.getElementById("accept-button")?.addEventListener("click", () => {
-    skipFieldValidation = false;
     void onAccept();
   });
-  document.getElementById("validation-edit")?.addEventListener("click", () => {
-    hideValidation();
-    focusField("title");
-  });
-  document
-    .getElementById("validation-save-anyway")
-    ?.addEventListener("click", () => {
-      if (!validationVisible || busy) return;
-      skipFieldValidation = true;
-      hideValidation();
-      void onAccept();
-    });
   document.addEventListener("creator-layout-changed", () => {
     window.setTimeout(updateEditorMinWidth, 0);
   });
@@ -1483,23 +1440,32 @@ async function acceptDraft(): Promise<void> {
     return;
   }
 
-  if (!skipFieldValidation) {
-    setBusy(true, t("item-editor-checking"));
-    let run: ItemFieldCheckRun | null;
-    try {
-      run = await addon.api.runItemFieldChecks(activeDraft);
-    } catch (error) {
-      setBusy(false);
-      showValidationError(error);
-      return;
-    }
+  setBusy(true, t("item-editor-checking"));
+  let run: ItemFieldCheckRun | null;
+  try {
+    run = await addon.api.runItemFieldChecks(activeDraft);
+  } catch (error) {
     setBusy(false);
-    if (run && hasBlockingFieldChecks(run.checks)) {
+    showValidationError(error);
+    return;
+  }
+  setBusy(false);
+  if (run && hasBlockingFieldChecks(run.checks)) {
+    const issues = blockingIssues(run);
+    const signature = validationSignature(issues);
+    if (pendingValidationSignature === signature) {
+      if (!confirmSaveAnyway(issues.length)) {
+        showValidation(run);
+        return;
+      }
+      pendingValidationSignature = null;
+    } else {
       showValidation(run);
       return;
     }
   }
-  skipFieldValidation = false;
+  getItemEditor()?.clearValidationIssues();
+  pendingValidationSignature = null;
 
   try {
     if (

@@ -15,3 +15,7 @@ item-editor-swap-names = 交换名字/姓氏
 item-editor-fix-case = 修正大小写
 item-editor-drag-reorder = 拖拽调整顺序
 item-editor-view-online = 在线查看
+item-editor-validation-prefix = 错误：
+item-editor-validation-summary = 有 { $count } 项字段检查未通过
+item-editor-validation-summary-unmatched = 另有 { $count } 项无法定位到字段，请用「检查字段」查看
+item-editor-validation-summary-errors = 其中 { $count } 项检查出错或超时

@@ -15,3 +15,7 @@ item-editor-swap-names = Swap First/Last
 item-editor-fix-case = Fix Case
 item-editor-drag-reorder = Drag to reorder
 item-editor-view-online = View Online
+item-editor-validation-prefix = Error:
+item-editor-validation-summary = { $count } field check(s) did not pass
+item-editor-validation-summary-unmatched = { $count } could not be mapped to a field; use “Check Fields” for details
+item-editor-validation-summary-errors = { $count } check(s) errored or timed out
