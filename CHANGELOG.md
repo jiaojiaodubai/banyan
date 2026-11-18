@@ -1,32 +1,60 @@
 # Changelog
 
 <!--
-Maintained by `pnpm changelog` (changelogen). Before a release, edit this
-"Unreleased" section as needed; `pnpm release` will then cut the version.
+Maintained by `pnpm changelog` (changelogen). Before a release, edit the
+top section as needed; `pnpm release` will then cut the version.
 -->
 
-## Unreleased
+## v0.5.0 (2026-11-18)
+
+[compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.4.0...v0.5.0)
 
 ### 🚀 Enhancements
 
-- **field presets:** Styles can declare an `ITEM_FIELD_PRESETS` array to add "Quick Marks" to the item context menu; applying a mark writes its declared key/value pairs onto the selected items — as real fields when the key is valid for the item type, otherwise as `extra` lines
+- **field presets:** Styles can declare an `ITEM_FIELD_PRESETS` array (or object map) to add "Quick Marks" to the item context menu; applying a mark writes its declared key/value pairs onto the selected items — as real fields when the key is valid for the item type, otherwise as `extra` lines
 - A mark can leave a value to the user by declaring `null`: applying it opens the write dialog with the key fixed and asks for the value
 - Only one style feeds the menu at a time, chosen in the preferences (by default the style last used for rendering)
 - Conflicting values are never overwritten silently: applying a mark asks whether to skip or overwrite, with an option to apply the answer to the remaining items
 - **field validation:** Styles can declare an `ITEM_FIELD_VALIDATORS` object to add "Check Fields" to the item context menu; checks may be synchronous or async (10-second per-check timeout), run on each selected editable item, and open a non-modal report tree grouped by item, showing every checker's description and result
 - Only one style feeds the item menu at a time; quick marks and field checks share the same style preference
-- **style chooser:** When no style is supplied, preselect the style chosen for the item menu (or the last used style) before falling back to the first entry
+- **style chooser:** Preselect the style supplied by the caller, the style chosen for the item menu, or the last used style before the first entry; show each style's title and updated date, filter by either, import a style file in place, and return no style when the window is closed without confirming
 - **item list:** Show one `extra` key's value as its own item-list column, chosen in a new "Item list" section of the preferences (the column appears in Zotero's column settings once a key is set)
+- **creators-ext:** Record a role, nationality and dynasty for each creator in a `creators-ext` block through the item context menu; styles read them on the creator objects
 
 ### 🩹 Fixes
 
 - **extra field:** Keep key/value lines at the top of `extra` and sort them by key, as Zotero's own documentation requires and citeproc reads them contiguously
+- **style lifecycle:** Keep executable style instances in each window bundle and make the shared style index serializable, so a style saved or imported from a dialog cannot leave dead-realm callbacks behind; dialog changes refresh the main window's item menu
+- **styles:** Write an imported or edited style over the file that already declares its id (asking before overwrite) and resolve duplicate ids on load the way Zotero resolves duplicate translator files
+- **startup:** Run each startup step independently so one failure (for example a missing style-editor asset in the XPI) cannot hide the style index or leave menu labels unresolved
+- **multilingual:** Name a retyped item after the new item type instead of the old one
+- **ui:** Align the style list and the uncited-items rows with Zotero's own item trees
 
 ### 💅 Styles
 
 - **breaking:** Keys of `item.extra` follow Zotero's own variable-line syntax now, so lines such as `tex.shorttitle: Foo` or `see:` stay prose and are no longer read as keys
 - **preferences:** Give each setting its own heading (for example "Citation window") with its description underneath, instead of one "General settings" section whose labels were crowded by the help text
 - The style editor validates `ITEM_FIELD_PRESETS` (`banyanStyle/validate-field-presets`) and `ITEM_FIELD_VALIDATORS` (`banyanStyle/validate-item-field-validators`)
+
+### 💅 Refactors
+
+- **logging:** Replace the dead debug logger with a scoped logger and remove the preferences only that logger read
+- **item menu:** Aggregate the item context menu from per-feature contributions, so creator-extension, quick-mark, field-check and row-menu entries appear in one order and only when applicable
+- **dialogs:** Align the dialog windows with Zotero's own field rows, section headings and shared dialog footer
+- **style types:** Move the style-index shapes (`StyleFile`, declaration summaries) out of `typings/style.d.ts` into `typings/styleIndex.d.ts`, keeping the author-facing declarations to item/unit/style/styleUtils (all four are still generated into the editor and AI workplace)
+
+### ✅ Tests
+
+- Add shared Git hooks that run the development gate before commits and the production gate before `v*` tags, plus a production smoke test that installs the XPI into a disposable Zotero profile
+
+### 🤖 CI
+
+- Make the release workflow idempotent for re-issued tags
+- Build the integration add-ins before linting in CI: `lint:check` typechecks the tests and reads the generated WPS add-in manifest
+
+### 🏡 Chore
+
+- **deps:** Refresh the npm dependencies within their ranges in the release commit (prettier 3.10.1, zotero-plugin-scaffold 0.9.4, @types/node 24.19.2); the toolchain revision stays at `3612d5b`
 
 ## v0.4.0 (2026-10-07)
 

@@ -121,7 +121,7 @@ try {
     path.join(temp, "observer"),
   );
   await copyFile(
-    path.join(root, "test-gui/styles/manual-gui-disposable.js"),
+    path.join(root, "test-prod/fixtures/manual-gui-disposable.js"),
     path.join(data, "banyan", "manual-gui-disposable.js"),
   );
   const prefs = {

@@ -20,6 +20,5 @@ logs
 .claude
 .tmp
 dev
-test-gui/.state
 copilot-instructions.md
 addon/content/integration
