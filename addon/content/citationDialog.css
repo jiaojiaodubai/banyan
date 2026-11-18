@@ -129,14 +129,20 @@ footer {
   -moz-window-dragging: no-drag;
 }
 
-/* Container for the style-declared citation controls (inserted by script) */
+/* Container for the style-declared citation controls (inserted by script).
+   Grid rather than flex-wrap so a taller field (for example one with an inline
+   error) cannot make its row look uneven or push the next row out of line. */
 #citation-options-container {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  align-items: start;
   column-gap: 12px;
-  row-gap: 4px;
+  row-gap: 8px;
   flex: 1 1 auto;
+  min-width: 0;
+}
+
+#citation-options-container > .banyan-control-field {
   min-width: 0;
 }
 
@@ -345,6 +351,9 @@ footer {
 
 .bubble-popup {
   position: absolute;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--material-background);
   border: 1px solid var(--material-panedivider);
   box-shadow: 0px 0.5px 2.5px 0px rgba(0, 0, 0, 0.3);
@@ -427,19 +436,31 @@ footer {
   gap: 0;
   width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   padding: 0 8px;
   border: var(--material-border-quinary);
   border-radius: 6px;
   background: var(--fill-senary);
 }
 
+.bubble-list-editor[hidden] {
+  display: none;
+}
+
 .bubble-list-row {
   display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
   padding-block: 6px;
   border-top: var(--material-border-quinary);
+}
+
+.bubble-list-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .bubble-list-row:first-child {
@@ -510,10 +531,16 @@ footer {
 
 .bubble-list-field {
   display: flex;
-  flex: 0 0 auto;
   align-items: center;
   gap: 4px;
   min-width: 0;
+  font-size: 0.9em;
+}
+
+.bubble-list-error {
+  width: 100%;
+  margin-top: 0;
+  padding: 6px 8px;
   font-size: 0.9em;
 }
 
@@ -586,9 +613,4 @@ footer {
 
 .bubble-list-editor.is-disabled {
   opacity: 0.6;
-}
-
-.bubble-list-field [aria-invalid="true"] {
-  outline: 1px solid #c00;
-  outline-offset: -1px;
 }

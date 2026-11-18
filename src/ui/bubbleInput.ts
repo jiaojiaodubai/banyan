@@ -15,11 +15,11 @@ import {
 } from "@banyan/core/validation/paramValues";
 import { getItemDisplayLabel } from "@banyan/core/items/fields";
 import {
+  createControlError,
   createParameterField,
   createXULElementCompat,
   initialParameterValue,
   setElementDisabled,
-  showValidationError,
   type ParameterFieldHandle,
   type ScalarValue,
 } from "./parameterPanel";
@@ -59,6 +59,17 @@ type PopupListField = {
   getValue: () => ScalarValue;
   getError: () => string;
   setError: (text: string) => void;
+};
+
+type PopupListErrorEntry = {
+  label: string;
+  getError: () => string;
+  getControl: () => HTMLElement | null;
+};
+
+type PopupListErrorGroup = {
+  element: HTMLDivElement;
+  entries: PopupListErrorEntry[];
 };
 
 type PopupListEditor = {
@@ -410,8 +421,6 @@ export class BubbleInput {
       if (this.isCiteValid(cite)) continue;
       const bubble = bubbles[index];
       if (!bubble) continue;
-      const message = this.firstCiteError(cite);
-      if (message) showValidationError(message);
       this.showPopup(cite, bubble);
       window.setTimeout(() => {
         const target = this.popup?.querySelector<HTMLElement>(
@@ -1337,22 +1346,24 @@ export class BubbleInput {
       this.popup = popup;
     }
 
-    // Positioning: keep the adaptive-width popup inside the dialog viewport.
-    const rect = anchor.getBoundingClientRect();
-    popup.style.top = `${rect.bottom + 5}px`;
-    popup.style.left = `${rect.left}px`;
-    const popupRect = popup.getBoundingClientRect();
-    popup.style.left = `${Math.max(
+    // Prevent popup click from closing it
+    popup.addEventListener("click", (e) => e.stopPropagation());
+    this.positionPopup();
+  }
+
+  /** Keep the popup inside the dialog even after an inline error grows it. */
+  private positionPopup(): void {
+    if (!this.popup || !this.popupAnchor) return;
+    const rect = this.popupAnchor.getBoundingClientRect();
+    const popupRect = this.popup.getBoundingClientRect();
+    this.popup.style.left = `${Math.max(
       8,
       Math.min(rect.left, window.innerWidth - popupRect.width - 8),
     )}px`;
-    popup.style.top = `${Math.max(
+    this.popup.style.top = `${Math.max(
       8,
       Math.min(rect.bottom + 5, window.innerHeight - popupRect.height - 8),
     )}px`;
-
-    // Prevent popup click from closing it
-    popup.addEventListener("click", (e) => e.stopPropagation());
   }
 
   private predicateArgs(
@@ -1392,6 +1403,40 @@ export class BubbleInput {
     const fields: PopupListField[] = [];
     const removeButtons: HTMLButtonElement[] = [];
     const addButtons: HTMLButtonElement[] = [];
+    const errorGroups: PopupListErrorGroup[] = [];
+
+    /**
+     * A list row is one logical condition, like a row in Zotero's advanced
+     * search. Its fields share a single full-width error line below the row:
+     * per-field error blocks made narrow rows collide and overflow the popup.
+     */
+    const updateListRowErrors = () => {
+      for (const group of errorGroups) {
+        const messages = group.entries
+          .map((entry) => ({ label: entry.label, message: entry.getError() }))
+          .filter(({ message }) => message);
+        const text = messages
+          .map(({ label, message }) => `${label}：${message}`)
+          .join("；");
+        group.element.textContent = text;
+        group.element.hidden = messages.length === 0;
+
+        for (const entry of group.entries) {
+          const controlEl = entry.getControl();
+          if (!controlEl) continue;
+          const invalid = Boolean(entry.getError());
+          if (invalid) {
+            controlEl.setAttribute("aria-invalid", "true");
+            controlEl.setAttribute("aria-describedby", group.element.id);
+            controlEl.setAttribute("aria-errormessage", group.element.id);
+          } else {
+            controlEl.removeAttribute("aria-invalid");
+            controlEl.removeAttribute("aria-describedby");
+            controlEl.removeAttribute("aria-errormessage");
+          }
+        }
+      }
+    };
 
     const commit = () => {
       if (state.mode !== "free") return;
@@ -1452,12 +1497,20 @@ export class BubbleInput {
       fields.length = 0;
       removeButtons.length = 0;
       addButtons.length = 0;
+      errorGroups.length = 0;
 
       rows.forEach((row, rowIndex) => {
         const rowEl = document.createElement("div");
         rowEl.classList.add("bubble-list-row");
+        const rowMain = document.createElement("div");
+        rowMain.classList.add("bubble-list-main");
         const fieldsWrap = document.createElement("div");
         fieldsWrap.classList.add("bubble-list-fields");
+        const rowErrorEl = createControlError(
+          `banyan-list-error-${control.id}-${rowIndex}`,
+        );
+        rowErrorEl.classList.add("bubble-list-error");
+        const rowErrorEntries: PopupListErrorEntry[] = [];
 
         for (const field of control.fields) {
           const fieldWrap = document.createElement("div");
@@ -1469,21 +1522,6 @@ export class BubbleInput {
           let controlEl: HTMLElement | null = null;
           const setError = (text: string) => {
             fieldError = text;
-            if (!controlEl) return;
-            if (text) {
-              controlEl.setAttribute("aria-invalid", "true");
-            } else {
-              controlEl.removeAttribute("aria-invalid");
-            }
-          };
-          const announce = () => {
-            if (!fieldError) return;
-            showValidationError(fieldError);
-            const id = controlEl?.id;
-            const target = id
-              ? (document.getElementById(id) as HTMLElement | null)
-              : controlEl;
-            target?.focus();
           };
 
           if (field.format === "rich") {
@@ -1525,7 +1563,6 @@ export class BubbleInput {
                 row[field.id] = markup;
                 renderPreview();
                 commit();
-                queueMicrotask(announce);
               });
             };
             preview.addEventListener("click", openEditor);
@@ -1572,10 +1609,14 @@ export class BubbleInput {
             };
             input.addEventListener("input", update);
             input.addEventListener("change", update);
-            input.addEventListener("blur", () => queueMicrotask(announce));
             fieldWrap.append(inlineLabel, input);
           }
 
+          rowErrorEntries.push({
+            label: field.label,
+            getError: () => fieldError,
+            getControl: () => controlEl,
+          });
           fields.push({
             field,
             row,
@@ -1594,7 +1635,9 @@ export class BubbleInput {
         const add = createAddButton(rowIndex);
         addButtons.push(add);
         actions.append(remove, add);
-        rowEl.append(fieldsWrap, actions);
+        rowMain.append(fieldsWrap, actions);
+        rowEl.append(rowMain, rowErrorEl);
+        errorGroups.push({ element: rowErrorEl, entries: rowErrorEntries });
         container.appendChild(rowEl);
       });
 
@@ -1650,6 +1693,7 @@ export class BubbleInput {
             : "",
         );
       }
+      updateListRowErrors();
     };
 
     const refresh = (
@@ -1748,5 +1792,6 @@ export class BubbleInput {
       const state = this.controlState(resolved, editor.control);
       editor.refresh(state, state.fieldValidation);
     }
+    this.positionPopup();
   }
 }

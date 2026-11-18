@@ -1,9 +1,9 @@
 @namespace xul url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
 /*
- * Shared control rendering: one field per control, with a description tooltip
- * and rich-value preview. Used by the style options panel, the citation dialog
- * and the cite popup.
+ * Shared control rendering: one field per control, with a description tooltip,
+ * rich-value preview, and an inline invalid message. Used by the style options
+ * panel, the citation dialog and the cite popup.
  */
 
 .banyan-control-field {
@@ -13,6 +13,10 @@
   min-width: 170px;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+.banyan-control-field[hidden] {
+  display: none;
 }
 
 .banyan-control-label,
@@ -62,9 +66,22 @@
   font-weight: normal;
 }
 
-.banyan-control-body [aria-invalid="true"] {
-  outline: 1px solid #c00;
-  outline-offset: -1px;
+.banyan-control-error {
+  width: 100%;
+  margin-top: 3px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--color-invalid);
+  background: var(--color-invalid-background);
+  font-size: 0.9em;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+}
+
+.banyan-control-error[hidden] {
+  display: none;
 }
 
 .banyan-control-rich {

@@ -39,14 +39,63 @@ export function createXULElementCompat(tag: string): Element {
   return document.createElementNS(XUL_NS, tag);
 }
 
-/** Report a control error without taking permanent space in the layout. */
-export function showValidationError(message: string, owner = window): void {
-  if (!message) return;
-  const title = t("citation-dialog-invalid-input");
-  // `Prompt.confirm()` renders the question icon; a validation failure is a
-  // warning, so use the alert prompt instead.
-  Services.prompt.alert(owner as unknown as mozIDOMWindowProxy, title, message);
-  owner.focus?.();
+/**
+ * Create the accessible inline error element for one parameter field.
+ *
+ * The element lives for the lifetime of the field and is toggled hidden/visible,
+ * so changing validation messages do not rebuild the panel or move focus.
+ */
+export function createControlError(id: string): HTMLDivElement {
+  const error = document.createElement("div");
+  error.id = id;
+  error.className = "banyan-control-error";
+  error.hidden = true;
+  error.setAttribute("aria-live", "polite");
+  return error;
+}
+
+/**
+ * Attach or clear an inline error on a parameter control.
+ *
+ * `aria-invalid` and `aria-describedby` are kept in sync with the visible
+ * message. The description tooltip (`title`) is intentionally left for the
+ * style-declared control description, not for errors.
+ */
+export function applyControlError(
+  errorEl: HTMLElement,
+  controlEl: Element | null,
+  message: string,
+): void {
+  if (errorEl.textContent !== message) {
+    errorEl.textContent = message;
+  }
+  const hidden = !message;
+  if (errorEl.hidden !== hidden) {
+    errorEl.hidden = hidden;
+  }
+  if (!controlEl) return;
+
+  const describedBy = new Set(
+    (controlEl.getAttribute("aria-describedby") ?? "")
+      .split(/\s+/)
+      .filter(Boolean),
+  );
+  if (message) {
+    describedBy.add(errorEl.id);
+    controlEl.setAttribute("aria-invalid", "true");
+    controlEl.setAttribute("aria-errormessage", errorEl.id);
+  } else {
+    describedBy.delete(errorEl.id);
+    controlEl.removeAttribute("aria-invalid");
+    if (controlEl.getAttribute("aria-errormessage") === errorEl.id) {
+      controlEl.removeAttribute("aria-errormessage");
+    }
+  }
+  if (describedBy.size) {
+    controlEl.setAttribute("aria-describedby", [...describedBy].join(" "));
+  } else {
+    controlEl.removeAttribute("aria-describedby");
+  }
 }
 
 export type ParameterControl = Exclude<
@@ -125,14 +174,7 @@ export function createParameterField(
 
   const body = document.createElement("div");
   body.classList.add("banyan-control-body");
-
-  let announcedError = "";
-  const announceError = () => {
-    if (!error || error === announcedError) return;
-    announcedError = error;
-    showValidationError(error);
-    body.querySelector<HTMLElement>("[id]")?.focus();
-  };
+  const errorEl = createControlError(`banyan-control-error-${control.id}`);
 
   let updateDisplay: () => void = () => undefined;
 
@@ -150,7 +192,6 @@ export function createParameterField(
         if (state.mode !== "free") return;
         value = Boolean(el.checked);
         onChange(value);
-        queueMicrotask(announceError);
       });
       checkbox = el;
       body.appendChild(el);
@@ -162,7 +203,6 @@ export function createParameterField(
         if (state.mode !== "free") return;
         value = Boolean(el.checked);
         onChange(value);
-        queueMicrotask(announceError);
       });
       const text = document.createElement("span");
       text.textContent = control.label;
@@ -212,7 +252,6 @@ export function createParameterField(
         if (state.mode !== "free") return;
         value = String(el.value ?? "");
         onChange(value);
-        queueMicrotask(announceError);
       });
       select = el;
     } else {
@@ -228,7 +267,6 @@ export function createParameterField(
         if (state.mode !== "free") return;
         value = el.value;
         onChange(value);
-        queueMicrotask(announceError);
       });
       select = el;
     }
@@ -284,7 +322,6 @@ export function createParameterField(
         value = markup;
         renderPreview(markup);
         onChange(value);
-        queueMicrotask(announceError);
       });
     };
     preview.addEventListener("click", openEditor);
@@ -336,8 +373,6 @@ export function createParameterField(
       value = input.value;
       onChange(value);
     });
-    input.addEventListener("change", announceError);
-    input.addEventListener("blur", announceError);
 
     updateDisplay = () => {
       const next = String(state.mode === "forced" ? state.value : value);
@@ -353,16 +388,9 @@ export function createParameterField(
   };
 
   const applyError = () => {
-    const controlEl = body.querySelector("[id]");
-    if (controlEl) {
-      if (error) {
-        controlEl.setAttribute("aria-invalid", "true");
-      } else {
-        controlEl.removeAttribute("aria-invalid");
-      }
-    }
-    if (!error) announcedError = "";
-    field.title = error || control.description || "";
+    const controlEl = body.querySelector<HTMLElement>("[id]");
+    applyControlError(errorEl, controlEl, error);
+    field.title = control.description || "";
   };
 
   const refresh = (next: ParamState) => {
@@ -373,7 +401,7 @@ export function createParameterField(
     applyError();
   };
 
-  field.append(body);
+  field.append(body, errorEl);
   refresh(state);
 
   return {
@@ -501,7 +529,6 @@ export class ParameterPanel<T extends ParameterControl = ParameterControl> {
       if (!handle) continue;
       const message = handle.getError();
       if (!message) continue;
-      showValidationError(message);
       const target = handle.element.querySelector<HTMLElement>(
         '[aria-invalid="true"], input, select, textarea, button, [role="button"]',
       );
