@@ -5,6 +5,7 @@ import type {
 import type { FieldCheckEntry } from "@banyan/core/validation/itemFieldValidators";
 import { useL10n } from "../utils/locale";
 import { unwrapDialogIO } from "../utils/window";
+import { applyZoteroUIProperties } from "../utils/uiProperties";
 import type {
   ItemFieldCheckReport,
   ItemFieldValidatorDialogIO,
@@ -69,6 +70,7 @@ window.addEventListener("load", initDialog);
 window.addEventListener("unload", destroy);
 
 async function initDialog(): Promise<void> {
+  applyZoteroUIProperties();
   const io = unwrapDialogIO<ItemFieldValidatorDialogIO>(window.arguments?.[0]);
   if (!io) {
     log.error("window IO is missing");

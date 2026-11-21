@@ -7,6 +7,7 @@ import { pickDefaultStyleId } from "../modules/styleSelection";
 import { useL10n } from "../utils/locale";
 import { formatStyleUpdatedDate } from "../utils/styleUpdated";
 import { unwrapDialogIO } from "../utils/window";
+import { applyZoteroUIProperties } from "../utils/uiProperties";
 import type { StyleRequestData, StyleResponseData } from "../../typings/server";
 import { StyleSummary } from "../../typings/styleIndex";
 import type {
@@ -67,6 +68,7 @@ window.addEventListener("unload", () => {
 });
 
 async function initstyleDialog(): Promise<void> {
+  applyZoteroUIProperties();
   const arg = unwrapDialogIO<IO>(window.arguments?.[0]);
   if (!arg) {
     log.error("window IO is missing");

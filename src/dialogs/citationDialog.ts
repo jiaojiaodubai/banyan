@@ -26,6 +26,7 @@ import { getZoteroItemId, toBanyanItem } from "../modules/sandbox/items";
 import { useL10n } from "../utils/locale";
 import { getPref, setPref } from "../utils/prefs";
 import { unwrapDialogIO } from "../utils/window";
+import { applyZoteroUIProperties } from "../utils/uiProperties";
 import { createLogger } from "../utils/logger";
 
 const log = createLogger("citation-dialog");
@@ -206,6 +207,7 @@ window.addEventListener("unload", () => {
 });
 
 async function initCitationDialog(): Promise<void> {
+  applyZoteroUIProperties();
   try {
     io = unwrapDialogIO<IO>(window.arguments?.[0]);
     if (!io) {

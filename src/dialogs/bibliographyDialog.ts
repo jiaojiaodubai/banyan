@@ -14,6 +14,7 @@ import { getZoteroItemId } from "../modules/sandbox/items";
 import { RichTextEditor } from "../ui/richTextEditor";
 import { emptyRichText } from "@banyan/core/richText/richText";
 import { unwrapDialogIO } from "../utils/window";
+import { applyZoteroUIProperties } from "../utils/uiProperties";
 import { createLogger } from "../utils/logger";
 
 const log = createLogger("bibliography-dialog");
@@ -49,6 +50,7 @@ window.addEventListener("unload", () => {
 });
 
 async function initBibliographyDialog(): Promise<void> {
+  applyZoteroUIProperties();
   const arg = unwrapDialogIO<IO>(window.arguments?.[0]);
   if (!arg) {
     log.error("window IO is missing");
