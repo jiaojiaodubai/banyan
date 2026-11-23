@@ -65,7 +65,7 @@
     "chai": "^5.3.3",
     "changelogen": "^0.6.2",
     "dotenv": "^18.0.10",
-    "eslint": "^9.39.5",
+    "eslint": "^10.15.0",
     "mocha": "^11.8.0",
     "prettier": "^3.10.1",
     "std-env": "^4.3.0",
