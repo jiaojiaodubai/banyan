@@ -14,9 +14,9 @@ import { createRetargetScheduler } from "../utils/retargetScheduler";
 // Side-effect import: registers the custom element (a type import is dropped).
 import "../ui/itemEditor";
 import type { ItemEditor } from "../ui/itemEditor";
-import type { FieldValidationIssue } from "../ui/itemFieldEditor";
 import {
-  formatFieldCheckDetail,
+  blockingFieldIssues,
+  fieldValidationSignature,
   hasBlockingFieldChecks,
 } from "../utils/itemFieldCheckText";
 import { type ItemFieldCheckRun } from "../modules/itemFieldValidators";
@@ -275,27 +275,11 @@ function editorPaneMinWidth(): number {
   return editor ? Math.max(336, Math.ceil(editor.contentMinWidth) + 16) : 336;
 }
 
-function blockingIssues(run: ItemFieldCheckRun): FieldValidationIssue[] {
-  return run.checks
-    .filter((check) => check.status !== "pass")
-    .map((check) => ({
-      description: check.description,
-      detail: formatFieldCheckDetail(check),
-      status: check.status === "error" ? ("error" as const) : ("fail" as const),
-    }));
-}
-
-function validationSignature(issues: readonly FieldValidationIssue[]): string {
-  return issues
-    .map((issue) => `${issue.description}\u0000${issue.detail}`)
-    .join("\u0001");
-}
-
 function showValidation(run: ItemFieldCheckRun): void {
   const editor = getItemEditor();
   if (!editor) return;
-  const issues = blockingIssues(run);
-  pendingValidationSignature = validationSignature(issues);
+  const issues = blockingFieldIssues(run.checks);
+  pendingValidationSignature = fieldValidationSignature(issues);
   editor.showValidationIssues(issues);
 }
 
@@ -1451,8 +1435,8 @@ async function acceptDraft(): Promise<void> {
   }
   setBusy(false);
   if (run && hasBlockingFieldChecks(run.checks)) {
-    const issues = blockingIssues(run);
-    const signature = validationSignature(issues);
+    const issues = blockingFieldIssues(run.checks);
+    const signature = fieldValidationSignature(issues);
     if (pendingValidationSignature === signature) {
       if (!confirmSaveAnyway(issues.length)) {
         showValidation(run);

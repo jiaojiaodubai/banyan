@@ -21,8 +21,6 @@ import { useL10n } from "../utils/locale";
 import { createLogger } from "../utils/logger";
 import type { FieldValidationIssue } from "../utils/itemFieldCheckText";
 
-export type { FieldValidationIssue } from "../utils/itemFieldCheckText";
-
 const t = useL10n(["itemEditor.ftl"]);
 const log = createLogger("item-field-editor");
 
