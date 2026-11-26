@@ -5,6 +5,44 @@ Maintained by `pnpm changelog` (changelogen). Before a release, edit the
 top section as needed; `pnpm release` will then cut the version.
 -->
 
+## v0.6.0-beta.1 (2026-11-26)
+
+[compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.5.0...v0.6.0-beta.1)
+
+### 🚀 Enhancements
+
+- **item editor:** Add a unified editor for item fields, extra values, field
+  markup, and creators. Field row menus can open it at the relevant field or
+  creator, and style-defined field checks run before saving.
+- **multilingual items:** Reuse the full item editor when retyping an item,
+  including creator edits, field validation, and the option to return to
+  editing or save anyway.
+- **field presets:** Ask only for the missing preset value in a compact prompt;
+  empty values remain invalid and cancelling still aborts the action.
+
+### 🩹 Fixes
+
+- **parameter validation:** Keep invalid style-option, citation, and cite
+  controls aligned; show accessible inline errors, focus the first invalid
+  control, and keep cite popups within the viewport.
+- **dialogs:** Match Zotero's UI density and font-size preference in dialogs
+  with virtualized tables, including updates when the preference changes.
+
+### 💅 Styles
+
+- **breaking:** Style runtime contracts now come from `@banyan/core`. Styles
+  must use `STYLE_OPTIONS`, `CITATION_PARAMS`, and `CITE_PARAMS`; item ids are
+  opaque strings, rich values use the supported markup contract, and no legacy
+  compatibility aliases are provided.
+
+### 💅 Refactors
+
+- **core:** Move host-independent style loading, parameter resolution, output
+  normalization, units, rich-text compilation, and diagnostics into
+  `@banyan/core`; the plugin supplies Gecko sandbox capabilities and item
+  conversion.
+- **rich text:** Use the shared in-dialog editor for rich-text values.
+
 ## v0.5.0 (2026-11-18)
 
 [compare changes](https://github.com/jiaojiaodubai/banyan/compare/v0.4.0...v0.5.0)

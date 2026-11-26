@@ -1,7 +1,7 @@
 {
   "name": "banyan",
   "type": "module",
-  "version": "0.5.0",
+  "version": "0.6.0-beta.1",
   "packageManager": "pnpm@10.24.0",
   "description": "Fully customize citation styles using JavaScript in Zotero",
   "config": {
@@ -64,20 +64,20 @@
     "@eslint/js": "^10.0.1",
     "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.11",
     "@zotero-plugin/eslint-config": "^0.6.10",
     "adm-zip": "^0.6.1",
     "chai": "^6.3.0",
     "changelogen": "^0.6.2",
     "dotenv": "^18.0.10",
-    "eslint": "^10.13.0",
+    "eslint": "^10.15.0",
     "eslint-plugin-banyan-style": "https://github.com/jiaojiaodubai/banyan-toolchain/releases/download/v0.1.0/eslint-plugin-banyan-style-0.1.0.tgz?rev=3612d5b",
     "mocha": "^12.0.3",
-    "prettier": "^3.9.10",
+    "prettier": "^3.10.1",
     "std-env": "^4.3.0",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "zotero-plugin-scaffold": "^0.9.3",
+    "zotero-plugin-scaffold": "^0.9.4",
     "zotero-types": "4.1.3"
   },
   "prettier": {
