@@ -12,8 +12,14 @@ import { useL10n } from "../utils/locale";
 import { unwrapMultilingualDialogIO } from "../utils/multilingualDialogIO";
 import { createRetargetScheduler } from "../utils/retargetScheduler";
 // Side-effect import: registers the custom element (a type import is dropped).
-import "./multilingualItemEditor";
-import type { MultilingualItemEditor } from "./multilingualItemEditor";
+import "../ui/itemEditor";
+import type { ItemEditor } from "../ui/itemEditor";
+import type { FieldValidationIssue } from "../ui/itemFieldEditor";
+import {
+  formatFieldCheckDetail,
+  hasBlockingFieldChecks,
+} from "../utils/itemFieldCheckText";
+import { type ItemFieldCheckRun } from "../modules/itemFieldValidators";
 import type { ItemContentSnapshot } from "../../typings/multilingualItem";
 import type { MultilingualItemDialogIO as IO } from "../../typings/multilingualItemDialog";
 import { createLogger } from "../utils/logger";
@@ -22,7 +28,7 @@ const log = createLogger("multilingual-item-dialog");
 
 type SourceSnapshot = ItemContentSnapshot;
 
-const t = useL10n(["multilingualItemDialog.ftl"]);
+const t = useL10n(["multilingualItemDialog.ftl", "itemEditorDialog.ftl"]);
 const ATTACHMENT_PRIORITY: Record<string, number> = {
   pdf: 0,
   epub: 1,
@@ -44,6 +50,7 @@ let reloadGeneration = 0;
 let busy = false;
 // Guards `onAccept()` before `busy` rises; its first check is async.
 let accepting = false;
+let pendingValidationSignature: string | null = null;
 // Set before our own `window.close()` so the `close` guard lets it pass.
 let closing = false;
 // `reader.lastSidebarTab` captured on open and restored on dispose.
@@ -247,14 +254,83 @@ function initItemEditor(item: Zotero.Item): void {
   if (!editor) {
     throw new Error(t("multilingual-item-error-init"));
   }
+  editor.clearValidationIssues();
+  pendingValidationSignature = null;
   // Both at once: the single setters would rebuild the table twice.
   editor.configure(item, true);
+  window.setTimeout(updateEditorMinWidth, 0);
+}
+
+/** Let the editor's natural creator width drive the right pane. */
+function updateEditorMinWidth(): void {
+  const editor = getItemEditor();
+  const workspace = document.getElementById("workspace") as HTMLElement | null;
+  if (!editor || !workspace) return;
+  const minimum = Math.max(336, Math.ceil(editor.contentMinWidth) + 16);
+  workspace.style.setProperty("--item-info-content-width", `${minimum}px`);
+}
+
+function editorPaneMinWidth(): number {
+  const editor = getItemEditor();
+  return editor ? Math.max(336, Math.ceil(editor.contentMinWidth) + 16) : 336;
+}
+
+function blockingIssues(run: ItemFieldCheckRun): FieldValidationIssue[] {
+  return run.checks
+    .filter((check) => check.status !== "pass")
+    .map((check) => ({
+      description: check.description,
+      detail: formatFieldCheckDetail(check),
+      status: check.status === "error" ? ("error" as const) : ("fail" as const),
+    }));
+}
+
+function validationSignature(issues: readonly FieldValidationIssue[]): string {
+  return issues
+    .map((issue) => `${issue.description}\u0000${issue.detail}`)
+    .join("\u0001");
+}
+
+function showValidation(run: ItemFieldCheckRun): void {
+  const editor = getItemEditor();
+  if (!editor) return;
+  const issues = blockingIssues(run);
+  pendingValidationSignature = validationSignature(issues);
+  editor.showValidationIssues(issues);
+}
+
+function showValidationError(error: unknown): void {
+  pendingValidationSignature = null;
+  const message = error instanceof Error ? error.message : String(error);
+  Services.prompt.alert(
+    window as unknown as mozIDOMWindowProxy,
+    t("item-editor-validation-error-title"),
+    t("item-editor-validation-error-detail", { args: { message } }),
+  );
+}
+
+function confirmSaveAnyway(count: number): boolean {
+  return (
+    Zotero.Prompt.confirm({
+      window,
+      title: t("item-editor-validation-blocked-title"),
+      text: t("item-editor-validation-save-anyway-confirm", {
+        args: { count },
+      }),
+      button0: t("item-editor-validation-keep-editing"),
+      button1: t("item-editor-save-anyway"),
+      defaultButton: 0,
+    }) === 1
+  );
 }
 
 function bindEvents(): void {
-  document
-    .getElementById("accept-button")
-    ?.addEventListener("click", () => void onAccept());
+  document.getElementById("accept-button")?.addEventListener("click", () => {
+    void onAccept();
+  });
+  document.addEventListener("creator-layout-changed", () => {
+    window.setTimeout(updateEditorMinWidth, 0);
+  });
   document.getElementById("cancel-button")?.addEventListener("click", onCancel);
   document
     .getElementById("duplicate-use-existing")
@@ -1341,7 +1417,9 @@ async function acceptDraft(): Promise<void> {
   const activeSnapshot = sourceSnapshot;
   if (!activeSource || !activeDraft || !activeIO || !activeSnapshot) return;
   clearError();
-  getItemEditor()?.blurOpenField();
+  const editor = getItemEditor();
+  editor?.blurOpenField();
+  editor?.applyCreatorsTo(activeDraft);
 
   const language = normalizeLanguageCode(activeDraft.getField("language"));
   if (!language) {
@@ -1361,6 +1439,34 @@ async function acceptDraft(): Promise<void> {
     showError(t("multilingual-item-error-no-other-changes"), true);
     return;
   }
+
+  setBusy(true, t("item-editor-checking"));
+  let run: ItemFieldCheckRun | null;
+  try {
+    run = await addon.api.runItemFieldChecks(activeDraft);
+  } catch (error) {
+    setBusy(false);
+    showValidationError(error);
+    return;
+  }
+  setBusy(false);
+  if (run && hasBlockingFieldChecks(run.checks)) {
+    const issues = blockingIssues(run);
+    const signature = validationSignature(issues);
+    if (pendingValidationSignature === signature) {
+      if (!confirmSaveAnyway(issues.length)) {
+        showValidation(run);
+        return;
+      }
+      pendingValidationSignature = null;
+    } else {
+      showValidation(run);
+      return;
+    }
+  }
+  getItemEditor()?.clearValidationIssues();
+  pendingValidationSignature = null;
+
   try {
     if (
       !(await isSourceSessionCurrent(activeSource, activeSnapshot, activeDraft))
@@ -1444,10 +1550,8 @@ async function acceptDraft(): Promise<void> {
 }
 
 /** The editor element; bridges the markup's `HTMLElement` to its class. */
-function getItemEditor(): MultilingualItemEditor | null {
-  return document.getElementById(
-    "item-editor",
-  ) as MultilingualItemEditor | null;
+function getItemEditor(): ItemEditor | null {
+  return document.getElementById("item-editor") as ItemEditor | null;
 }
 
 function focusField(fieldName: string): void {
@@ -1585,16 +1689,16 @@ function onSplitPointerMove(event: PointerEvent): void {
   const workspace = document.getElementById("workspace") as HTMLElement | null;
   if (!workspace) return;
   const rect = workspace.getBoundingClientRect();
-  const splitterWidth = 5;
-  const editorPaneMinWidth = 336;
+  const splitterWidth = 1;
+  const minEditorWidth = editorPaneMinWidth();
   const leftWidth = Math.max(
     300,
     Math.min(
       event.clientX - rect.left,
-      rect.width - splitterWidth - editorPaneMinWidth,
+      rect.width - splitterWidth - minEditorWidth,
     ),
   );
-  workspace.style.gridTemplateColumns = `${leftWidth}px ${splitterWidth}px minmax(${editorPaneMinWidth}px, 1fr)`;
+  workspace.style.gridTemplateColumns = `${leftWidth}px ${splitterWidth}px minmax(${minEditorWidth}px, 1fr)`;
 }
 
 function onSplitPointerUp(event: PointerEvent): void {

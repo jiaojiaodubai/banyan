@@ -28,7 +28,10 @@ import {
 import { ensureStyleEditorRuntimeAssets } from "./modules/styleEditor";
 import { initializeServer, shutdownServer } from "./modules/server";
 import { DIALOG_WINDOW_NAME } from "./modules/multilingualItem";
-import { closeItemFieldValidatorWindow } from "./modules/itemFieldValidators";
+import {
+  closeItemFieldValidatorWindow,
+  runItemFieldChecks,
+} from "./modules/itemFieldValidators";
 import { findWindowByName } from "./utils/window";
 import { createLogger } from "./utils/logger";
 import { runStartupSteps } from "./utils/startup";
@@ -39,6 +42,7 @@ function registerAPIs(): void {
   addon.api.getParamDeclarations = getParamDeclarations;
   addon.api.reloadStyles = loadStyles;
   addon.api.generate = generateStyle;
+  addon.api.runItemFieldChecks = runItemFieldChecks;
 }
 
 async function onStartup() {

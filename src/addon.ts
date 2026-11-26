@@ -13,6 +13,7 @@ import {
   getParamDeclarations,
   loadStyles,
 } from "./modules/styles";
+import { runItemFieldChecks } from "./modules/itemFieldValidators";
 
 class Addon {
   public data: {
@@ -50,6 +51,8 @@ class Addon {
     generate: typeof generateStyle;
     /** Rebuild the style index in the main-window bundle (reload from disk). */
     reloadStyles: typeof loadStyles;
+    /** Run the effective style's field checks in the main-window bundle. */
+    runItemFieldChecks: typeof runItemFieldChecks;
   };
 
   constructor() {
@@ -71,6 +74,7 @@ class Addon {
       getParamDeclarations,
       generate: generateStyle,
       reloadStyles: loadStyles,
+      runItemFieldChecks,
     };
   }
 }

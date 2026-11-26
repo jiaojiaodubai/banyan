@@ -34,7 +34,7 @@ type PresetRoute =
   | { kind: "extra"; key: string; writeKey: string };
 
 export const fieldPresetsItemMenu: ItemMenuContribution = {
-  id: "field-presets",
+  id: "fill-preset-fields",
   build() {
     const submenu = buildFieldPresetSubmenu();
     return submenu ? [submenu] : null;
@@ -42,7 +42,7 @@ export const fieldPresetsItemMenu: ItemMenuContribution = {
 };
 
 /**
- * The "Quick Marks" submenu, or null when the effective style declares none.
+ * The "Fill Preset Fields" submenu, or null when the effective style declares none.
  * `onShowing` hides the presets that do not apply, since the selection only
  * exists once the popup opens.
  */
@@ -53,7 +53,7 @@ function buildFieldPresetSubmenu(): ItemMenuData | null {
   }
   return {
     menuType: "submenu",
-    l10nID: getLocaleID("menuitem-field-presets"),
+    l10nID: getLocaleID("menuitem-fill-preset-fields"),
     onShowing: (_event, context) => {
       try {
         context.setVisible(presets.some(hasPresetTargets));
@@ -99,6 +99,26 @@ function getFieldPresets(): readonly IndexedFieldPreset[] {
     return [];
   }
   return getIndexedFieldPresets(styleId);
+}
+
+/**
+ * Menu label a style gave to a preset that writes this extra key. Styles have
+ * no locale concept, so the returned text is exactly what the style declared;
+ * the caller falls back to the item's raw key when nothing matches.
+ */
+export function getExtraKeyLabel(key: string): string | undefined {
+  const normalized = normalizeExtraKey(key);
+  if (!normalized) return undefined;
+  for (const preset of getFieldPresets()) {
+    if (
+      Object.keys(preset.fields).some(
+        (fieldKey) => normalizeExtraKey(fieldKey) === normalized,
+      )
+    ) {
+      return preset.label;
+    }
+  }
+  return undefined;
 }
 
 /** Selected items a preset applies to (editable, and accepted by `visible`). */

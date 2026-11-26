@@ -112,6 +112,15 @@ window/bundle。窗口关闭后实例的执行上下文已经不可用：`genera
 - 可执行实例的缓存必须留在创建它的 bundle 里（模块作用域），不要放进跨窗口共享的
   `addon.data`；共享索引只保存可序列化元数据。实现见 `src/modules/styles.ts` 的
   `styleInstances` 与 `src/utils/styleInstanceCache.ts`。
+- 样式声明的条目菜单可执行项（`ITEM_FIELD_PRESETS.visible`、`ITEM_FIELD_VALIDATORS.check`）
+  也只留在主窗口 bundle 的模块作用域（`indexedFieldPresets` / `indexedItemFieldValidators`）；
+  共享的 `StyleFile` 只记录 `hasFieldPresets` 与 `itemFieldValidatorTypes` 这类可序列化
+  的声明形状。运行时测试 `test/styleIndexIsolation.test.ts` 会递归检查共享索引中没有函数、
+  窗口或文档引用。
+- 对话框不得直接调用 `loadStyles()` / `indexLoadedStyle()`：这类操作会在对话框 realm
+  里创建闭包。保存/导入后通过 `addon.api.reloadStyles()` 请求主窗口重建索引；item editor
+  的保存期字段检查通过 `addon.api.runItemFieldChecks()` 在主窗口执行并返回纯数据报告。
+  导入流程只写文件，由调用方请求重载。
 - 索引变化时递增共享的 `epoch`（`addon.data.styles.epoch`），各窗口发现 epoch 变化后
   丢弃自己的实例，下一次读取时从文件重建。
 - 对话框只需要可序列化数据时，优先走主窗口 API；不要把对话框内创建的实例交给主窗口。

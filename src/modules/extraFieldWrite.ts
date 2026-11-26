@@ -1,18 +1,5 @@
 import { openDialogWindow } from "../utils/window";
-import { getLocaleID, useL10n } from "../utils/locale";
-import { showSimpleMessage } from "../utils/message";
-import { getRegularSelection } from "../utils/selection";
-import {
-  isValidExtraKey,
-  normalizeExtraKey,
-  toTitleCaseExtraKey,
-} from "@banyan/core/items/extra";
-import {
-  analyzeExtraField,
-  mergeExtraField,
-  needsConflictDecision,
-} from "@banyan/core/items/extraField";
-import type { ItemMenuContribution } from "../../typings/menu";
+import { useL10n } from "../utils/locale";
 import { createLogger } from "../utils/logger";
 
 const log = createLogger("extra-field-write");
@@ -71,67 +58,6 @@ export async function recoverItemAfterFailedSave(
   restoreFallback();
 }
 
-export const writeExtraFieldItemMenu: ItemMenuContribution = {
-  id: "write-extra-field",
-  build() {
-    return [
-      {
-        menuType: "menuitem",
-        l10nID: getLocaleID("menuitem-write-extra-field"),
-        onShowing: (_event, context) => {
-          const { canEdit, items } = getRegularSelection();
-          context.setVisible(canEdit && items.length > 0);
-        },
-        onCommand: () => {
-          void openWriteExtraFieldDialog();
-        },
-      },
-    ];
-  },
-};
-
-async function openWriteExtraFieldDialog(): Promise<void> {
-  const pane = Zotero.getActiveZoteroPane();
-  if (!pane) {
-    return;
-  }
-  const selectedItems = pane
-    .getSelectedItems()
-    .filter((item) => item.isRegularItem());
-
-  if (selectedItems.length === 0) {
-    return;
-  }
-
-  return new Promise((resolve) => {
-    const io: ExtraFieldDialogIO = {
-      result: null,
-      deferred: {
-        promise: Promise.resolve(),
-        resolve: async () => {
-          if (io.result) {
-            try {
-              await batchWriteExtraField(selectedItems, io.result);
-            } catch (e) {
-              log.error("Failed to write extra fields in batch", e);
-              showSimpleMessage(
-                t("extra-field-write-failed", {
-                  args: {
-                    message: e instanceof Error ? e.message : String(e),
-                  },
-                }),
-              );
-            }
-          }
-          resolve();
-        },
-      },
-    };
-
-    openExtraFieldDialog(io);
-  });
-}
-
 /** Ask for one field's value with its key fixed, reusing the write dialog. */
 export async function promptExtraFieldValue(options: {
   key: string;
@@ -153,104 +79,6 @@ export async function promptExtraFieldValue(options: {
 
     openExtraFieldDialog(io);
   });
-}
-
-/**
- * Write one key to many items, asking once per conflicting value.
- */
-async function batchWriteExtraField(
-  items: Zotero.Item[],
-  payload: ExtraFieldDialogResult,
-): Promise<void> {
-  // Write keys in Zotero's preferred title-case form (e.g. "Type",
-  // "Citation Key"); matching still uses the lowercase kebab normalization.
-  const writeKey = toTitleCaseExtraKey(payload.key);
-  const value = payload.value;
-  const normalizedKey = normalizeExtraKey(writeKey);
-  if (!normalizedKey || !isValidExtraKey(payload.key)) {
-    showSimpleMessage(t("extra-field-error-invalid-key"));
-    return;
-  }
-
-  let autoAction: Exclude<ConflictAction, "cancel"> | null = null;
-  let updatedCount = 0;
-  let skippedCount = 0;
-  let aborted = false;
-
-  for (const item of items) {
-    const originalExtra = String(item.getField("extra") || "");
-    const analysis = analyzeExtraField(originalExtra, normalizedKey);
-    const alreadyWritten =
-      analysis.values.length === 1 && analysis.values[0] === value;
-
-    // Re-applying the value already there is a no-op; skip before asking so
-    // the write neither prompts nor reorders `extra` (pairs move to the top
-    // block, which would otherwise touch an item that needs no change).
-    if (!alreadyWritten && needsConflictDecision(analysis.values, value)) {
-      let action: ConflictAction;
-      if (autoAction) {
-        action = autoAction;
-      } else {
-        const decision = promptExtraConflict(
-          item,
-          writeKey,
-          analysis.values,
-          value,
-        );
-        if (decision.action === "cancel") {
-          aborted = true;
-          break;
-        }
-        if (decision.applyToRemaining) {
-          autoAction = decision.action;
-        }
-        action = decision.action;
-      }
-
-      if (action === "skip") {
-        skippedCount++;
-        continue;
-      }
-    } else if (alreadyWritten) {
-      skippedCount++;
-      continue;
-    }
-
-    const nextExtra = mergeExtraField(
-      originalExtra,
-      writeKey,
-      normalizedKey,
-      value,
-    );
-
-    if (nextExtra === originalExtra) {
-      skippedCount++;
-      continue;
-    }
-
-    item.setField("extra", nextExtra);
-    try {
-      await item.saveTx();
-    } catch (error) {
-      // The item keeps only what is stored: the write never happened.
-      await recoverItemAfterFailedSave(item, () => {
-        item.setField("extra", originalExtra);
-      });
-      throw error;
-    }
-    updatedCount++;
-  }
-
-  showSimpleMessage(
-    t("extra-field-write-summary", {
-      args: {
-        updated: updatedCount,
-        skipped: skippedCount,
-        failed: 0,
-        aborted: aborted ? 1 : 0,
-      },
-    }),
-  );
 }
 
 /**

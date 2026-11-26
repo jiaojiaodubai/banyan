@@ -34,6 +34,13 @@ function draftExtensions(draft: CreatorsExtDraft): CreatorExtFields {
   return fields;
 }
 
+/** Empty extension values for a new creator row. */
+export function emptyCreatorExtensions(): Record<CreatorExtField, string> {
+  return Object.fromEntries(
+    CREATOR_EXT_FIELDS.map((field) => [field, ""]),
+  ) as Record<CreatorExtField, string>;
+}
+
 export type CreatorsExtWrite = {
   /** Creator list for `setCreators()`, in final row order. */
   creators: _ZoteroTypes.Item.CreatorJSON[];

@@ -19,6 +19,8 @@ declare namespace _ZoteroTypes {
     tooltipText: string;
     /** The value a field held when it was focused; empty when not focused. */
     initialValue: string;
+    /** The internal input/textarea; used to start autocomplete searches. */
+    ref: HTMLInputElement | HTMLTextAreaElement | null;
     autocomplete: _ZoteroTypes.EditableText.AutocompleteOptions | null;
     /** Set by the reader for creator autocomplete; see `itemBox.js`. */
     onTextEntered?: () => boolean;
@@ -31,6 +33,8 @@ declare namespace _ZoteroTypes {
 
   namespace EditableText {
     interface AutocompleteOptions {
+      minResultsForPopup?: number;
+      noRollupOnEmptySearch?: boolean;
       completeSelectedIndex?: boolean;
       ignoreBlurWhileSearching?: boolean;
       search?: string;

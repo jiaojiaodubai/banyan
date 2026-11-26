@@ -1,7 +1,9 @@
 import { createOutputItemMenu } from "./createOutput";
-import { writeExtraFieldItemMenu } from "./extraFieldWrite";
 import { createMultilingualItemItemMenu } from "./multilingualItem";
-import { creatorsExtItemMenu, registerCreatorsExtRowMenu } from "./creatorsExt";
+import {
+  itemEditorItemMenu,
+  registerItemEditorRowMenus,
+} from "./itemEditorWindow";
 import { fieldPresetsItemMenu } from "./itemFieldPresets";
 import { itemFieldValidatorsItemMenu } from "./itemFieldValidators";
 import { relateItemsItemMenu } from "./relations";
@@ -42,11 +44,10 @@ let itemMenuKey: string | false = false;
  * The entries of the "Banyan" item submenu, in registration order. Every
  * feature owns its own entry (label, applicability, command); this module only
  * collects them and keeps the registration in sync. The order follows how often
- * the actions are used: creators first, rendering last.
+ * the actions are used: item editing first, rendering last.
  */
 const ITEM_MENU_CONTRIBUTIONS: readonly ItemMenuContribution[] = [
-  creatorsExtItemMenu,
-  writeExtraFieldItemMenu,
+  itemEditorItemMenu,
   fieldPresetsItemMenu,
   createMultilingualItemItemMenu,
   relateItemsItemMenu,
@@ -108,7 +109,7 @@ export function registerToolsMenu(): void {
 /**
  * (Re)register the item context menu, dropping the previous registration first.
  * Zotero injects the current menu the next time the popup opens, which is how
- * the "Quick Marks" entries follow the style index and the preferences.
+ * the "Fill Preset Fields" entries follow the style index and the preferences.
  */
 export function refreshItemMenu(): void {
   const contributedMenus = buildContributedMenus();
@@ -141,5 +142,5 @@ export function refreshItemMenu(): void {
 export function registerContextMenu(): void {
   onStyleIndexChanged(refreshItemMenu);
   refreshItemMenu();
-  registerCreatorsExtRowMenu();
+  registerItemEditorRowMenus();
 }

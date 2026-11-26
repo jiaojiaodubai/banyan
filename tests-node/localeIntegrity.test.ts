@@ -10,23 +10,30 @@ import path from "node:path";
  */
 
 const LOCALES = ["en-US", "zh-CN"];
-const DIALOG_FTL = "creatorsExtDialog.ftl";
-const DIALOG_SCRIPT = "src/dialogs/creatorsExtDialog.ts";
-const DIALOG_MARKUP = "addon/content/creatorsExtDialog.xhtml";
+const DIALOG_FTL = "itemEditorDialog.ftl";
+const COMPONENT_FTL = "itemEditor.ftl";
+const DIALOG_SCRIPT = "src/dialogs/itemEditorDialog.ts";
+const CREATOR_SCRIPT = "src/ui/creatorEditor.ts";
+const FIELD_SCRIPT = "src/ui/itemFieldEditor.ts";
+const DIALOG_MARKUP = "addon/content/itemEditorDialog.xhtml";
 
 /** Ids the window asks for, in the source (unprefixed) form. */
 function usedDialogMessageIds(): Set<string> {
-  const script = readFileSync(path.resolve(DIALOG_SCRIPT), "utf8")
+  const script = [DIALOG_SCRIPT, CREATOR_SCRIPT, FIELD_SCRIPT]
+    .map((file) => readFileSync(path.resolve(file), "utf8"))
     // A logger's module name is a label for output lines, not a message id.
+    .join("\n")
     .replace(/createLogger\("[^"]*"\)/g, "");
   const markup = readFileSync(path.resolve(DIALOG_MARKUP), "utf8");
   const ids = new Set<string>();
   // Literals, including the ones picked with a ternary in `createExtensionInput`.
-  for (const match of script.matchAll(/"(creators-ext-[a-z0-9-]+)"/g)) {
+  for (const match of script.matchAll(
+    /"((?:item|creator)-editor-[a-z0-9-]+)"/g,
+  )) {
     ids.add(match[1]);
   }
   for (const match of markup.matchAll(
-    /data-l10n-id="(creators-ext-[a-z0-9-]+)"/g,
+    /data-l10n-id="((?:item|creator)-editor-[a-z0-9-]+)"/g,
   )) {
     ids.add(match[1]);
   }
@@ -46,7 +53,11 @@ function definedMessageIds(ftl: string): Set<string> {
 }
 
 function dialogFtl(locale: string): string {
-  return readFileSync(path.resolve("addon/locale", locale, DIALOG_FTL), "utf8");
+  return [DIALOG_FTL, COMPONENT_FTL]
+    .map((name) =>
+      readFileSync(path.resolve("addon/locale", locale, name), "utf8"),
+    )
+    .join("\n");
 }
 
 function allFtlFiles(): string[] {
@@ -114,7 +125,7 @@ function messageBlock(ftl: string, id: string): string[] | null {
 }
 
 describe("locale l10n integrity", function () {
-  describe("creators-ext window messages", function () {
+  describe("item editor window messages", function () {
     it("defines every message the window asks for", function () {
       const ids = usedDialogMessageIds();
       assert.isNotEmpty(ids, "expected message ids in the dialog sources");
